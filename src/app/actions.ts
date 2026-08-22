@@ -65,6 +65,8 @@ import {
 } from "@/features/claims/service";
 import { toPublicError } from "@/shared/errors/app-error";
 import type { ActionResult } from "@/shared/result";
+import { isAuthEnabled } from "@/features/auth/go-user-system";
+import { requireAuthenticatedUser } from "@/features/auth/session";
 
 function fieldErrors(error: z.ZodError): Record<string, string[]> {
   const output: Record<string, string[]> = {};
@@ -81,6 +83,16 @@ async function runAction<TInput, TOutput>(
   operation: (input: TInput) => Promise<TOutput>,
 ): Promise<ActionResult<TOutput>> {
   const requestId = crypto.randomUUID();
+  if (isAuthEnabled() && !(await requireAuthenticatedUser())) {
+    return {
+      ok: false,
+      error: {
+        code: "AUTH_REQUIRED",
+        message: "登录会话已失效，请重新登录。",
+        requestId,
+      },
+    };
+  }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     return {

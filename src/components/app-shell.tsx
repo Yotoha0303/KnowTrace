@@ -3,12 +3,15 @@ import { Archive, BookMarked, Inbox, Scale, Search, Settings2 } from "lucide-rea
 
 import type { CategoryDTO } from "@/features/capture/queries";
 import { CategoryCreator } from "@/components/category-creator";
+import { LogoutButton } from "@/components/logout-button";
 
 export function AppShell({
   categories,
+  user,
   children,
 }: Readonly<{
   categories: CategoryDTO[];
+  user: null | { id: number; username: string; nickname: string };
   children: React.ReactNode;
 }>) {
   return (
@@ -63,6 +66,13 @@ export function AppShell({
           <BookMarked size={16} />
           <p>AI 只提出候选。可复用结论必须经过来源检查、证据采纳和人工判断。</p>
         </div>
+        {user ? (
+          <div className="sidebar-user">
+            <span>{user.nickname || user.username}</span>
+            <small>@{user.username}</small>
+            <LogoutButton />
+          </div>
+        ) : null}
       </aside>
       <main className="main-content">{children}</main>
     </div>

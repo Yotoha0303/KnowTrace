@@ -6,9 +6,9 @@ const baseURL = `http://localhost:${port}`;
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
-  // The P0 product intentionally has one shared data domain and no per-test
-  // workspace. Serial browser tests prevent global revalidation and cleanup
-  // from one scenario racing another scenario.
+  // The product currently has one shared knowledge domain even when optional
+  // authentication is enabled. Serial browser tests prevent global
+  // revalidation and cleanup from one scenario racing another scenario.
   workers: 1,
   retries: 0,
   reporter: "html",

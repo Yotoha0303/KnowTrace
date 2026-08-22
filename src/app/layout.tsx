@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { connection } from "next/server";
 
 import { listCategories } from "@/features/capture/queries";
 import { AppShell } from "@/components/app-shell";
+import { isAuthEnabled } from "@/features/auth/go-user-system";
 
 import "./globals.css";
 
@@ -14,13 +16,37 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const requestHeaders = await headers();
+  const authEnabled = isAuthEnabled();
+  const loginPage = requestHeaders.get("x-knowtrace-login-page") === "1";
+  const userId = requestHeaders.get("x-knowtrace-user-id");
+  const user = userId
+    ? {
+        id: Number(userId),
+        username: decodeURIComponent(
+          requestHeaders.get("x-knowtrace-username") ?? "",
+        ),
+        nickname: decodeURIComponent(
+          requestHeaders.get("x-knowtrace-nickname") ?? "",
+        ),
+      }
+    : null;
+
+  if (authEnabled && (loginPage || !user)) {
+    return (
+      <html lang="zh-CN">
+        <body>{children}</body>
+      </html>
+    );
+  }
+
   await connection();
   const categories = await listCategories();
 
   return (
     <html lang="zh-CN">
       <body>
-        <AppShell categories={categories}>{children}</AppShell>
+        <AppShell categories={categories} user={user}>{children}</AppShell>
       </body>
     </html>
   );

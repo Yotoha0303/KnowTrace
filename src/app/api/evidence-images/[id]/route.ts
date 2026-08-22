@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
 
 import { readEvidenceImage } from "@/features/claims/image-storage";
+import { isAuthEnabled } from "@/features/auth/go-user-system";
+import { requireAuthenticatedUser } from "@/features/auth/session";
 import { db } from "@/server/db/client";
 import { evidenceAttachments } from "@/server/db/schema";
 
@@ -11,6 +13,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (isAuthEnabled() && !(await requireAuthenticatedUser())) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
     return new Response("Not found", { status: 404 });

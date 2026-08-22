@@ -76,6 +76,27 @@ a { color: inherit; text-decoration: none; }
 .sidebar-note { display: flex; flex: 0 0 auto; gap: 10px; margin-top: 16px; padding: 14px; color: #9eaaa2; background: rgb(255 255 255 / 5%); border: 1px solid rgb(255 255 255 / 7%); border-radius: 12px; }
 .sidebar-note svg { flex: 0 0 auto; color: var(--accent); }
 .sidebar-note p { margin: 0; font-size: 11px; line-height: 1.6; }
+.sidebar-user { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; margin-top: 10px; padding: 11px 12px; color: #dfe7e1; background: rgb(255 255 255 / 5%); border: 1px solid rgb(255 255 255 / 8%); border-radius: 10px; }
+.sidebar-user span, .sidebar-user small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user span { font-size: 11px; font-weight: 800; }
+.sidebar-user small { color: #839088; font-size: 9px; }
+.sidebar-logout { grid-row: 1 / 3; grid-column: 2; display: inline-flex; align-items: center; gap: 4px; padding: 6px 7px; color: #aeb9b2; background: transparent; border: 1px solid rgb(255 255 255 / 10%); border-radius: 7px; font-size: 9px; cursor: pointer; }
+.sidebar-logout:hover:not(:disabled) { color: white; border-color: rgb(255 255 255 / 20%); }
+.sidebar-logout:disabled { opacity: .5; cursor: wait; }
+
+.login-page { min-height: 100vh; display: grid; place-items: center; padding: 28px; background: radial-gradient(circle at 75% 18%, rgb(201 255 100 / 24%), transparent 24rem); }
+.login-card { width: min(430px, 100%); display: grid; gap: 15px; padding: clamp(27px, 5vw, 42px); background: rgb(255 255 255 / 78%); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); backdrop-filter: blur(10px); }
+.login-card > .brand-mark { margin-bottom: 7px; }
+.login-card .eyebrow { margin: 0; }
+.login-card h1 { margin: -6px 0 0; font: 650 clamp(34px, 8vw, 49px)/1.05 Georgia, "Songti SC", serif; letter-spacing: -.045em; }
+.login-card > p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.login-card > label { display: grid; gap: 7px; color: #536059; font-size: 11px; font-weight: 800; }
+.login-card > label > input, .input-with-icon { width: 100%; min-height: 44px; padding: 0 12px; color: var(--ink); background: white; border: 1px solid #d8dcd4; border-radius: 9px; outline: none; }
+.login-card > label > input:focus, .input-with-icon:focus-within { border-color: #91a679; box-shadow: 0 0 0 3px rgb(201 255 100 / 18%); }
+.input-with-icon { display: flex; align-items: center; gap: 9px; color: #758079; }
+.input-with-icon input { min-width: 0; flex: 1; padding: 11px 0; color: var(--ink); background: transparent; border: 0; outline: none; }
+.login-card .button { min-height: 44px; margin-top: 3px; }
+.login-message { min-height: 20px; color: #69746d !important; font-size: 10px !important; text-align: center; }
 
 .main-content { min-width: 0; }
 .page-shell { width: min(1180px, 100%); margin: 0 auto; padding: 52px clamp(24px, 5vw, 76px) 80px; }
@@ -588,6 +609,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
   .sidebar { position: static; width: 100%; height: auto; padding: 17px; }
   .brand { margin: 0 0 13px; }
   .brand small, .sidebar-section, .sidebar-note { display: none; }
+  .sidebar-user { margin-top: 0; }
   .nav-list { display: flex; }
   .page-shell { padding: 30px 17px 60px; }
   .page-header { display: block; }

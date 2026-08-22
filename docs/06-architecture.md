@@ -8,7 +8,8 @@
 
 ```mermaid
 flowchart LR
-    BROWSER["浏览器"] --> NEXT["Next.js App Router"]
+    BROWSER["浏览器"] --> NEXT["Next.js App Router / Auth BFF"]
+    NEXT --> AUTH["go-user-system"]
     NEXT --> SERVICE["Application Services"]
     SERVICE --> DB["PostgreSQL"]
     SERVICE --> AI["AI Provider Adapters"]
@@ -130,6 +131,9 @@ P0 采用“主动触发、请求内等待、持久化 Run”的简单模式：
 
 ```text
 DATABASE_URL
+AUTH_ENABLED
+AUTH_SERVICE_URL
+AUTH_COOKIE_SECURE
 AI_DEFAULT_PROVIDER
 OPENAI_API_KEY
 OPENAI_MODEL
@@ -155,7 +159,7 @@ const nextConfig = {
 }
 ```
 
-Compose 服务：
+KnowTrace Compose 服务：
 
 ```text
 app
@@ -163,6 +167,8 @@ postgres
 ```
 
 首版单实例，不引入 Redis、消息队列和共享 ISR Cache。页面以动态数据读取为主，避免为简单内部工具增加复杂缓存一致性问题。
+
+可选认证采用独立 go-user-system（Go、MySQL、Redis）。浏览器只访问 KnowTrace 同源 BFF，access/refresh token 都保存在 HttpOnly Cookie；Proxy 执行页面前置门禁，Server Action 和私有图片 Route Handler再独立授权。详细边界见 ADR-0013。
 
 ## 9. GitHub 项目复用策略
 
