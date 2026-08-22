@@ -67,7 +67,7 @@ export function AppShell({
 
         <div className="sidebar-note">
           <BookMarked size={16} />
-          <p>AI 只提出候选。可复用结论必须经过来源检查、证据采纳和人工判断。</p>
+          <p>AI 候选需来源检查与人工判断</p>
         </div>
         {user ? (
           <div className="sidebar-user">

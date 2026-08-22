@@ -35,7 +35,7 @@ a { color: inherit; text-decoration: none; }
 
 ::selection { color: var(--dark); background: var(--accent); }
 
-.app-frame { min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
+.app-frame { min-height: 100vh; display: grid; grid-template-columns: 256px minmax(0, 1fr); }
 
 .sidebar {
   position: sticky;
@@ -43,40 +43,40 @@ a { color: inherit; text-decoration: none; }
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 30px 20px 22px;
+  padding: 24px 16px 16px;
   color: #ecf1ed;
   background: var(--dark);
   border-right: 1px solid rgb(255 255 255 / 8%);
 }
 
-.brand { display: flex; align-items: center; gap: 12px; margin: 0 6px 34px; }
+.brand { display: flex; align-items: center; gap: 11px; margin: 0 6px 24px; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; color: var(--dark); background: var(--accent); border-radius: 11px; font: 800 20px/1 Georgia, serif; transform: rotate(-3deg); }
 .brand strong, .brand small { display: block; }
 .brand strong { font: 700 18px/1.2 Georgia, "Songti SC", serif; letter-spacing: -.02em; }
 .brand small { margin-top: 3px; color: #8f9b94; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
 
-.nav-list { display: grid; gap: 5px; }
-.nav-list a, .category-nav a { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: 9px; color: #bcc5bf; font-size: 14px; transition: .18s ease; }
+.nav-list { display: grid; gap: 2px; }
+.nav-list a, .category-nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; color: #bcc5bf; font-size: 14px; transition: .18s ease; }
 .nav-list a:hover, .category-nav a:hover { color: white; background: rgb(255 255 255 / 7%); transform: translateX(2px); }
-.sidebar-section { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; margin-top: 28px; }
-.sidebar-heading { display: flex; justify-content: space-between; align-items: center; padding: 0 10px 9px; color: #738078; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.category-nav { display: grid; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.sidebar-section { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; margin-top: 20px; padding-top: 14px; border-top: 1px solid rgb(255 255 255 / 7%); }
+.sidebar-heading { display: flex; justify-content: space-between; align-items: center; padding: 0 9px 7px; color: #738078; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.category-nav { display: grid; flex: 1 1 auto; align-content: start; gap: 2px; min-height: 0; padding-right: 2px; overflow-y: auto; scrollbar-color: rgb(255 255 255 / 16%) transparent; scrollbar-width: thin; }
 .category-nav a { justify-content: space-between; }
 .category-nav a span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.category-nav a small { display: grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px; color: #829087; background: rgb(255 255 255 / 6%); border-radius: 10px; }
+.category-nav a small { display: grid; place-items: center; min-width: 21px; height: 19px; padding: 0 6px; color: #829087; background: rgb(255 255 255 / 6%); border-radius: 10px; }
 .sidebar-empty { margin: 6px 10px 12px; color: #75827a; font-size: 13px; }
 
-.category-create { position: relative; display: grid; flex: 0 0 auto; grid-template-columns: 1fr 34px; gap: 6px; margin-top: 9px; }
-.category-create input { min-width: 0; padding: 8px 10px; color: white; background: rgb(255 255 255 / 6%); border: 1px solid rgb(255 255 255 / 10%); border-radius: 8px; outline: none; }
+.category-create { position: relative; display: grid; flex: 0 0 auto; grid-template-columns: 1fr 34px; gap: 6px; margin-top: 7px; }
+.category-create input { min-width: 0; padding: 7px 10px; color: white; background: rgb(255 255 255 / 6%); border: 1px solid rgb(255 255 255 / 10%); border-radius: 8px; outline: none; }
 .category-create input:focus { border-color: var(--accent); }
 .category-create button { display: grid; place-items: center; color: var(--dark); background: var(--accent); border: 0; border-radius: 8px; cursor: pointer; }
 .category-create button:disabled { opacity: .4; cursor: default; }
 .category-create .form-error { grid-column: 1 / -1; }
 
-.sidebar-note { display: flex; flex: 0 0 auto; gap: 10px; margin-top: 16px; padding: 14px; color: #9eaaa2; background: rgb(255 255 255 / 5%); border: 1px solid rgb(255 255 255 / 7%); border-radius: 12px; }
+.sidebar-note { display: flex; flex: 0 0 auto; gap: 8px; align-items: center; margin-top: 12px; padding: 9px 10px; color: #9eaaa2; background: rgb(255 255 255 / 4%); border: 1px solid rgb(255 255 255 / 7%); border-radius: 10px; }
 .sidebar-note svg { flex: 0 0 auto; color: var(--accent); }
-.sidebar-note p { margin: 0; font-size: 11px; line-height: 1.6; }
-.sidebar-user { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; margin-top: 10px; padding: 11px 12px; color: #dfe7e1; background: rgb(255 255 255 / 5%); border: 1px solid rgb(255 255 255 / 8%); border-radius: 10px; }
+.sidebar-note p { overflow: hidden; margin: 0; font-size: 9px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; align-items: center; margin-top: 8px; padding: 9px 10px; color: #dfe7e1; background: rgb(255 255 255 / 5%); border: 1px solid rgb(255 255 255 / 8%); border-radius: 10px; }
 .sidebar-user-link { min-width: 0; display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 5px; align-items: center; }
 .sidebar-user-link svg { grid-row: 1 / 3; color: var(--accent); }
 .sidebar-user-link span, .sidebar-user-link small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -826,6 +826,15 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
   .subject-index-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .account-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .account-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-height: 900px) and (min-width: 721px) {
+  .sidebar { padding-block: 18px 14px; }
+  .brand { margin-bottom: 16px; }
+  .brand small { display: none; }
+  .nav-list a { padding-block: 7px; }
+  .sidebar-section { margin-top: 14px; padding-top: 11px; }
+  .sidebar-note { padding-block: 7px; }
 }
 
 @media (max-width: 720px) {

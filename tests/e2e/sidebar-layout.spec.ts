@@ -7,6 +7,19 @@ test("sidebar keeps category controls clear of the reliability note", async ({ p
   });
   await page.setViewportSize({ width: 1000, height: 700 });
   await page.goto("/");
+  if (new URL(page.url()).pathname === "/login") {
+    const username = process.env.AUTH_E2E_USERNAME;
+    const password = process.env.AUTH_E2E_PASSWORD;
+    if (!username || !password) {
+      throw new Error("authentication is enabled; provide AUTH_E2E_USERNAME and AUTH_E2E_PASSWORD");
+    }
+    await page.getByLabel("用户名").fill(username);
+    await page.getByLabel("密码", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await page.waitForLoadState("networkidle");
+    consoleErrors.length = 0;
+  }
   await expect(page.getByLabel("新分类名称")).toBeVisible();
 
   await page.locator(".category-nav").evaluate((navigation) => {
