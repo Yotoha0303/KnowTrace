@@ -47,6 +47,8 @@ import {
   concludeClaimSchema,
   reviewClaimEvidenceSchema,
   transitionClaimSchema,
+  updateClaimEvidenceSchema,
+  uploadEvidenceImageSchema,
 } from "@/features/claims/schema";
 import {
   addClaimEvidence,
@@ -54,6 +56,8 @@ import {
   concludeClaim,
   reviewClaimEvidence,
   transitionClaim,
+  updateClaimEvidence,
+  uploadEvidenceImage,
 } from "@/features/claims/service";
 import { toPublicError } from "@/shared/errors/app-error";
 import type { ActionResult } from "@/shared/result";
@@ -223,6 +227,25 @@ export async function transitionClaimAction(raw: unknown) {
 
 export async function addClaimEvidenceAction(raw: unknown) {
   const result = await runAction(addClaimEvidenceSchema, raw, addClaimEvidence);
+  if (result.ok) revalidatePath(`/captures/${result.data.captureId}`);
+  return result;
+}
+
+export async function updateClaimEvidenceAction(raw: unknown) {
+  const result = await runAction(updateClaimEvidenceSchema, raw, updateClaimEvidence);
+  if (result.ok) revalidatePath(`/captures/${result.data.captureId}`);
+  return result;
+}
+
+export async function uploadEvidenceImageAction(formData: FormData) {
+  const result = await runAction(
+    uploadEvidenceImageSchema,
+    {
+      evidenceId: formData.get("evidenceId"),
+      file: formData.get("file"),
+    },
+    uploadEvidenceImage,
+  );
   if (result.ok) revalidatePath(`/captures/${result.data.captureId}`);
   return result;
 }

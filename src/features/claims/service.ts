@@ -9,14 +9,21 @@ import {
 } from "./state";
 import {
   claimEvidence,
+  claimEvidenceRevisions,
   claimReviewEvidence,
   claimReviews,
   claims,
+  evidenceAttachments,
   evidenceSourceChecks,
 } from "@/server/db/schema";
 import { db } from "@/server/db/client";
 import { AppError } from "@/shared/errors/app-error";
 import { inspectEvidenceSource } from "./source-inspector";
+import {
+  removeEvidenceImage,
+  writeEvidenceImage,
+} from "./image-storage";
+import { MAX_EVIDENCE_IMAGES, prepareEvidenceImage } from "./image-validation";
 
 export async function transitionClaim(input: {
   claimId: string;
@@ -117,12 +124,169 @@ export async function addClaimEvidence(input: {
   return { ...evidence, captureId: claim.captureId };
 }
 
+export async function updateClaimEvidence(input: {
+  evidenceId: string;
+  expectedVersion: number;
+  sourceUrl: string;
+  sourceTitle: string;
+  excerpt: string;
+  stance: "supports" | "contradicts" | "context";
+  note?: string;
+}) {
+  return db.transaction(async (transaction) => {
+    const [current] = await transaction
+      .select({
+        id: claimEvidence.id,
+        claimId: claimEvidence.claimId,
+        captureId: claims.captureId,
+        claimStatus: claims.status,
+        reviewStatus: claimEvidence.reviewStatus,
+        version: claimEvidence.version,
+        sourceUrl: claimEvidence.sourceUrl,
+        sourceTitle: claimEvidence.sourceTitle,
+        excerpt: claimEvidence.excerpt,
+        stance: claimEvidence.stance,
+        note: claimEvidence.note,
+        latestSourceCheckId: claimEvidence.latestSourceCheckId,
+      })
+      .from(claimEvidence)
+      .innerJoin(claims, eq(claimEvidence.claimId, claims.id))
+      .where(eq(claimEvidence.id, input.evidenceId))
+      .limit(1)
+      .for("update");
+    if (!current) throw new AppError("CLAIM_EVIDENCE_NOT_FOUND", "证据不存在。");
+    if (current.claimStatus !== "investigating" || current.reviewStatus !== "unreviewed") {
+      throw new AppError(
+        "CLAIM_EVIDENCE_EDIT_STATE_INVALID",
+        "只有调查中且尚未审核的证据可以编辑。",
+      );
+    }
+    if (current.version !== input.expectedVersion) {
+      throw new AppError(
+        "CLAIM_EVIDENCE_VERSION_CONFLICT",
+        "证据已被其他操作修改，请刷新后重试。",
+      );
+    }
+
+    await transaction.insert(claimEvidenceRevisions).values({
+      evidenceId: current.id,
+      version: current.version,
+      sourceUrl: current.sourceUrl,
+      sourceTitle: current.sourceTitle,
+      excerpt: current.excerpt,
+      stance: current.stance,
+      note: current.note,
+      latestSourceCheckId: current.latestSourceCheckId,
+    });
+
+    const [updated] = await transaction
+      .update(claimEvidence)
+      .set({
+        sourceUrl: input.sourceUrl,
+        sourceTitle: input.sourceTitle,
+        excerpt: input.excerpt,
+        stance: input.stance,
+        note: input.note || null,
+        version: current.version + 1,
+        sourceCheckStatus: "unchecked",
+        sourceExcerptMatch: null,
+        sourceCheckedAt: null,
+        latestSourceCheckId: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(claimEvidence.id, current.id),
+          eq(claimEvidence.version, input.expectedVersion),
+          eq(claimEvidence.reviewStatus, "unreviewed"),
+        ),
+      )
+      .returning({ id: claimEvidence.id, version: claimEvidence.version });
+    if (!updated) {
+      throw new AppError(
+        "CLAIM_EVIDENCE_VERSION_CONFLICT",
+        "证据已被其他操作修改，请刷新后重试。",
+      );
+    }
+    await transaction
+      .update(claims)
+      .set({ updatedAt: new Date() })
+      .where(eq(claims.id, current.claimId));
+    return { ...updated, captureId: current.captureId };
+  });
+}
+
+export async function uploadEvidenceImage(input: {
+  evidenceId: string;
+  file: File;
+}) {
+  const prepared = await prepareEvidenceImage(input.file);
+  let stored = false;
+  try {
+    return await db.transaction(async (transaction) => {
+      const [current] = await transaction
+        .select({
+          id: claimEvidence.id,
+          claimId: claimEvidence.claimId,
+          captureId: claims.captureId,
+          claimStatus: claims.status,
+          reviewStatus: claimEvidence.reviewStatus,
+        })
+        .from(claimEvidence)
+        .innerJoin(claims, eq(claimEvidence.claimId, claims.id))
+        .where(eq(claimEvidence.id, input.evidenceId))
+        .limit(1)
+        .for("update");
+      if (!current) throw new AppError("CLAIM_EVIDENCE_NOT_FOUND", "证据不存在。");
+      if (current.claimStatus !== "investigating" || current.reviewStatus !== "unreviewed") {
+        throw new AppError(
+          "CLAIM_EVIDENCE_IMAGE_STATE_INVALID",
+          "只有调查中且尚未审核的证据可以上传图片。",
+        );
+      }
+      const [attachmentCount] = await transaction
+        .select({ count: count() })
+        .from(evidenceAttachments)
+        .where(eq(evidenceAttachments.evidenceId, current.id));
+      if (Number(attachmentCount?.count ?? 0) >= MAX_EVIDENCE_IMAGES) {
+        throw new AppError(
+          "CLAIM_EVIDENCE_IMAGE_LIMIT",
+          `每条证据最多上传 ${MAX_EVIDENCE_IMAGES} 张图片。`,
+        );
+      }
+
+      await writeEvidenceImage(prepared.storagePath, prepared.bytes);
+      stored = true;
+      const [attachment] = await transaction
+        .insert(evidenceAttachments)
+        .values({
+          evidenceId: current.id,
+          originalName: prepared.originalName,
+          storagePath: prepared.storagePath,
+          mimeType: prepared.mimeType,
+          byteSize: prepared.byteSize,
+          sha256: prepared.sha256,
+        })
+        .returning({ id: evidenceAttachments.id });
+      await transaction
+        .update(claims)
+        .set({ updatedAt: new Date() })
+        .where(eq(claims.id, current.claimId));
+      return { ...attachment, captureId: current.captureId };
+    });
+  } catch (error) {
+    if (stored) await removeEvidenceImage(prepared.storagePath).catch(() => undefined);
+    throw error;
+  }
+}
+
 export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
   const [row] = await db
     .select({
       evidenceId: claimEvidence.id,
       sourceUrl: claimEvidence.sourceUrl,
       excerpt: claimEvidence.excerpt,
+      version: claimEvidence.version,
       reviewStatus: claimEvidence.reviewStatus,
       claimStatus: claims.status,
       captureId: claims.captureId,
@@ -150,6 +314,7 @@ export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
       .select({
         reviewStatus: claimEvidence.reviewStatus,
         claimStatus: claims.status,
+        version: claimEvidence.version,
       })
       .from(claimEvidence)
       .innerJoin(claims, eq(claimEvidence.claimId, claims.id))
@@ -158,11 +323,12 @@ export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
     if (
       !current ||
       current.claimStatus !== "investigating" ||
-      current.reviewStatus !== "unreviewed"
+      current.reviewStatus !== "unreviewed" ||
+      current.version !== row.version
     ) {
       throw new AppError(
         "CLAIM_EVIDENCE_SOURCE_CHECK_STATE_INVALID",
-        "证据状态已经变化，本次来源检查未写入。",
+        "证据状态或内容已经变化，本次来源检查未写入。",
       );
     }
 
@@ -196,6 +362,7 @@ export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
         and(
           eq(claimEvidence.id, row.evidenceId),
           eq(claimEvidence.reviewStatus, "unreviewed"),
+          eq(claimEvidence.version, row.version),
         ),
       )
       .returning({ id: claimEvidence.id });

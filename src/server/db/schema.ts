@@ -316,6 +316,7 @@ export const claimEvidence = pgTable(
     excerpt: varchar("excerpt", { length: 2_000 }).notNull(),
     stance: evidenceStanceEnum("stance").notNull(),
     note: varchar("note", { length: 1_000 }),
+    version: integer("version").notNull().default(1),
     reviewStatus: evidenceReviewStatusEnum("review_status")
       .notNull()
       .default("unreviewed"),
@@ -329,6 +330,9 @@ export const claimEvidence = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     index("claim_evidence_claim_created_idx").on(table.claimId, table.createdAt),
@@ -337,6 +341,7 @@ export const claimEvidence = pgTable(
       table.sourceCheckStatus,
       table.sourceCheckedAt,
     ),
+    check("claim_evidence_version_chk", sql`${table.version} > 0`),
     check(
       "claim_evidence_source_check_consistency_chk",
       sql`(
@@ -344,6 +349,70 @@ export const claimEvidence = pgTable(
         OR (${table.sourceCheckStatus} = 'failed' AND ${table.sourceCheckedAt} IS NOT NULL AND ${table.sourceExcerptMatch} IS NULL AND ${table.latestSourceCheckId} IS NOT NULL)
         OR (${table.sourceCheckStatus} = 'passed' AND ${table.sourceCheckedAt} IS NOT NULL AND ${table.sourceExcerptMatch} IS NOT NULL AND ${table.latestSourceCheckId} IS NOT NULL)
       )`,
+    ),
+  ],
+);
+
+export const claimEvidenceRevisions = pgTable(
+  "claim_evidence_revisions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    evidenceId: uuid("evidence_id")
+      .notNull()
+      .references(() => claimEvidence.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    sourceUrl: varchar("source_url", { length: 2_000 }).notNull(),
+    sourceTitle: varchar("source_title", { length: 300 }).notNull(),
+    excerpt: varchar("excerpt", { length: 2_000 }).notNull(),
+    stance: evidenceStanceEnum("stance").notNull(),
+    note: varchar("note", { length: 1_000 }),
+    latestSourceCheckId: uuid("latest_source_check_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("claim_evidence_revisions_evidence_version_uq").on(
+      table.evidenceId,
+      table.version,
+    ),
+    index("claim_evidence_revisions_evidence_idx").on(
+      table.evidenceId,
+      table.version,
+    ),
+    check("claim_evidence_revisions_version_chk", sql`${table.version} > 0`),
+  ],
+);
+
+export const evidenceAttachments = pgTable(
+  "evidence_attachments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    evidenceId: uuid("evidence_id")
+      .notNull()
+      .references(() => claimEvidence.id, { onDelete: "cascade" }),
+    originalName: varchar("original_name", { length: 255 }).notNull(),
+    storagePath: varchar("storage_path", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 40 }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("evidence_attachments_storage_path_uq").on(table.storagePath),
+    index("evidence_attachments_evidence_created_idx").on(
+      table.evidenceId,
+      table.createdAt,
+    ),
+    check(
+      "evidence_attachments_byte_size_chk",
+      sql`${table.byteSize} between 1 and 10485760`,
+    ),
+    check(
+      "evidence_attachments_mime_type_chk",
+      sql`${table.mimeType} in ('image/jpeg', 'image/png', 'image/webp', 'image/gif')`,
     ),
   ],
 );
@@ -472,6 +541,8 @@ export type AIRunRow = typeof aiProcessingRuns.$inferSelect;
 export type AISuggestionRow = typeof aiSuggestions.$inferSelect;
 export type ClaimRow = typeof claims.$inferSelect;
 export type ClaimEvidenceRow = typeof claimEvidence.$inferSelect;
+export type ClaimEvidenceRevisionRow = typeof claimEvidenceRevisions.$inferSelect;
+export type EvidenceAttachmentRow = typeof evidenceAttachments.$inferSelect;
 export type EvidenceSourceCheckRow = typeof evidenceSourceChecks.$inferSelect;
 export type ClaimReviewRow = typeof claimReviews.$inferSelect;
 export type ClaimAIAuditRow = typeof claimAiAudits.$inferSelect;

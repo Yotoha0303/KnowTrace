@@ -160,6 +160,14 @@ type AuditClaimInput = {
 
 输入 Claim ID、HTTP(S) 来源 URL、来源标题、原文摘录、立场和可选备注。只允许在 `investigating` 状态新增，初始审核状态固定为 `unreviewed`。
 
+### updateClaimEvidence
+
+输入 Evidence ID、`expectedVersion` 以及完整的来源字段。仅允许编辑调查中且未审核的 Evidence；事务先保存旧版本，再递增版本并清除当前来源检查投影。版本冲突返回稳定冲突错误，历史 SourceCheck 不删除。
+
+### uploadEvidenceImage
+
+通过 `FormData` 输入 Evidence ID 与图片。仅允许调查中且未审核的 Evidence；支持 JPEG、PNG、WebP、GIF，校验声明 MIME 与文件头，单张最多 10 MB、每条 Evidence 最多 5 张。文件落在项目上传目录，数据库保存相对路径和 SHA-256；成功后通过 `/api/evidence-images/:id` 读取。
+
 ### reviewClaimEvidence
 
 输入 Evidence ID 与 `accepted/rejected` 决定。只允许在所属 Claim 调查中处理未审核 Evidence，决定不可覆盖。`accepted` 还要求当前来源检查成功、摘录匹配且检查快照未被并发替换；`rejected` 不要求来源检查。

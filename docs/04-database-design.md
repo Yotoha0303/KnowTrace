@@ -154,13 +154,33 @@
 | excerpt | varchar(2000) | 证据摘录 |
 | stance | varchar(20) | supports/contradicts/context |
 | note | varchar(1000) | 可空 |
+| version | integer | 乐观锁与修订版本，从 1 开始 |
 | review_status | varchar(20) | unreviewed/accepted/rejected |
 | reviewed_at | timestamptz | 可空 |
 | source_check_status | varchar(20) | unchecked/passed/failed |
 | source_excerpt_match | boolean | 当前检查是否匹配摘录 |
 | source_checked_at | timestamptz | 当前检查时间 |
 | latest_source_check_id | uuid | 当前检查快照 ID |
-| created_at | timestamptz | 创建时间 |
+| created_at / updated_at | timestamptz | 创建与最近编辑时间 |
+
+### claim_evidence_revisions
+
+保存 Evidence 编辑前的不可变完整字段快照、旧版本号与当时的 `latest_source_check_id`。`(evidence_id, version)` 唯一；编辑事务写入 Revision 后递增当前版本，并将来源检查投影重置为 unchecked。
+
+### evidence_attachments
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | uuid | 主键，也是读取图片时的公开标识 |
+| evidence_id | uuid | 所属 Evidence，删除时级联 |
+| original_name | varchar(255) | 清理控制字符后的原文件名 |
+| storage_path | varchar(255) | 项目上传目录内的不可推测相对文件名，唯一 |
+| mime_type | varchar(40) | 从文件头确认的受控图片类型 |
+| byte_size | integer | 1 到 10 MB |
+| sha256 | varchar(64) | 文件内容哈希 |
+| created_at | timestamptz | 上传时间 |
+
+图片二进制不写入 PostgreSQL。数据库级联删除后，服务层删除对应项目文件；文件清理失败最多留下无数据库引用的孤儿文件，不允许造成数据库回滚或记录丢失。
 
 ### evidence_source_checks
 
@@ -263,7 +283,7 @@ WHERE id = $4
 
 - 只有用户明确勾选的 `claimCandidateIndexes` 才创建 Claim，单次最多 3 个。
 - `statement_hash` 防止同一来源版本的同一陈述被重复创建。
-- Evidence 只能在 Claim 为 `investigating` 时新增、检查来源或审核。
+- Evidence 只能在 Claim 为 `investigating` 时新增、编辑、上传图片、检查来源或审核；编辑与上传还要求 Evidence 为 `unreviewed`。
 - 采纳 Evidence 时同时检查最新来源状态为 passed、摘录匹配且快照 ID 未被并发替换。
 - 形成结论时先条件更新 `ready_for_review → concluded`，再在同一事务写入 Review 和 Evidence 快照；任一步失败全部回滚。
 - `investigating → ready_for_review` 在事务中统计已采纳证据；数量为 0 时拒绝。

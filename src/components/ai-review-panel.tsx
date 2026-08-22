@@ -277,33 +277,36 @@ export function AIReviewPanel({
     }
 
     let cancelled = false;
-    startConnectionTransition(async () => {
+    const timer = window.setTimeout(() => {
       setCCSwitchStatus({
         phase: "checking",
         title: "正在自动检测 CC-Switch",
         message: "健康检查不会调用模型，也不会消耗额度。",
       });
-      const result = await detectCCSwitchAction({
-        baseURL: ccSwitchBaseURL.trim() || DEFAULT_CC_SWITCH_BASE_URL,
-      });
-      if (cancelled) return;
-      if (result.ok) {
-        setCCSwitchStatus({
-          phase: "reachable",
-          title: "已检测到 CC-Switch",
-          message: `本地代理响应正常（${result.data.latencyMs}ms），可以直接整理或继续测试 AI 登录。`,
+      void (async () => {
+        const result = await detectCCSwitchAction({
+          baseURL: ccSwitchBaseURL.trim() || DEFAULT_CC_SWITCH_BASE_URL,
         });
-      } else {
-        setCCSwitchStatus({
-          phase: "error",
-          title: "未能连接 CC-Switch",
-          message: result.error.message,
-        });
-      }
-    });
+        if (cancelled) return;
+        if (result.ok) {
+          setCCSwitchStatus({
+            phase: "reachable",
+            title: "已检测到 CC-Switch",
+            message: `本地代理响应正常（${result.data.latencyMs}ms），可以直接整理或继续测试 AI 登录。`,
+          });
+        } else {
+          setCCSwitchStatus({
+            phase: "error",
+            title: "未能连接 CC-Switch",
+            message: result.error.message,
+          });
+        }
+      })();
+    }, 300);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [ccSwitchBaseURL, usesCodexOAuthRoute]);
 
@@ -609,7 +612,7 @@ export function AIReviewPanel({
                   </div>
                   <button
                     className="button button-quiet connection-test-button"
-                    disabled={isConnectionPending}
+                    disabled={isConnectionPending || ccSwitchStatus.phase === "checking"}
                     onClick={testCCSwitchConnection}
                     type="button"
                   >

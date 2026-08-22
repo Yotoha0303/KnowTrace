@@ -165,7 +165,9 @@ candidate / investigating / ready_for_review / concluded ──withdraw──> w
 
 进入 `ready_for_review` 前至少需要一条 `accepted` Evidence。`ready_for_review` 只表示材料满足提交条件，不表示主张真实。当前没有 `verified` 状态。
 
-Evidence 保存来源 URL、来源标题、逐字摘录、与主张的关系（支持/反驳/背景）以及审核状态。新证据默认为 `unreviewed`，只能在调查中由人工一次性决定为 `accepted` 或 `rejected`。
+Evidence 保存来源 URL、来源标题、逐字摘录、与主张的关系（支持/反驳/背景）以及审核状态。新证据默认为 `unreviewed`，只能在调查中由人工一次性决定为 `accepted` 或 `rejected`。调查中的未审核 Evidence 可以按版本编辑；编辑前创建不可变 EvidenceRevision，版本号递增，并清除当前来源检查投影，要求重新检查。
+
+EvidenceAttachment 是 Evidence 的图片附件。文件保存在单实例项目目录 `data/uploads/evidence`，数据库仅保存不可推测的相对文件名、原文件名、真实 MIME、字节数与 SHA-256。每条 Evidence 最多 5 张，单张最多 10 MB；已审核 Evidence 不再允许追加图片。
 
 每次来源检查创建不可变 EvidenceSourceCheck，记录请求 URL、最终 URL、HTTP 状态、内容类型、内容哈希、页面标题、响应字节数、检查时间和摘录匹配结果。Evidence 保存当前检查投影；只有当前检查成功且摘录匹配时才能被采纳。检查结果不评价来源权威性，也不等于支持该 Claim。
 
@@ -187,12 +189,14 @@ ClaimAIAudit 是一次不可变 AI 辅助审查，保存当时的 Claim 时间�
 10. AI 候选默认不创建，单次最多人工接纳 3 个。
 11. 没有已采纳 Evidence 的 Claim 不得进入 `ready_for_review`。
 12. `ready_for_review` 不等于已验证或真实。
-13. EvidenceSourceCheck 只追加、不覆盖；重复检查创建新快照。
+13. EvidenceSourceCheck 只追加、不覆盖；重复检查创建新快照；网络请求期间 Evidence 版本变化时不得写入旧检查结果。
 14. 只有当前来源检查成功且摘录匹配的 Evidence 才能被 `accepted`。
 15. `supported` 至少使用一条支持证据，`refuted` 至少使用一条反驳证据，`inconclusive` 至少使用一条已采纳证据。
 16. ClaimReview 与 ClaimReviewEvidence 只追加；新审查使用递增版本号。
 17. ClaimAIAudit 只追加，且不能写入 Claim、Evidence 或 ClaimReview。
 18. AI Audit 的覆盖度、证据平衡、Evidence ID 和边界提示必须经服务端确定性校验。
+19. Evidence 编辑必须使用乐观版本号并保留旧版本；已审核或不在调查中的 Evidence 不可编辑。
+20. 图片必须同时通过声明 MIME、文件头、数量和大小检查；文件读取不得接受用户提供的路径。
 
 ## 11. 后续边界
 

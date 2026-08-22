@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useTransition } from "react";
 import {
   ArrowLeftRight,
@@ -10,9 +11,12 @@ import {
   Fingerprint,
   FlaskConical,
   LoaderCircle,
+  ImagePlus,
+  Pencil,
   Plus,
   RefreshCw,
   Scale,
+  Save,
   Send,
   ShieldAlert,
   ShieldCheck,
@@ -26,6 +30,8 @@ import {
   concludeClaimAction,
   reviewClaimEvidenceAction,
   transitionClaimAction,
+  updateClaimEvidenceAction,
+  uploadEvidenceImageAction,
 } from "@/app/actions";
 import type { ClaimDTO } from "@/features/capture/queries";
 
@@ -116,6 +122,173 @@ function EvidenceSourceResult({ evidence }: { evidence: EvidenceDTO }) {
         <small>检查时间：{checkTimeFormatter.format(new Date(sourceCheck.checkedAt))}</small>
       </div>
     </div>
+  );
+}
+
+function firstActionError(result: Awaited<ReturnType<typeof updateClaimEvidenceAction>>) {
+  if (result.ok) return "";
+  return result.error.fieldErrors
+    ? Object.values(result.error.fieldErrors).flat()[0] ?? result.error.message
+    : result.error.message;
+}
+
+function EvidenceItem({
+  claimStatus,
+  evidence,
+  parentPending,
+  checking,
+  onCheck,
+  onReview,
+}: {
+  claimStatus: ClaimDTO["status"];
+  evidence: EvidenceDTO;
+  parentPending: boolean;
+  checking: boolean;
+  onCheck: (evidenceId: string) => void;
+  onReview: (evidenceId: string, decision: "accepted" | "rejected") => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
+  const [message, setMessage] = useState("");
+  const [sourceUrl, setSourceUrl] = useState(evidence.sourceUrl);
+  const [sourceTitle, setSourceTitle] = useState(evidence.sourceTitle);
+  const [excerpt, setExcerpt] = useState(evidence.excerpt);
+  const [stance, setStance] = useState(evidence.stance);
+  const [note, setNote] = useState(evidence.note ?? "");
+  const [file, setFile] = useState<File | null>(null);
+  const editable = claimStatus === "investigating" && evidence.reviewStatus === "unreviewed";
+  const busy = parentPending || isPending;
+
+  function cancelEdit() {
+    setSourceUrl(evidence.sourceUrl);
+    setSourceTitle(evidence.sourceTitle);
+    setExcerpt(evidence.excerpt);
+    setStance(evidence.stance);
+    setNote(evidence.note ?? "");
+    setMessage("");
+    setEditing(false);
+  }
+
+  function saveEdit() {
+    setMessage("");
+    startTransition(async () => {
+      const result = await updateClaimEvidenceAction({
+        evidenceId: evidence.id,
+        expectedVersion: evidence.version,
+        sourceUrl,
+        sourceTitle,
+        excerpt,
+        stance,
+        note: note || undefined,
+      });
+      if (!result.ok) {
+        setMessage(firstActionError(result));
+        return;
+      }
+      setEditing(false);
+      router.refresh();
+    });
+  }
+
+  function uploadImage() {
+    if (!file) return;
+    setMessage("");
+    startTransition(async () => {
+      const formData = new FormData();
+      formData.set("evidenceId", evidence.id);
+      formData.set("file", file);
+      const result = await uploadEvidenceImageAction(formData);
+      if (!result.ok) {
+        setMessage(
+          result.error.fieldErrors
+            ? Object.values(result.error.fieldErrors).flat()[0] ?? result.error.message
+            : result.error.message,
+        );
+        return;
+      }
+      setFile(null);
+      router.refresh();
+    });
+  }
+
+  return (
+    <article>
+      <header>
+        <span className={`evidence-stance is-${evidence.stance}`}>{stanceLabels[evidence.stance]}</span>
+        <span className={`evidence-review is-${evidence.reviewStatus}`}>{evidenceStatusLabels[evidence.reviewStatus]}</span>
+        <small>v{evidence.version}</small>
+      </header>
+
+      {editing ? (
+        <div className="evidence-edit-form">
+          <div className="evidence-form-grid">
+            <label><span>来源标题</span><input maxLength={300} onChange={(event) => setSourceTitle(event.target.value)} value={sourceTitle} /></label>
+            <label><span>来源 URL</span><input maxLength={2000} onChange={(event) => setSourceUrl(event.target.value)} type="url" value={sourceUrl} /></label>
+            <label className="wide"><span>证据原文摘录</span><textarea maxLength={2000} onChange={(event) => setExcerpt(event.target.value)} rows={3} value={excerpt} /></label>
+            <label><span>与主张的关系</span><select onChange={(event) => setStance(event.target.value as typeof stance)} value={stance}><option value="supports">支持</option><option value="contradicts">反驳</option><option value="context">仅提供背景</option></select></label>
+            <label><span>备注（可选）</span><input maxLength={1000} onChange={(event) => setNote(event.target.value)} value={note} /></label>
+          </div>
+          <p className="evidence-edit-warning">保存后会生成历史版本，并清除当前来源检查；重新采纳前必须再次检查来源。</p>
+          <div className="evidence-review-actions">
+            <button className="button button-quiet" disabled={busy} onClick={cancelEdit} type="button"><X size={14} /> 取消</button>
+            <button className="button button-primary" disabled={busy || !sourceTitle.trim() || !sourceUrl.trim() || !excerpt.trim()} onClick={saveEdit} type="button"><Save size={14} /> {isPending ? "正在保存" : "保存修改"}</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <a href={evidence.sourceUrl} rel="noreferrer" target="_blank">{evidence.sourceTitle} <ExternalLink size={12} /></a>
+          <blockquote>“{evidence.excerpt}”</blockquote>
+          {evidence.note ? <p>{evidence.note}</p> : null}
+        </>
+      )}
+
+      {evidence.attachments.length ? (
+        <div className="evidence-attachments">
+          {evidence.attachments.map((attachment) => (
+            <figure key={attachment.id}>
+              <a href={`/api/evidence-images/${attachment.id}`} rel="noreferrer" target="_blank">
+                <Image alt={attachment.originalName} fill sizes="(max-width: 700px) 100vw, 220px" src={`/api/evidence-images/${attachment.id}`} unoptimized />
+              </a>
+              <figcaption title={attachment.originalName}>{attachment.originalName}<small>{(attachment.byteSize / 1024).toFixed(1)} KB · SHA-256 {attachment.sha256.slice(0, 10)}…</small></figcaption>
+            </figure>
+          ))}
+        </div>
+      ) : null}
+
+      {editable && evidence.attachments.length < 5 ? (
+        <div className="evidence-upload">
+          <label className="button button-quiet">
+            <ImagePlus size={14} /> {file ? file.name : "选择证据图片"}
+            <input accept="image/jpeg,image/png,image/webp,image/gif" disabled={busy} onChange={(event) => setFile(event.target.files?.[0] ?? null)} type="file" />
+          </label>
+          <button className="button button-quiet" disabled={busy || !file} onClick={uploadImage} type="button">{isPending ? <LoaderCircle className="processing-spinner" size={14} /> : <ImagePlus size={14} />} {isPending ? "正在上传" : "上传图片"}</button>
+          <small>JPEG / PNG / WebP / GIF，单张不超过 10 MB，最多 5 张。</small>
+        </div>
+      ) : null}
+
+      {!editing ? <EvidenceSourceResult evidence={evidence} /> : null}
+      {evidence.revisions.length ? (
+        <details className="evidence-revisions">
+          <summary>查看 {evidence.revisions.length} 个历史版本</summary>
+          {evidence.revisions.map((revision) => (
+            <div key={revision.id}><b>v{revision.version} · {revision.sourceTitle}</b><p>“{revision.excerpt}”</p><small>{checkTimeFormatter.format(new Date(revision.createdAt))}</small></div>
+          ))}
+        </details>
+      ) : null}
+      {editable && !editing ? (
+        <div className="evidence-review-actions">
+          <button className="button button-quiet" disabled={busy} onClick={() => setEditing(true)} type="button"><Pencil size={14} /> 编辑</button>
+          <button className="button button-quiet" disabled={busy} onClick={() => onCheck(evidence.id)} type="button">
+            {checking ? <LoaderCircle className="processing-spinner" size={14} /> : evidence.sourceCheck ? <RefreshCw size={14} /> : <ShieldCheck size={14} />}
+            {checking ? "正在检查来源" : evidence.sourceCheck ? "重新检查来源" : "检查来源"}
+          </button>
+          <button className="button button-quiet" disabled={busy} onClick={() => onReview(evidence.id, "rejected")} type="button"><X size={14} /> 排除</button>
+          <button className="button button-primary" disabled={busy || evidence.sourceCheckStatus !== "passed" || evidence.sourceExcerptMatch !== true} onClick={() => onReview(evidence.id, "accepted")} type="button"><Check size={14} /> 采纳</button>
+        </div>
+      ) : null}
+      {message ? <p className="form-error claim-message">{message}</p> : null}
+    </article>
   );
 }
 
@@ -279,26 +452,15 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
       {claim.evidence.length ? (
         <div className="evidence-list">
           {claim.evidence.map((evidence) => (
-            <article key={evidence.id}>
-              <header>
-                <span className={`evidence-stance is-${evidence.stance}`}>{stanceLabels[evidence.stance]}</span>
-                <span className={`evidence-review is-${evidence.reviewStatus}`}>{evidenceStatusLabels[evidence.reviewStatus]}</span>
-              </header>
-              <a href={evidence.sourceUrl} rel="noreferrer" target="_blank">{evidence.sourceTitle} <ExternalLink size={12} /></a>
-              <blockquote>“{evidence.excerpt}”</blockquote>
-              {evidence.note ? <p>{evidence.note}</p> : null}
-              <EvidenceSourceResult evidence={evidence} />
-              {claim.status === "investigating" && evidence.reviewStatus === "unreviewed" ? (
-                <div className="evidence-review-actions">
-                  <button className="button button-quiet" disabled={isPending} onClick={() => checkEvidenceSource(evidence.id)} type="button">
-                    {checkingEvidenceId === evidence.id ? <LoaderCircle className="processing-spinner" size={14} /> : evidence.sourceCheck ? <RefreshCw size={14} /> : <ShieldCheck size={14} />}
-                    {checkingEvidenceId === evidence.id ? "正在检查来源" : evidence.sourceCheck ? "重新检查来源" : "检查来源"}
-                  </button>
-                  <button className="button button-quiet" disabled={isPending} onClick={() => reviewEvidence(evidence.id, "rejected")} type="button"><X size={14} /> 排除</button>
-                  <button className="button button-primary" disabled={isPending || evidence.sourceCheckStatus !== "passed" || evidence.sourceExcerptMatch !== true} onClick={() => reviewEvidence(evidence.id, "accepted")} type="button"><Check size={14} /> 采纳</button>
-                </div>
-              ) : null}
-            </article>
+            <EvidenceItem
+              checking={checkingEvidenceId === evidence.id}
+              claimStatus={claim.status}
+              evidence={evidence}
+              key={evidence.id}
+              onCheck={checkEvidenceSource}
+              onReview={reviewEvidence}
+              parentPending={isPending}
+            />
           ))}
         </div>
       ) : null}

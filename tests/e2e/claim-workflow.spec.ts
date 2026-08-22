@@ -46,18 +46,48 @@ test("AI candidate claim → evidence review → ready for review", async ({ pag
   await claimCard.getByLabel(/证据立场/).selectOption("supports");
   await claimCard.getByRole("button", { name: /保存为未审核证据/ }).click();
 
-  await expect(claimCard.locator(".evidence-review")).toContainText("未审核");
-  await expect(claimCard.getByText("来源尚未检查")).toBeVisible();
+  const evidenceItem = claimCard.locator(".evidence-list > article");
+  await expect(evidenceItem.locator(".evidence-review")).toContainText("未审核");
+  await expect(evidenceItem.getByText("来源尚未检查")).toBeVisible();
+  await evidenceItem.locator('input[type="file"]').setInputFiles({
+    name: "evidence.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await evidenceItem.getByRole("button", { name: "上传图片" }).click();
+  await expect(evidenceItem.getByRole("img", { name: "evidence.png" })).toBeVisible();
+  const imageResponse = await page.request.get(
+    await evidenceItem.getByRole("img", { name: "evidence.png" }).getAttribute("src") as string,
+  );
+  expect(imageResponse.ok()).toBe(true);
+  expect(imageResponse.headers()["content-type"]).toBe("image/png");
+  expect(imageResponse.headers()["x-content-type-options"]).toBe("nosniff");
   await expect(submitButton).toBeDisabled();
-  await expect(claimCard.getByRole("button", { name: /采纳/ })).toBeDisabled();
-  await claimCard.getByRole("button", { name: /^检查来源$/ }).click();
-  await expect(claimCard.getByText("来源可访问，摘录已匹配")).toBeVisible({
+  await expect(evidenceItem.getByRole("button", { name: /采纳/ })).toBeDisabled();
+  await evidenceItem.getByRole("button", { name: /^检查来源$/ }).click();
+  await expect(evidenceItem.getByText("来源可访问，摘录已匹配")).toBeVisible({
     timeout: 20_000,
   });
-  await expect(claimCard.getByText(/HTTP 200/)).toBeVisible();
-  await expect(claimCard.getByRole("button", { name: /采纳/ })).toBeEnabled();
-  await claimCard.getByRole("button", { name: /采纳/ }).click();
-  await expect(claimCard.locator(".evidence-review")).toContainText("已采纳");
+  await expect(evidenceItem.getByText(/HTTP 200/)).toBeVisible();
+  await evidenceItem.getByRole("button", { name: /编辑/ }).click();
+  await evidenceItem.getByLabel("来源标题").fill("Example Domain（修订）");
+  await evidenceItem.getByRole("button", { name: /保存修改/ }).click();
+  await expect(evidenceItem.getByText("来源尚未检查")).toBeVisible();
+  await expect(evidenceItem.getByText("查看 1 个历史版本")).toBeVisible();
+  await expect(evidenceItem.getByText("v2")).toBeVisible();
+  await expect(evidenceItem.getByRole("button", { name: /采纳/ })).toBeDisabled();
+  await evidenceItem.getByRole("button", { name: /^检查来源$/ }).click();
+  await expect(evidenceItem.getByText("来源可访问，摘录已匹配")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(evidenceItem.getByRole("button", { name: /采纳/ })).toBeEnabled();
+  await evidenceItem.getByRole("button", { name: /采纳/ }).click();
+  await expect(evidenceItem.locator(".evidence-review")).toContainText("已采纳");
+  await expect(evidenceItem.getByRole("button", { name: /编辑/ })).toHaveCount(0);
+  await expect(evidenceItem.getByText("选择证据图片")).toHaveCount(0);
   await expect(submitButton).toBeEnabled();
 
   await page.getByRole("button", { name: /^运行可靠性审查$/ }).click();
@@ -108,7 +138,7 @@ test("AI candidate claim → evidence review → ready for review", async ({ pag
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "永久删除" }).click();
-  await expect(page).toHaveURL("http://localhost:3000/");
+  await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });

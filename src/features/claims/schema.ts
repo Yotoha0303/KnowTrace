@@ -42,6 +42,25 @@ export const addClaimEvidenceSchema = z.object({
   note: z.string().trim().max(1_000).optional(),
 });
 
+export const updateClaimEvidenceSchema = addClaimEvidenceSchema
+  .omit({ claimId: true })
+  .extend({
+    evidenceId: z.uuid(),
+    expectedVersion: z.number().int().positive(),
+  });
+
+export const uploadEvidenceImageSchema = z.object({
+  evidenceId: z.uuid(),
+  file: z
+    .file("请选择图片文件。")
+    .min(1, "图片不能为空。")
+    .max(10 * 1024 * 1024, "单张图片不能超过 10 MB。")
+    .mime(
+      ["image/jpeg", "image/png", "image/webp", "image/gif"],
+      "仅支持 JPEG、PNG、WebP 或 GIF 图片。",
+    ),
+});
+
 export const reviewClaimEvidenceSchema = z.object({
   evidenceId: z.uuid(),
   decision: z.enum(["accepted", "rejected"]),

@@ -5,12 +5,16 @@ import {
   captureRevisions,
   captures,
   categories,
+  claimEvidence,
+  claims,
+  evidenceAttachments,
 } from "@/server/db/schema";
 import { db } from "@/server/db/client";
 import { AppError } from "@/shared/errors/app-error";
 import { sha256, stableStringify } from "@/shared/hash";
 
 import type { CreateCaptureInput, UpdateCaptureInput } from "./schema";
+import { removeEvidenceImage } from "@/features/claims/image-storage";
 
 function isUniqueViolation(error: unknown): boolean {
   return (
@@ -201,6 +205,12 @@ export async function setCaptureStatus(
 }
 
 export async function deleteCapture(id: string) {
+  const attachmentRows = await db
+    .select({ storagePath: evidenceAttachments.storagePath })
+    .from(evidenceAttachments)
+    .innerJoin(claimEvidence, eq(evidenceAttachments.evidenceId, claimEvidence.id))
+    .innerJoin(claims, eq(claimEvidence.claimId, claims.id))
+    .where(eq(claims.captureId, id));
   const [deleted] = await db
     .delete(captures)
     .where(eq(captures.id, id))
@@ -208,6 +218,9 @@ export async function deleteCapture(id: string) {
   if (!deleted) {
     throw new AppError("CAPTURE_NOT_FOUND", "记录不存在或已经被删除。");
   }
+  await Promise.allSettled(
+    attachmentRows.map((attachment) => removeEvidenceImage(attachment.storagePath)),
+  );
   return deleted;
 }
 

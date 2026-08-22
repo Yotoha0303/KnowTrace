@@ -7,3 +7,6 @@ test-results
 .env*
 !.env.example
 *.log
+data/uploads/**
+!data/uploads/evidence/
+!data/uploads/evidence/.gitkeep

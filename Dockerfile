@@ -36,7 +36,9 @@ ENV HOSTNAME="0.0.0.0"
 ENV PORT=3000
 
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+  && adduser --system --uid 1001 nextjs \
+  && mkdir -p /app/data/uploads/evidence \
+  && chown -R nextjs:nodejs /app/data
 
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 # Next standalone traces only the CommonJS half of this pnpm package, while

@@ -43,6 +43,6 @@ test("@deepseek organizes a real capture", async ({ page }) => {
   await expect(page.getByText(/DeepSeek \/ deepseek-v4-flash/)).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "永久删除" }).click();
-  await expect(page).toHaveURL("http://localhost:3000/");
+  await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
   expect(consoleErrors).toEqual([]);
 });

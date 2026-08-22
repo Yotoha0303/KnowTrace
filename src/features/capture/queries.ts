@@ -18,10 +18,12 @@ import {
   categories,
   claimAiAudits,
   claimEvidence,
+  claimEvidenceRevisions,
   claimReviewEvidence,
   claimReviews,
   claims,
   evidenceSourceChecks,
+  evidenceAttachments,
 } from "@/server/db/schema";
 import { db } from "@/server/db/client";
 import {
@@ -157,6 +159,7 @@ export type ClaimDTO = {
   }>;
   evidence: Array<{
     id: string;
+    version: number;
     sourceUrl: string;
     sourceTitle: string;
     excerpt: string;
@@ -181,6 +184,24 @@ export type ClaimDTO = {
     };
     reviewedAt: string | null;
     createdAt: string;
+    revisions: Array<{
+      id: string;
+      version: number;
+      sourceUrl: string;
+      sourceTitle: string;
+      excerpt: string;
+      stance: "supports" | "contradicts" | "context";
+      note: string | null;
+      createdAt: string;
+    }>;
+    attachments: Array<{
+      id: string;
+      originalName: string;
+      mimeType: string;
+      byteSize: number;
+      sha256: string;
+      createdAt: string;
+    }>;
   }>;
 };
 
@@ -415,7 +436,7 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
   const sourceCheckIds = evidenceRows
     .map((evidence) => evidence.latestSourceCheckId)
     .filter((id): id is string => Boolean(id));
-  const [sourceCheckRows, reviewEvidenceRows] = await Promise.all([
+  const [sourceCheckRows, reviewEvidenceRows, evidenceRevisionRows, attachmentRows] = await Promise.all([
     sourceCheckIds.length
       ? db
           .select()
@@ -433,10 +454,46 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
             ),
           )
       : [],
+    evidenceRows.length
+      ? db
+          .select()
+          .from(claimEvidenceRevisions)
+          .where(
+            inArray(
+              claimEvidenceRevisions.evidenceId,
+              evidenceRows.map((evidence) => evidence.id),
+            ),
+          )
+          .orderBy(desc(claimEvidenceRevisions.version))
+      : [],
+    evidenceRows.length
+      ? db
+          .select()
+          .from(evidenceAttachments)
+          .where(
+            inArray(
+              evidenceAttachments.evidenceId,
+              evidenceRows.map((evidence) => evidence.id),
+            ),
+          )
+          .orderBy(desc(evidenceAttachments.createdAt))
+      : [],
   ]);
   const sourceCheckById = new Map(
     sourceCheckRows.map((sourceCheck) => [sourceCheck.id, sourceCheck]),
   );
+  const revisionsByEvidenceId = new Map<string, typeof evidenceRevisionRows>();
+  for (const revision of evidenceRevisionRows) {
+    const values = revisionsByEvidenceId.get(revision.evidenceId) ?? [];
+    values.push(revision);
+    revisionsByEvidenceId.set(revision.evidenceId, values);
+  }
+  const attachmentsByEvidenceId = new Map<string, typeof attachmentRows>();
+  for (const attachment of attachmentRows) {
+    const values = attachmentsByEvidenceId.get(attachment.evidenceId) ?? [];
+    values.push(attachment);
+    attachmentsByEvidenceId.set(attachment.evidenceId, values);
+  }
   const reviewsByClaimId = new Map<string, typeof reviewRows>();
   for (const review of reviewRows) {
     const values = reviewsByClaimId.get(review.claimId) ?? [];
@@ -566,6 +623,7 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
             })()
           : null,
         id: evidence.id,
+        version: evidence.version,
         sourceUrl: evidence.sourceUrl,
         sourceTitle: evidence.sourceTitle,
         excerpt: evidence.excerpt,
@@ -579,6 +637,24 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
           : null,
         reviewedAt: evidence.reviewedAt ? toIso(evidence.reviewedAt) : null,
         createdAt: toIso(evidence.createdAt),
+        revisions: (revisionsByEvidenceId.get(evidence.id) ?? []).map((revision) => ({
+          id: revision.id,
+          version: revision.version,
+          sourceUrl: revision.sourceUrl,
+          sourceTitle: revision.sourceTitle,
+          excerpt: revision.excerpt,
+          stance: revision.stance,
+          note: revision.note,
+          createdAt: toIso(revision.createdAt),
+        })),
+        attachments: (attachmentsByEvidenceId.get(evidence.id) ?? []).map((attachment) => ({
+          id: attachment.id,
+          originalName: attachment.originalName,
+          mimeType: attachment.mimeType,
+          byteSize: attachment.byteSize,
+          sha256: attachment.sha256,
+          createdAt: toIso(attachment.createdAt),
+        })),
       })),
     };
     }),

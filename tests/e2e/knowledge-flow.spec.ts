@@ -90,13 +90,13 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
 
   await page.screenshot({ fullPage: true, path: "test-results/knowtrace-flow.png" });
   await page.getByRole("link", { name: /返回收集箱/ }).click();
-  await expect(page).toHaveURL("http://localhost:3000/");
+  await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await page.getByRole("heading", { name: title }).click();
   await expect(page).toHaveURL(/\/captures\/[0-9a-f-]+$/);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "永久删除" }).click();
-  await expect(page).toHaveURL("http://localhost:3000/");
+  await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });

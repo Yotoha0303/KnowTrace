@@ -13,3 +13,6 @@ backups/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+data/uploads/**
+!data/uploads/evidence/
+!data/uploads/evidence/.gitkeep
