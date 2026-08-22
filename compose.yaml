@@ -23,6 +23,7 @@ services:
       AUTH_ENABLED: ${AUTH_ENABLED:-false}
       # Keep the host-side Next.js URL separate from the container URL.
       AUTH_SERVICE_URL: ${AUTH_DOCKER_SERVICE_URL:-http://host.docker.internal:8082}
+      AUTH_REGISTRATION_ENABLED: ${AUTH_REGISTRATION_ENABLED:-false}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       AI_DEFAULT_PROVIDER: ${AI_DEFAULT_PROVIDER:-mock}
       AI_REQUEST_TIMEOUT_MS: ${AI_REQUEST_TIMEOUT_MS:-90000}

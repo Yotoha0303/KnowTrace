@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  assignGoUserRoles,
   authServiceBaseURL,
+  listGoPermissions,
+  listGoRoles,
   loginWithGoUserSystem,
+  registerWithGoUserSystem,
+  updateGoUserPassword,
+  updateGoUserProfile,
 } from "./go-user-system";
 
 const loginData = {
@@ -75,5 +81,45 @@ describe("go-user-system client", () => {
       code: null,
       message: "登录服务暂时不可用，请稍后重试。",
     });
+  });
+
+  it("maps the complete account and RBAC contract to go-user-system", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      const data = url.endsWith("/admin/roles")
+        ? [{ id: 1, code: "user", name: "普通用户" }]
+        : url.endsWith("/admin/permissions")
+          ? [{ id: 1, code: "profile:read", name: "读取资料", method: "GET", path: "/api/v1/users/me" }]
+          : null;
+      return new Response(JSON.stringify({ code: 0, msg: "ok", data }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(registerWithGoUserSystem({ username: "new-user", password: "long-password" })).resolves.toMatchObject({ ok: true });
+    await expect(updateGoUserProfile("access.jwt", { nickname: "新昵称" })).resolves.toMatchObject({ ok: true });
+    await expect(updateGoUserPassword("access.jwt", { old_password: "old-password", new_password: "new-password" })).resolves.toMatchObject({ ok: true });
+    await expect(listGoRoles("access.jwt")).resolves.toMatchObject({ ok: true, data: [{ code: "user" }] });
+    await expect(listGoPermissions("access.jwt")).resolves.toMatchObject({ ok: true, data: [{ code: "profile:read" }] });
+    await expect(assignGoUserRoles("access.jwt", 12, ["user", "admin"])).resolves.toMatchObject({ ok: true });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8082/api/v1/users/me/profile",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ nickname: "新昵称" }),
+        headers: expect.objectContaining({ authorization: "Bearer access.jwt" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8082/api/v1/users/me/update/password",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8082/api/v1/admin/users/12/roles",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ role_codes: ["user", "admin"] }),
+      }),
+    );
   });
 });

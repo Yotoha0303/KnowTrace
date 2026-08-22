@@ -77,9 +77,11 @@ a { color: inherit; text-decoration: none; }
 .sidebar-note svg { flex: 0 0 auto; color: var(--accent); }
 .sidebar-note p { margin: 0; font-size: 11px; line-height: 1.6; }
 .sidebar-user { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; margin-top: 10px; padding: 11px 12px; color: #dfe7e1; background: rgb(255 255 255 / 5%); border: 1px solid rgb(255 255 255 / 8%); border-radius: 10px; }
-.sidebar-user span, .sidebar-user small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-user span { font-size: 11px; font-weight: 800; }
-.sidebar-user small { color: #839088; font-size: 9px; }
+.sidebar-user-link { min-width: 0; display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 5px; align-items: center; }
+.sidebar-user-link svg { grid-row: 1 / 3; color: var(--accent); }
+.sidebar-user-link span, .sidebar-user-link small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user-link span { font-size: 11px; font-weight: 800; }
+.sidebar-user-link small { color: #839088; font-size: 9px; }
 .sidebar-logout { grid-row: 1 / 3; grid-column: 2; display: inline-flex; align-items: center; gap: 4px; padding: 6px 7px; color: #aeb9b2; background: transparent; border: 1px solid rgb(255 255 255 / 10%); border-radius: 7px; font-size: 9px; cursor: pointer; }
 .sidebar-logout:hover:not(:disabled) { color: white; border-color: rgb(255 255 255 / 20%); }
 .sidebar-logout:disabled { opacity: .5; cursor: wait; }
@@ -97,6 +99,9 @@ a { color: inherit; text-decoration: none; }
 .input-with-icon input { min-width: 0; flex: 1; padding: 11px 0; color: var(--ink); background: transparent; border: 0; outline: none; }
 .login-card .button { min-height: 44px; margin-top: 3px; }
 .login-message { min-height: 20px; color: #69746d !important; font-size: 10px !important; text-align: center; }
+.login-card label > small { color: #8b938e; font-size: 9px; font-weight: 500; }
+.login-card .field-error { color: var(--red); font-weight: 700; }
+.auth-switch-link { justify-self: center; color: #536159; font-size: 11px; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
 
 .main-content { min-width: 0; }
 .page-shell { width: min(1180px, 100%); margin: 0 auto; padding: 52px clamp(24px, 5vw, 76px) 80px; }
@@ -144,6 +149,51 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .button-quiet { color: #56615b; background: #f5f5ef; border-color: #dedfd8; }
 .button-danger { color: #9b3c32; background: #fff6f4; border-color: #edc9c3; }
 .button-danger:hover:not(:disabled) { color: white; background: #b84b3f; border-color: #b84b3f; }
+
+.account-page { max-width: 1250px; }
+.account-notice { padding: 12px 14px; margin: -8px 0 20px; color: #49623c; background: #edfadf; border: 1px solid #cfe8b2; border-radius: 10px; font-size: 12px; font-weight: 700; }
+.account-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.account-summary > div { min-width: 0; padding: 16px; background: rgb(255 255 255 / 58%); border: 1px solid var(--line); border-radius: 12px; }
+.account-summary small, .account-summary strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-summary small { margin-bottom: 6px; color: #808983; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.account-summary strong { font-size: 13px; }
+.account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.account-card { padding: 24px; background: var(--surface-strong); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 45px rgb(31 43 37 / 5%); }
+.account-card-heading { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 22px; }
+.account-card-heading > svg { flex: 0 0 auto; margin-top: 2px; color: #6d7d73; }
+.account-card-heading h2 { margin: 0; font: 650 24px/1.25 Georgia, "Songti SC", serif; }
+.account-card-heading p { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.account-form { display: grid; }
+.account-form .button { justify-self: end; }
+.account-form .field { margin-bottom: 15px; }
+.account-form .field > small { justify-self: start; line-height: 1.5; }
+.field-error { color: var(--red) !important; font-weight: 700; }
+.form-success, .account-warning { padding: 9px 11px; margin: 0 0 13px; border-radius: 8px; font-size: 10px; line-height: 1.55; }
+.form-success { color: #46633a; background: #eef8e6; }
+.account-warning { color: #775d2e; background: #fff9e9; border: 1px solid #eadcb4; }
+.account-authorization, .account-admin { margin-top: 18px; }
+.authorization-columns { display: grid; grid-template-columns: .6fr 1.4fr; gap: 24px; }
+.authorization-columns h3 { margin: 0 0 10px; color: #69756e; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.code-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.code-list code { padding: 5px 8px; color: #4f6156; background: #edf1e8; border-radius: 99px; font-size: 10px; }
+.muted-copy { margin: 0; color: var(--muted); font-size: 11px; }
+.admin-role-form { grid-template-columns: minmax(220px, .7fr) minmax(320px, 1.3fr); gap: 20px; align-items: start; }
+.admin-role-form > .form-error, .admin-role-form > .form-success, .admin-role-form > .button, .admin-role-form > .field-error, .role-confirmation { grid-column: 1 / -1; }
+.role-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0; border: 0; }
+.role-picker legend { grid-column: 1 / -1; margin-bottom: 8px; color: #68736d; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.role-picker > label { display: flex; gap: 9px; align-items: center; padding: 10px; background: #f7f7f2; border: 1px solid #e0e1da; border-radius: 9px; cursor: pointer; }
+.role-picker > label:has(input:checked) { background: var(--accent-soft); border-color: #bedf80; }
+.role-picker span, .role-picker strong, .role-picker small { min-width: 0; display: block; }
+.role-picker strong { font-size: 11px; }
+.role-picker small { margin-top: 2px; color: #7e8881; font: 9px ui-monospace, monospace; }
+.role-confirmation { display: flex; gap: 9px; align-items: flex-start; padding: 11px; color: #735d36; background: #fff9ea; border: 1px solid #e8dbb9; border-radius: 8px; font-size: 10px; line-height: 1.6; }
+.role-confirmation input { margin-top: 2px; }
+.permission-catalog { margin-top: 24px; padding-top: 18px; border-top: 1px solid #e5e5df; }
+.permission-catalog summary { color: #59665e; font-size: 11px; font-weight: 800; cursor: pointer; }
+.permission-catalog ul { display: grid; gap: 6px; padding: 0; margin: 12px 0 0; list-style: none; }
+.permission-catalog li { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(140px, .5fr) minmax(240px, 1fr); gap: 12px; align-items: center; padding: 9px 10px; background: #f7f7f3; border-radius: 7px; font-size: 10px; }
+.permission-catalog li small { color: #7f8983; font: 9px ui-monospace, monospace; }
+.account-boundary { padding: 13px 15px; margin: 18px 0 0; color: #6a716d; background: rgb(255 255 255 / 45%); border: 1px dashed #c7cbc3; border-radius: 10px; font-size: 10px; line-height: 1.65; }
 
 .content-section { margin-top: 54px; }
 .section-title { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; }
@@ -774,6 +824,8 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
   .authority-form, .independent-review-form { grid-template-columns: 1fr 1fr; }
   .authority-form .button, .independent-review-form .button { grid-column: 1 / -1; }
   .subject-index-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .account-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .account-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {
@@ -823,4 +875,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
   .subject-timeline-event::before { left: 0; }
   .subject-timeline-event > time { text-align: left; }
   .search-result-summary { align-items: flex-start; flex-direction: column; }
+  .account-summary, .authorization-columns, .admin-role-form, .role-picker { grid-template-columns: 1fr; }
+  .permission-catalog li { grid-template-columns: 1fr; gap: 4px; }
+  .account-card { padding: 19px; }
 }

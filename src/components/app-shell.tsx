@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, BookMarked, ContactRound, Inbox, Scale, Search, Settings2 } from "lucide-react";
+import { Archive, BookMarked, ContactRound, Inbox, Scale, Search, Settings2, UserRound } from "lucide-react";
 
 import type { CategoryDTO } from "@/features/capture/queries";
 import { CategoryCreator } from "@/components/category-creator";
@@ -71,8 +71,11 @@ export function AppShell({
         </div>
         {user ? (
           <div className="sidebar-user">
-            <span>{user.nickname || user.username}</span>
-            <small>@{user.username}</small>
+            <Link className="sidebar-user-link" href="/account">
+              <UserRound size={14} />
+              <span>{user.nickname || user.username}</span>
+              <small>@{user.username} · 账户中心</small>
+            </Link>
             <LogoutButton />
           </div>
         ) : null}

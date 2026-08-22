@@ -18,7 +18,7 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const requestHeaders = await headers();
   const authEnabled = isAuthEnabled();
-  const loginPage = requestHeaders.get("x-knowtrace-login-page") === "1";
+  const authPage = requestHeaders.get("x-knowtrace-auth-page") === "1";
   const userId = requestHeaders.get("x-knowtrace-user-id");
   const user = userId
     ? {
@@ -32,7 +32,7 @@ export default async function RootLayout({
       }
     : null;
 
-  if (authEnabled && (loginPage || !user)) {
+  if (authEnabled && (authPage || !user)) {
     return (
       <html lang="zh-CN">
         <body>{children}</body>

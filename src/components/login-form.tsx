@@ -1,15 +1,27 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { KeyRound, LoaderCircle, LogIn } from "lucide-react";
 
-export function LoginForm() {
+export function LoginForm({ registrationEnabled }: { registrationEnabled: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("正在检查已有会话……");
+  const registered = searchParams.get("registered") === "1";
+  const passwordChanged = searchParams.get("passwordChanged") === "1";
+  const registrationDisabled = searchParams.get("registration") === "disabled";
+  const [message, setMessage] = useState(
+    registered
+      ? "账号已创建，请使用新账号登录。"
+      : passwordChanged
+        ? "密码已修改，全部会话已退出，请使用新密码登录。"
+        : registrationDisabled
+          ? "当前部署未开放注册，请联系管理员创建账号。"
+          : "正在检查已有会话……",
+  );
   const [submitting, setSubmitting] = useState(false);
   const nextPath = searchParams.get("next");
   const destination = nextPath?.startsWith("/") && !nextPath.startsWith("//")
@@ -17,25 +29,29 @@ export function LoginForm() {
     : "/";
 
   useEffect(() => {
-    const controller = new AbortController();
+    let active = true;
     fetch("/api/v1/auth/refresh", {
       method: "POST",
-      signal: controller.signal,
     })
       .then((response) => {
+        if (!active) return;
         if (response.ok) {
           router.replace(destination);
           router.refresh();
           return;
         }
-        setMessage("请输入 go-user-system 的账号和密码。");
+        if (!registered && !passwordChanged && !registrationDisabled) {
+          setMessage("请输入 go-user-system 的账号和密码。");
+        }
       })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+      .catch(() => {
+        if (!active) return;
         setMessage("登录服务暂时不可用，你仍可以稍后重试。");
       });
-    return () => controller.abort();
-  }, [destination, router]);
+    return () => {
+      active = false;
+    };
+  }, [destination, passwordChanged, registered, registrationDisabled, router]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -86,6 +102,9 @@ export function LoginForm() {
         {submitting ? "正在登录…" : "登录"}
       </button>
       <p aria-live="polite" className="login-message">{message}</p>
+      {registrationEnabled ? (
+        <Link className="auth-switch-link" href="/register">没有账号？创建账号</Link>
+      ) : null}
     </form>
   );
 }

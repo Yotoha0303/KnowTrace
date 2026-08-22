@@ -4,6 +4,7 @@ import {
   ACCESS_TOKEN_COOKIE,
   getGoUser,
   isAuthEnabled,
+  isRegistrationEnabled,
 } from "@/features/auth/go-user-system";
 import { clearSessionCookies } from "@/features/auth/response";
 
@@ -22,23 +23,28 @@ function loginRedirect(request: NextRequest) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const authPage = pathname === "/login" || pathname === "/register";
   if (!isAuthEnabled()) {
-    return pathname === "/login"
+    return authPage
       ? NextResponse.redirect(new URL("/", request.url))
       : NextResponse.next();
   }
   if (publicPath(pathname)) return NextResponse.next();
 
+  if (pathname === "/register" && !isRegistrationEnabled()) {
+    return NextResponse.redirect(new URL("/login?registration=disabled", request.url));
+  }
+
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   const user = accessToken ? await getGoUser(accessToken) : null;
 
-  if (pathname === "/login") {
+  if (authPage) {
     if (user?.ok) return NextResponse.redirect(new URL("/", request.url));
     const requestHeaders = new Headers(request.headers);
     requestHeaders.delete("x-knowtrace-user-id");
     requestHeaders.delete("x-knowtrace-username");
     requestHeaders.delete("x-knowtrace-nickname");
-    requestHeaders.set("x-knowtrace-login-page", "1");
+    requestHeaders.set("x-knowtrace-auth-page", "1");
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     if (accessToken) clearSessionCookies(response);
     return response;
@@ -62,7 +68,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-knowtrace-user-id", String(user.data.id));
   requestHeaders.set("x-knowtrace-username", encodeURIComponent(user.data.username));
   requestHeaders.set("x-knowtrace-nickname", encodeURIComponent(user.data.nickname));
-  requestHeaders.delete("x-knowtrace-login-page");
+  requestHeaders.delete("x-knowtrace-auth-page");
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 

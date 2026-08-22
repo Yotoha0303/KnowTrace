@@ -21,7 +21,7 @@ KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系�
 
 当前明确不做：
 
-- KnowTrace 内部的注册、密码存储、用户管理和 Workspace 多租户；需要访问保护时复用独立的 go-user-system。
+- KnowTrace 自建的密码存储、账号数据库和 Workspace 多租户；注册、资料、密码与角色权限统一复用独立的 go-user-system。
 - AI 自动联网补证、最终真实性判定和向公网自动分发知识。
 - RAG、向量检索和知识图谱。
 - 面向大规模团队的复杂分析看板。
@@ -89,16 +89,19 @@ Migration 会启用 PostgreSQL `pg_trgm` 扩展以支持中文片段检索；受
 
 ### 可选登录保护
 
-KnowTrace 可以复用独立的 [go-user-system](https://github.com/Yotoha0303/go-user-system) 管理账号和会话。KnowTrace 不保存密码，也不提供注册页面。先启动 go-user-system 并创建管理员或普通用户，然后配置：
+KnowTrace 可以复用独立的 [go-user-system](https://github.com/Yotoha0303/go-user-system) 管理账号和会话。KnowTrace 不保存密码；账户中心可修改昵称、修改密码、查看自身角色权限，并向有权限的管理员提供角色分配界面。先启动 go-user-system，然后配置：
 
 ```dotenv
 AUTH_ENABLED=true
 AUTH_SERVICE_URL=http://localhost:8082
 AUTH_DOCKER_SERVICE_URL=http://host.docker.internal:8082
+AUTH_REGISTRATION_ENABLED=false
 AUTH_COOKIE_SECURE=false
 ```
 
-`AUTH_SERVICE_URL` 供宿主机直接运行 Next.js 时使用，`AUTH_DOCKER_SERVICE_URL` 供应用容器访问宿主机认证服务，避免把容器内的 `localhost` 错当成 Windows 主机。本地 HTTP 保持 `AUTH_COOKIE_SECURE=false`；通过 HTTPS 部署时必须改为 `true`。登录启用后，页面、服务端写操作和证据图片都会验证会话；认证服务异常时拒绝访问，不会匿名降级。
+`AUTH_SERVICE_URL` 供宿主机直接运行 Next.js 时使用，`AUTH_DOCKER_SERVICE_URL` 供应用容器访问宿主机认证服务，避免把容器内的 `localhost` 错当成 Windows 主机。只有 go-user-system 自身开放注册路由时，才把 `AUTH_REGISTRATION_ENABLED` 改为 `true`；默认关闭可避免误开放账号创建。本地 HTTP 保持 `AUTH_COOKIE_SECURE=false`；通过 HTTPS 部署时必须改为 `true`。认证启用后，页面、服务端写操作和证据图片都会验证会话；认证服务异常时拒绝访问，不会匿名降级。
+
+当前 go-user-system 已接入的实际能力包括注册（可选）、登录、刷新轮换、退出、个人资料、修改密码、查看角色权限、读取角色/权限目录和管理员分配角色。修改密码会使该账号的全部已有会话失效。上游当前没有用户列表、设备会话列表或按设备撤销接口，因此 KnowTrace 管理员分配角色时需要填写数字用户 ID，也不会展示不存在的单设备会话管理。
 
 如需调用真实模型，可以在记录详情的“AI 整理台”直接输入 OpenAI/DeepSeek API Key，也可以继续在 `.env` 中配置 `OPENAI_API_KEY` 或 `DEEPSEEK_API_KEY` 作为服务端后备值。UI 输入的 Key 只随本次整理请求发送，不写入数据库、AI Run、日志或服务端环境变量；勾选“仅在当前浏览器标签页记住凭据”后，才会写入该标签页的 `sessionStorage`，关闭标签页后失效。
 
@@ -179,6 +182,6 @@ pnpm build
 
 ## 当前实现状态
 
-第一版 Web 应用已实现：快速录入、记录编辑与删除、乐观版本控制、修改历史、多分类、分类管理、归档恢复、AI 结构化整理、处理状态反馈、分类数量约束、可选局部原文建议、来源片段约束、人工接受/修改/驳回，以及 AI 处理历史。P1.1–P1.4 已形成“候选主张—来源检查—证据审核—人工结论—AI 非裁决审查”闭环；P2 已加入统一知识检索、Category 主题档案、对象/时间筛选和可解释的相似记录；P2.6 已接入可选的 go-user-system 登录、刷新轮换和访问保护；P2.7 已加入对象时间线及可追溯的 AI 主题综合档案；P2.8 已加入来源权威性评估、身份化独立复核和不可变可靠知识发布版本；P2.9 已交付未来 App 可复用的 `/api/v1` 读取与 Capture 生命周期接口。尚未实现自动联网补证、Workspace 数据隔离、细粒度角色授权、移动 App 和公网发布通道，界面仍不存在含糊的“已验证”入口。
+第一版 Web 应用已实现：快速录入、记录编辑与删除、乐观版本控制、修改历史、多分类、分类管理、归档恢复、AI 结构化整理、处理状态反馈、分类数量约束、可选局部原文建议、来源片段约束、人工接受/修改/驳回，以及 AI 处理历史。P1.1–P1.4 已形成“候选主张—来源检查—证据审核—人工结论—AI 非裁决审查”闭环；P2 已加入统一知识检索、Category 主题档案、对象/时间筛选和可解释的相似记录；P2.6 已完整接入 go-user-system 当前已有的账号与 RBAC 接口；P2.7 已加入对象时间线及可追溯的 AI 主题综合档案；P2.8 已加入来源权威性评估、身份化独立复核和不可变可靠知识发布版本；P2.9 已交付未来 App 可复用的 `/api/v1` 读取与 Capture 生命周期接口。尚未实现自动联网补证、Workspace 数据隔离、KnowTrace 业务数据的细粒度角色授权、移动 App 和公网发布通道，界面仍不存在含糊的“已验证”入口。
 
 GitHub 仓库：[Yotoha0303/KnowTrace](https://github.com/Yotoha0303/KnowTrace)。

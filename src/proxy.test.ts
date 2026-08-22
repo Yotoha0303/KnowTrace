@@ -17,6 +17,7 @@ const validUserEnvelope = {
 describe("authentication proxy", () => {
   beforeEach(() => {
     vi.stubEnv("AUTH_ENABLED", "true");
+    vi.stubEnv("AUTH_REGISTRATION_ENABLED", "true");
     vi.stubEnv("AUTH_SERVICE_URL", "http://127.0.0.1:8082");
   });
 
@@ -50,6 +51,17 @@ describe("authentication proxy", () => {
 
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("allows the registration page only when upstream registration is enabled", async () => {
+    const enabled = await proxy(new NextRequest("http://localhost/register"));
+    expect(enabled.headers.get("x-middleware-next")).toBe("1");
+    expect(enabled.headers.get("x-middleware-request-x-knowtrace-auth-page")).toBe("1");
+
+    vi.stubEnv("AUTH_REGISTRATION_ENABLED", "false");
+    const disabled = await proxy(new NextRequest("http://localhost/register"));
+    expect(disabled.status).toBe(307);
+    expect(disabled.headers.get("location")).toBe("http://localhost/login?registration=disabled");
   });
 
   it("validates the access token and replaces spoofed identity headers", async () => {

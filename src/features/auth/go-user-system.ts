@@ -26,6 +26,20 @@ const authorizationSchema = z.object({
   permission_codes: z.array(z.string()),
 });
 
+const roleSchema = z.object({
+  id: z.number().int().positive(),
+  code: z.string().min(1).max(64),
+  name: z.string().min(1).max(64),
+});
+
+const permissionSchema = z.object({
+  id: z.number().int().positive(),
+  code: z.string().min(1).max(128),
+  name: z.string().min(1).max(64),
+  method: z.string().min(1).max(16),
+  path: z.string().min(1).max(255),
+});
+
 const envelopeSchema = z.object({
   code: z.number().int(),
   msg: z.string(),
@@ -36,6 +50,17 @@ export type AuthUser = z.infer<typeof authUserSchema>;
 export type AccessSession = z.infer<typeof accessSessionSchema>;
 export type LoginSession = z.infer<typeof loginSessionSchema>;
 export type AuthorizationInfo = z.infer<typeof authorizationSchema>;
+export type Role = z.infer<typeof roleSchema>;
+export type Permission = z.infer<typeof permissionSchema>;
+
+export const GO_PERMISSION = {
+  profileRead: "profile:read",
+  profileUpdate: "profile:update",
+  passwordUpdate: "password:update",
+  adminRolesRead: "admin:roles:read",
+  adminPermissionsRead: "admin:permissions:read",
+  adminUserRolesUpdate: "admin:user_roles:update",
+} as const;
 
 export type GoAuthResult<T> =
   | { ok: true; data: T; refreshToken: string | null }
@@ -43,6 +68,10 @@ export type GoAuthResult<T> =
 
 export function isAuthEnabled(): boolean {
   return process.env.AUTH_ENABLED === "true";
+}
+
+export function isRegistrationEnabled(): boolean {
+  return isAuthEnabled() && process.env.AUTH_REGISTRATION_ENABLED === "true";
 }
 
 export function authServiceBaseURL(): string {
@@ -138,6 +167,17 @@ export function loginWithGoUserSystem(input: {
   );
 }
 
+export function registerWithGoUserSystem(input: {
+  username: string;
+  password: string;
+}): Promise<GoAuthResult<null>> {
+  return requestGoUserSystem(
+    "/api/v1/auth/register",
+    z.null(),
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
 export function refreshWithGoUserSystem(
   refreshToken: string,
 ): Promise<GoAuthResult<AccessSession>> {
@@ -185,6 +225,70 @@ export function getGoAuthorization(
     "/api/v1/users/me/authorization",
     authorizationSchema,
     { headers: { authorization: `Bearer ${accessToken}` } },
+  );
+}
+
+export function updateGoUserProfile(
+  accessToken: string,
+  input: { nickname: string },
+): Promise<GoAuthResult<null>> {
+  return requestGoUserSystem(
+    "/api/v1/users/me/profile",
+    z.null(),
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+      headers: { authorization: `Bearer ${accessToken}` },
+    },
+  );
+}
+
+export function updateGoUserPassword(
+  accessToken: string,
+  input: { old_password: string; new_password: string },
+): Promise<GoAuthResult<null>> {
+  return requestGoUserSystem(
+    "/api/v1/users/me/update/password",
+    z.null(),
+    {
+      method: "PATCH",
+      body: JSON.stringify(input),
+      headers: { authorization: `Bearer ${accessToken}` },
+    },
+  );
+}
+
+export function listGoRoles(
+  accessToken: string,
+): Promise<GoAuthResult<Role[]>> {
+  return requestGoUserSystem("/api/v1/admin/roles", z.array(roleSchema), {
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function listGoPermissions(
+  accessToken: string,
+): Promise<GoAuthResult<Permission[]>> {
+  return requestGoUserSystem(
+    "/api/v1/admin/permissions",
+    z.array(permissionSchema),
+    { headers: { authorization: `Bearer ${accessToken}` } },
+  );
+}
+
+export function assignGoUserRoles(
+  accessToken: string,
+  userId: number,
+  roleCodes: string[],
+): Promise<GoAuthResult<null>> {
+  return requestGoUserSystem(
+    `/api/v1/admin/users/${userId}/roles`,
+    z.null(),
+    {
+      method: "PUT",
+      body: JSON.stringify({ role_codes: roleCodes }),
+      headers: { authorization: `Bearer ${accessToken}` },
+    },
   );
 }
 

@@ -2,7 +2,7 @@
 
 ## 1. 部署边界
 
-KnowTrace 默认不启用登录，只能部署在个人电脑、可信局域网，或由反向代理/VPN 提供访问控制的环境。可以通过 `AUTH_ENABLED=true` 接入独立 go-user-system；这会建立身份门槛，并为结论作者、独立复核者和发布者提供服务端身份，但不提供 Workspace 隔离或细粒度角色授权。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
+KnowTrace 默认不启用登录，只能部署在个人电脑、可信局域网，或由反向代理/VPN 提供访问控制的环境。可以通过 `AUTH_ENABLED=true` 接入独立 go-user-system；这会建立身份门槛，并为结论作者、独立复核者和发布者提供服务端身份。账户中心复用上游的资料、密码和 RBAC 管理，但这些角色暂不提供 KnowTrace Workspace 隔离或业务数据细粒度授权。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
 
 启用认证前先确认：
 
@@ -10,10 +10,11 @@ KnowTrace 默认不启用登录，只能部署在个人电脑、可信局域网�
 Invoke-WebRequest http://localhost:8082/readyz
 $env:AUTH_ENABLED="true"
 $env:AUTH_SERVICE_URL="http://localhost:8082"
+$env:AUTH_REGISTRATION_ENABLED="false" # 确认上游开放注册后才启用
 $env:AUTH_COOKIE_SECURE="false" # 仅本地 HTTP
 ```
 
-go-user-system 的密码、JWT 密钥、MySQL 和 Redis 备份不属于 KnowTrace 备份，必须按其仓库运维文档单独管理。需要独立复核时至少准备两个不同账号；结论作者与复核者不能共享账号。
+go-user-system 的密码、JWT 密钥、MySQL 和 Redis 备份不属于 KnowTrace 备份，必须按其仓库运维文档单独管理。需要独立复核时至少准备两个不同账号；结论作者与复核者不能共享账号。修改密码会使该账号的全部会话失效；当前上游不提供设备会话列表和单设备撤销接口。管理员角色分配依赖数字用户 ID，因为上游尚无用户列表接口。
 
 ## 2. 容器运行
 
