@@ -37,8 +37,17 @@ try {
       AND created_at < now() - ${staleAfterMs} * interval '1 millisecond'
     RETURNING id
   `;
+  const recoveredImports = await client`
+    UPDATE data_import_runs
+    SET status = 'failed',
+        error_code = 'IMPORT_INTERRUPTED',
+        error_message = '应用重启中断了导入；数据库事务未提交，请重新上传文件预检。',
+        completed_at = now()
+    WHERE status = 'importing'
+    RETURNING id
+  `;
   console.log(
-    `Recovered ${recoveredRuns.length} interrupted AI run(s) and ${recoveredTopics.length} topic synthesis run(s)`,
+    `Recovered ${recoveredRuns.length} interrupted AI run(s), ${recoveredTopics.length} topic synthesis run(s), and ${recoveredImports.length} import run(s)`,
   );
 } finally {
   await client.end();

@@ -43,6 +43,13 @@ export const aiRunStatusEnum = pgEnum("ai_run_status", [
   "cancelled",
 ]);
 
+export const dataImportStatusEnum = pgEnum("data_import_status", [
+  "previewed",
+  "importing",
+  "completed",
+  "failed",
+]);
+
 export const suggestionStatusEnum = pgEnum("suggestion_status", [
   "pending",
   "accepted",
@@ -734,6 +741,43 @@ export const topicSyntheses = pgTable(
   ],
 );
 
+export const dataImportRuns = pgTable(
+  "data_import_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    actorId: varchar("actor_id", { length: 100 }).notNull(),
+    actorName: varchar("actor_name", { length: 255 }).notNull(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    fileSha256: varchar("file_sha256", { length: 64 }).notNull(),
+    formatVersion: varchar("format_version", { length: 20 }).notNull(),
+    status: dataImportStatusEnum("status").notNull().default("previewed"),
+    stagedPayload: jsonb("staged_payload").notNull(),
+    previewSummary: jsonb("preview_summary").notNull(),
+    resultSummary: jsonb("result_summary"),
+    errorCode: varchar("error_code", { length: 80 }),
+    errorMessage: varchar("error_message", { length: 1_000 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("data_import_runs_actor_created_idx").on(
+      table.actorId,
+      table.createdAt,
+    ),
+    index("data_import_runs_status_created_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+    check(
+      "data_import_runs_file_sha256_chk",
+      sql`char_length(${table.fileSha256}) = 64`,
+    ),
+  ],
+);
+
 export type CaptureRow = typeof captures.$inferSelect;
 export type CategoryRow = typeof categories.$inferSelect;
 export type AIRunRow = typeof aiProcessingRuns.$inferSelect;
@@ -749,3 +793,4 @@ export type TopicSynthesisRow = typeof topicSyntheses.$inferSelect;
 export type SourceAuthorityAssessmentRow = typeof sourceAuthorityAssessments.$inferSelect;
 export type IndependentClaimReviewRow = typeof independentClaimReviews.$inferSelect;
 export type KnowledgeReleaseRow = typeof knowledgeReleases.$inferSelect;
+export type DataImportRunRow = typeof dataImportRuns.$inferSelect;

@@ -398,6 +398,47 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .claim-boundary-notice { padding: 13px 15px; margin-bottom: 18px; color: #655326; background: #fff9de; border: 1px solid #eadb9e; border-radius: 10px; }
 .claim-boundary-notice strong { display: block; margin-bottom: 4px; font-size: 12px; }
 .claim-boundary-notice p { margin: 0; color: #827344; font-size: 11px; line-height: 1.6; }
+.data-transfer-page { max-width: 1180px; }
+.transfer-boundary-notice { display: flex; gap: 13px; padding: 15px 17px; margin-bottom: 22px; color: #655326; background: #fff9de; border: 1px solid #eadb9e; border-radius: 12px; }
+.transfer-boundary-notice > svg { flex: 0 0 auto; margin-top: 2px; }
+.transfer-boundary-notice strong { display: block; margin-bottom: 4px; font-size: 12px; }
+.transfer-boundary-notice p { margin: 0; color: #827344; font-size: 11px; line-height: 1.6; }
+.data-transfer-grid { display: grid; grid-template-columns: minmax(250px, .7fr) minmax(430px, 1.3fr); gap: 18px; align-items: start; }
+.transfer-card { padding: 24px; background: var(--surface-strong); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 45px rgb(31 43 37 / 5%); }
+.transfer-card-heading { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 18px; }
+.transfer-card-heading > svg { flex: 0 0 auto; color: #60705e; }
+.transfer-card-heading h2 { margin: 0 0 5px; font: 650 24px/1.2 Georgia, "Songti SC", serif; }
+.transfer-card-heading p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.transfer-rules { display: grid; gap: 8px; padding-left: 18px; margin: 0 0 22px; color: #66716b; font-size: 11px; line-height: 1.5; }
+.import-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 18px; }
+.import-steps span { padding: 7px 5px; color: #8a918d; text-align: center; background: #f0f1ed; border-radius: 6px; font-size: 9px; font-weight: 800; }
+.import-steps span.active { color: #3e572e; background: var(--accent-soft); }
+.import-steps span.done { color: #fff; background: #50624f; }
+.transfer-file-field { display: grid; gap: 7px; color: #47534d; font-size: 11px; font-weight: 800; }
+.transfer-file-field small { color: #89918c; font-size: 9px; font-weight: 500; }
+.transfer-file-field input { width: 100%; padding: 10px; color: #5b665f; background: #f7f8f3; border: 1px solid #daddd5; border-radius: 9px; font-size: 11px; }
+.transfer-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+.transfer-status { display: flex; gap: 10px; align-items: flex-start; padding: 12px; margin-top: 14px; color: #655326; background: #fff9de; border: 1px solid #eadb9e; border-radius: 9px; font-size: 10px; line-height: 1.55; }
+.transfer-status > svg { flex: 0 0 auto; margin-top: 1px; }
+.transfer-status strong { display: block; font-size: 11px; }
+.transfer-status.is-ready, .transfer-status.is-completed { color: #486039; background: #eef9e5; border-color: #cae3b8; }
+.transfer-status.is-invalid { color: #854a42; background: #fff3f1; border-color: #edcbc6; }
+.import-preview { padding-top: 18px; margin-top: 18px; border-top: 1px solid var(--line); }
+.import-preview h3 { margin: 0 0 11px; font-size: 12px; }
+.import-preview dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 0; }
+.import-preview dl > div { padding: 9px; background: #f3f5ef; border-radius: 7px; }
+.import-preview dt { color: #7b857f; font-size: 9px; }
+.import-preview dd { margin: 3px 0 0; color: #344139; font-size: 13px; font-weight: 800; }
+.import-issues { margin-top: 13px; padding: 12px; color: #7e4841; background: #fff5f3; border: 1px solid #efd0cb; border-radius: 9px; font-size: 10px; }
+.import-issues ul { display: grid; gap: 6px; padding: 0; margin: 9px 0 0; list-style: none; }
+.import-issues li { display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
+.import-issues li span { color: #a26e67; }
+.import-confirm { display: flex; gap: 14px; align-items: center; justify-content: space-between; padding: 13px; margin-top: 13px; background: #f2f8e9; border: 1px solid #d2e4bd; border-radius: 9px; }
+.import-confirm p { margin: 0; color: #617058; font-size: 10px; line-height: 1.55; }
+.import-confirm .button { flex: 0 0 auto; }
+.import-result { display: grid; gap: 4px; padding: 12px; margin-top: 12px; color: #476039; background: #eaf8de; border-radius: 9px; font-size: 10px; }
+.spin { animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .claim-list { display: grid; gap: 13px; }
 .claim-card { padding: 19px; background: #fafaf6; border: 1px solid #dedfd8; border-left: 4px solid #929c95; border-radius: 12px; }
 .claim-card.is-investigating { border-left-color: #759f31; }
@@ -812,6 +853,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .subject-event-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 14px; color: #53645b; font-size: 10px; font-weight: 800; }
 
 @media (max-width: 1000px) {
+  .data-transfer-grid { grid-template-columns: 1fr; }
   .app-frame { grid-template-columns: 205px minmax(0, 1fr); }
   .sidebar { padding-inline: 14px; }
   .detail-grid { grid-template-columns: 1fr; }
@@ -838,6 +880,9 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 }
 
 @media (max-width: 720px) {
+  .import-preview dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .import-confirm { display: grid; }
+  .import-confirm .button { width: 100%; }
   .app-frame { display: block; }
   .sidebar { position: static; width: 100%; height: auto; padding: 17px; }
   .brand { margin: 0 0 13px; }

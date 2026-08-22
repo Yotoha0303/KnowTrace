@@ -54,6 +54,8 @@ pnpm db:maintenance
 
 ## 4. 备份
 
+页面中的 Excel 导出属于可移植数据交换，只覆盖记录、对象、时间、状态、分类和分类关联。它不能恢复 AI 处理历史、主张证据链、审核发布快照或图片，因此不得替代下述 PostgreSQL 与 `data/uploads` 备份。Excel 导入必须先预检；预检结果会保存为 `data_import_runs`，人工确认后才以单个数据库事务写入。
+
 ```powershell
 .\scripts\backup.ps1
 ```

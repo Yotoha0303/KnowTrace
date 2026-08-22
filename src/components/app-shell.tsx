@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, BookMarked, ContactRound, Inbox, Scale, Search, Settings2, UserRound } from "lucide-react";
+import { Archive, ArrowLeftRight, BookMarked, ContactRound, Inbox, Scale, Search, Settings2, UserRound } from "lucide-react";
 
 import type { CategoryDTO } from "@/features/capture/queries";
 import { CategoryCreator } from "@/components/category-creator";
@@ -40,6 +40,9 @@ export function AppShell({
           </Link>
           <Link href="/subjects">
             <ContactRound size={17} /> 对象时间线
+          </Link>
+          <Link href="/data-transfer">
+            <ArrowLeftRight size={17} /> 数据迁移
           </Link>
         </nav>
 

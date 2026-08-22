@@ -2,6 +2,7 @@ allowBuilds:
   esbuild: true
 overrides:
   ansi-regex@5.0.0: 5.0.1
+  exceljs>uuid: 11.1.1
 minimumReleaseAgeExclude:
   - '@next/env@16.3.1'
   - '@next/swc-darwin-arm64@16.3.1'
