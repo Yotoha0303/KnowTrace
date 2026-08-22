@@ -94,10 +94,11 @@ KnowTrace 可以复用独立的 [go-user-system](https://github.com/Yotoha0303/g
 ```dotenv
 AUTH_ENABLED=true
 AUTH_SERVICE_URL=http://localhost:8082
+AUTH_DOCKER_SERVICE_URL=http://host.docker.internal:8082
 AUTH_COOKIE_SECURE=false
 ```
 
-容器内默认使用 `http://host.docker.internal:8082`。本地 HTTP 保持 `AUTH_COOKIE_SECURE=false`；通过 HTTPS 部署时必须改为 `true`。登录启用后，页面、服务端写操作和证据图片都会验证会话；认证服务异常时拒绝访问，不会匿名降级。
+`AUTH_SERVICE_URL` 供宿主机直接运行 Next.js 时使用，`AUTH_DOCKER_SERVICE_URL` 供应用容器访问宿主机认证服务，避免把容器内的 `localhost` 错当成 Windows 主机。本地 HTTP 保持 `AUTH_COOKIE_SECURE=false`；通过 HTTPS 部署时必须改为 `true`。登录启用后，页面、服务端写操作和证据图片都会验证会话；认证服务异常时拒绝访问，不会匿名降级。
 
 如需调用真实模型，可以在记录详情的“AI 整理台”直接输入 OpenAI/DeepSeek API Key，也可以继续在 `.env` 中配置 `OPENAI_API_KEY` 或 `DEEPSEEK_API_KEY` 作为服务端后备值。UI 输入的 Key 只随本次整理请求发送，不写入数据库、AI Run、日志或服务端环境变量；勾选“仅在当前浏览器标签页记住凭据”后，才会写入该标签页的 `sessionStorage`，关闭标签页后失效。
 

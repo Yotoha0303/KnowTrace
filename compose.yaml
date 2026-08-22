@@ -21,7 +21,8 @@ services:
       DATABASE_URL: postgres://knowtrace:knowtrace@postgres:5432/knowtrace
       EVIDENCE_UPLOAD_DIR: /app/data/uploads/evidence
       AUTH_ENABLED: ${AUTH_ENABLED:-false}
-      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://host.docker.internal:8082}
+      # Keep the host-side Next.js URL separate from the container URL.
+      AUTH_SERVICE_URL: ${AUTH_DOCKER_SERVICE_URL:-http://host.docker.internal:8082}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       AI_DEFAULT_PROVIDER: ${AI_DEFAULT_PROVIDER:-mock}
       AI_REQUEST_TIMEOUT_MS: ${AI_REQUEST_TIMEOUT_MS:-90000}
