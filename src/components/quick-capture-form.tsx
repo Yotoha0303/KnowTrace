@@ -61,7 +61,7 @@ export function QuickCaptureForm({
         );
         return;
       }
-      window.location.assign(`/captures/${result.data.id}`);
+      window.location.replace(`/captures/${result.data.id}`);
     });
   }
 

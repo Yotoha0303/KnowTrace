@@ -5,7 +5,7 @@
 ### R-01 AI 功能再次扩展成完整验证闭环
 
 - 影响：首版无法交付。
-- 应对：AI 整理、Claim/Evidence 和可靠性审查均是边界明确的纵向切片；自动联网补证、来源评级、身份审核和知识发布继续延期。
+- 应对：AI 整理、Claim/Evidence、来源权威性、跨身份复核和可靠发布均是边界明确的纵向切片；自动联网补证、永久真实性声明和公网分发继续延期。
 
 ### R-02 分类体系过度设计
 
@@ -113,7 +113,7 @@
 ### R-20 Server Action 承担过多业务逻辑
 
 - 影响：代码难测试，未来无法复用到 App API。
-- 应对：Server Action 只做输入适配，规则放 Application Service。
+- 应对：Server Action 与 `/api/v1` Route Handler 只做输入适配，规则放 Application Service；移动端接口复用同一乐观锁、幂等和删除策略。
 
 ### R-20 复用 GitHub 项目带入无关复杂度
 

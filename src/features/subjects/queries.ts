@@ -55,8 +55,10 @@ export async function listSubjectSummaries(): Promise<SubjectSummaryDTO[]> {
     .select({
       name: sql<string>`min(btrim(${captures.subject}))`,
       captureCount: sql<number>`count(*)`,
-      firstOccurredAt: sql<Date>`min(${captures.occurredAt})`,
-      lastOccurredAt: sql<Date>`max(${captures.occurredAt})`,
+      // PostgreSQL aggregate timestamps are returned as strings by the
+      // current driver even though non-aggregate timestamp columns are Date.
+      firstOccurredAt: sql<Date | string>`min(${captures.occurredAt})`,
+      lastOccurredAt: sql<Date | string>`max(${captures.occurredAt})`,
     })
     .from(captures)
     .where(
@@ -73,8 +75,8 @@ export async function listSubjectSummaries(): Promise<SubjectSummaryDTO[]> {
   return rows.map((row) => ({
     name: row.name,
     captureCount: Number(row.captureCount),
-    firstOccurredAt: row.firstOccurredAt.toISOString(),
-    lastOccurredAt: row.lastOccurredAt.toISOString(),
+    firstOccurredAt: new Date(row.firstOccurredAt).toISOString(),
+    lastOccurredAt: new Date(row.lastOccurredAt).toISOString(),
   }));
 }
 

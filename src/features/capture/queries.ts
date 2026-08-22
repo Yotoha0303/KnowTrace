@@ -290,9 +290,11 @@ export async function listCaptures(options?: {
   status?: "active" | "archived";
   categoryId?: string;
   limit?: number;
+  offset?: number;
 }): Promise<CaptureListItemDTO[]> {
   const status = options?.status ?? "active";
   const limit = Math.min(Math.max(options?.limit ?? 50, 1), 100);
+  const offset = Math.min(Math.max(options?.offset ?? 0, 0), 25_000);
   const categoryFilter = options?.categoryId
     ? db
         .select({ captureId: captureCategories.captureId })
@@ -309,7 +311,8 @@ export async function listCaptures(options?: {
         : eq(captures.status, status),
     )
     .orderBy(desc(captures.createdAt), desc(captures.id))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset);
 
   const groupedCategories = await categoriesByCaptureIds(rows.map((row) => row.id));
   return rows.map((row) => ({
@@ -331,9 +334,11 @@ export async function listClaims(options?: {
   query?: string;
   status?: ClaimDTO["status"];
   limit?: number;
+  offset?: number;
 }): Promise<ClaimListItemDTO[]> {
   const query = options?.query?.trim().slice(0, 100) ?? "";
   const limit = Math.min(Math.max(options?.limit ?? 50, 1), 100);
+  const offset = Math.min(Math.max(options?.offset ?? 0, 0), 25_000);
   const rows = await db
     .select({
       claim: claims,
@@ -354,7 +359,8 @@ export async function listClaims(options?: {
       ),
     )
     .orderBy(desc(claims.updatedAt), desc(claims.id))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset);
   if (!rows.length) return [];
 
   const claimIds = rows.map(({ claim }) => claim.id);

@@ -204,7 +204,7 @@ export async function setCaptureStatus(
   return updated;
 }
 
-export async function deleteCapture(id: string) {
+export async function deleteCapture(id: string, expectedVersion?: number) {
   const attachmentRows = await db
     .select({ storagePath: evidenceAttachments.storagePath })
     .from(evidenceAttachments)
@@ -213,9 +213,27 @@ export async function deleteCapture(id: string) {
     .where(eq(claims.captureId, id));
   const [deleted] = await db
     .delete(captures)
-    .where(eq(captures.id, id))
+    .where(
+      expectedVersion === undefined
+        ? eq(captures.id, id)
+        : and(eq(captures.id, id), eq(captures.version, expectedVersion)),
+    )
     .returning({ id: captures.id });
   if (!deleted) {
+    if (expectedVersion !== undefined) {
+      const [current] = await db
+        .select({ version: captures.version })
+        .from(captures)
+        .where(eq(captures.id, id))
+        .limit(1);
+      if (current) {
+        throw new AppError(
+          "CAPTURE_VERSION_CONFLICT",
+          "记录已经更新，请刷新后重试。",
+          { currentVersion: current.version },
+        );
+      }
+    }
     throw new AppError("CAPTURE_NOT_FOUND", "记录不存在或已经被删除。");
   }
   await Promise.allSettled(

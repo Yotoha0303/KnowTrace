@@ -2,11 +2,11 @@
 
 ## 1. 当前接口策略
 
-首版 Web 不额外维护完整 REST API：
+Web 交互仍以 Server Components 和 Server Actions 为主，同时维护一组面向未来 App 的版本化 REST API：
 
 - Server Components 直接通过 Application Service 读取数据库。
 - Web 表单和交互写操作使用 Server Actions。
-- 健康检查和将来的 App/外部客户端使用 Route Handlers。
+- 健康检查和 `/api/v1` App/外部客户端契约使用 Route Handlers。
 - Application Service 不依赖 React、HTTP Request 或 Next.js Response，便于以后暴露 REST API或拆出独立后端。
 
 所有操作都返回可辨别的成功/失败结果，页面不解析数据库异常文本。
@@ -203,22 +203,26 @@ listClaimsByCapture(captureId)
 
 ## 8. Route Handlers
 
-P0 仅要求：
+健康检查：
 
 ```text
 GET /api/health/live
 GET /api/health/ready
 ```
 
-未来需要 App 时再建立版本化 API：
+当前版本化 API：
 
 ```text
-/api/v1/captures
-/api/v1/categories
-/api/v1/ai-runs
+GET, POST          /api/v1/captures
+GET, PATCH, DELETE /api/v1/captures/:id
+GET                /api/v1/categories
+GET                /api/v1/subjects
+GET                /api/v1/subjects/:subject
+GET                /api/v1/claims
+GET                /api/v1/knowledge-releases
 ```
 
-这些 Route Handler 复用同一 Application Service，不重新实现业务规则。
+这些 Route Handler 复用同一 Application Service，不重新实现业务规则。统一响应、分页、幂等键、`If-Match` 删除前置条件和示例见 [移动端 API](12-mobile-api.md)。AI 整理和审核写操作暂不开放给 App，避免在认证与权限边界尚未稳定时扩大高影响接口。
 
 ## 9. 主要错误码
 

@@ -79,6 +79,44 @@ export type ReliabilityDossierDTO = {
   readyToPublish: boolean;
 };
 
+export type KnowledgeReleaseDTO = {
+  id: string;
+  claimId: string;
+  claimReviewId: string;
+  releaseNumber: number;
+  snapshotHash: string;
+  snapshot: unknown;
+  publishedByName: string;
+  createdAt: string;
+};
+
+export async function listKnowledgeReleases(options?: {
+  claimId?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<KnowledgeReleaseDTO[]> {
+  const limit = Math.min(Math.max(options?.limit ?? 50, 1), 100);
+  const offset = Math.min(Math.max(options?.offset ?? 0, 0), 25_000);
+  const rows = await db
+    .select()
+    .from(knowledgeReleases)
+    .where(options?.claimId ? eq(knowledgeReleases.claimId, options.claimId) : undefined)
+    .orderBy(desc(knowledgeReleases.createdAt), desc(knowledgeReleases.id))
+    .limit(limit)
+    .offset(offset);
+
+  return rows.map((row) => ({
+    id: row.id,
+    claimId: row.claimId,
+    claimReviewId: row.claimReviewId,
+    releaseNumber: row.releaseNumber,
+    snapshotHash: row.snapshotHash,
+    snapshot: row.snapshot,
+    publishedByName: row.publishedByName,
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
 export async function getReliabilityDossier(
   claimId: string,
   actor: ActionActor,
