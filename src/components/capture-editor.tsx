@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, CalendarClock, Contact, RotateCcw, Save, Trash2 } from "lucide-react";
 
@@ -21,9 +21,11 @@ import { dateTimeLocalToIso, toDateTimeLocalValue } from "@/features/capture/dat
 export function CaptureEditor({
   capture,
   categories,
+  onDirtyChange,
 }: {
   capture: CaptureDetailDTO;
   categories: CategoryDTO[];
+  onDirtyChange: (hasUnsavedChanges: boolean) => void;
 }) {
   const router = useRouter();
   const [title, setTitle] = useState(capture.title ?? "");
@@ -36,6 +38,23 @@ export function CaptureEditor({
   const [categoryIds, setCategoryIds] = useState(capture.categories.map(({ id }) => id));
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  const initialOccurredAt = toDateTimeLocalValue(new Date(capture.occurredAt));
+  const initialCategoryKey = capture.categories
+    .map(({ id }) => id)
+    .sort()
+    .join("|");
+  const currentCategoryKey = [...categoryIds].sort().join("|");
+  const hasUnsavedChanges =
+    title !== (capture.title ?? "") ||
+    subject !== (capture.subject ?? "") ||
+    occurredAt !== initialOccurredAt ||
+    content !== capture.content ||
+    contentType !== capture.contentType ||
+    currentCategoryKey !== initialCategoryKey;
+
+  useEffect(() => {
+    onDirtyChange(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onDirtyChange]);
 
   function toggleCategory(id: string) {
     setCategoryIds((current) =>
@@ -190,8 +209,10 @@ export function CaptureEditor({
           {capture.status === "active" ? <Archive size={16} /> : <RotateCcw size={16} />}
           {capture.status === "active" ? "归档" : "恢复"}
         </button>
-        <span className={message.startsWith("已保存") ? "form-success" : "form-error"}>{message}</span>
-        <button className="button button-primary" disabled={isPending || !content.trim()} type="submit">
+        <span className={message.startsWith("已保存") ? "form-success" : message ? "form-error" : hasUnsavedChanges ? "form-unsaved" : "form-saved"}>
+          {message || (hasUnsavedChanges ? "有未保存修改，AI 暂时不会分析这些内容。" : `已保存版本 v${capture.version}`)}
+        </span>
+        <button className="button button-primary" disabled={isPending || !content.trim()} id="capture-save-button" type="submit">
           <Save size={16} /> {isPending ? "处理中…" : "保存修改"}
         </button>
       </div>

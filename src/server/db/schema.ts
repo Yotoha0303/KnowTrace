@@ -49,6 +49,7 @@ export const suggestionStatusEnum = pgEnum("suggestion_status", [
   "modified",
   "rejected",
   "stale",
+  "rolled_back",
 ]);
 
 export const claimStatusEnum = pgEnum("claim_status", [

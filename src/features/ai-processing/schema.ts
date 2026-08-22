@@ -314,3 +314,36 @@ export const decideSuggestionSchema = z.object({
     })
     .optional(),
 });
+
+export const acceptedSuggestionPayloadSchema = z.object({
+  title: z.string().max(200).nullable(),
+  contentType: z.enum(CONTENT_TYPES),
+  existingCategoryIds: z.array(z.uuid()).max(3),
+  newCategoryNames: z.array(z.string().min(1).max(60)).max(1),
+  contentSuggestionIndexes: z.array(z.number().int().min(0)).max(5),
+  claimCandidateIndexes: z.array(z.number().int().min(0)).max(3),
+  rollback: z.object({
+    beforeTitle: z.string().max(200).nullable(),
+    beforeContent: z.string().min(1).max(20_000),
+    beforeContentType: z.enum(CONTENT_TYPES),
+    beforeAICategoryIds: z.array(z.uuid()).max(5),
+    appliedCaptureVersion: z.number().int().positive(),
+    appliedAICategoryIds: z.array(z.uuid()).max(5),
+    createdClaimIds: z.array(z.uuid()).max(3),
+  }),
+  rollbackResult: z
+    .object({
+      rolledBackAt: z.iso.datetime(),
+      resultingCaptureVersion: z.number().int().positive(),
+    })
+    .optional(),
+});
+
+export const rollbackSuggestionSchema = z.object({
+  suggestionId: z.uuid(),
+  expectedCaptureVersion: z.number().int().positive(),
+});
+
+export type AcceptedSuggestionPayload = z.infer<
+  typeof acceptedSuggestionPayloadSchema
+>;

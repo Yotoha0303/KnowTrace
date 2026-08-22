@@ -59,6 +59,7 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
   await page.getByLabel("OpenAI API Key").fill("sk-openai-session-test");
   await page.getByLabel("仅在当前浏览器标签页记住凭据").check();
   await page.reload();
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("处理引擎").selectOption("openai");
   await expect(page.getByLabel("OpenAI 连接方式")).toHaveValue("api_key");
   await expect(page.getByLabel("OpenAI API Key")).toHaveValue(
@@ -74,12 +75,39 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
   await page.getByLabel("处理引擎").selectOption("deepseek");
   await expect(page.getByLabel("DeepSeek API Key")).toBeVisible();
   await page.getByLabel("处理引擎").selectOption("mock");
-  await page.getByRole("button", { name: /开始 AI 整理/ }).click();
+  await expect(page.getByText(/将分析已保存版本 v\d+/)).toBeVisible();
+
+  const savedContent = `${await page.getByLabel("原文").inputValue()}\n补充一段需要先保存的内容。`;
+  await page.getByLabel("原文").fill(savedContent);
+  await expect(page.getByText("有未保存修改，AI 暂时不会分析这些内容。")).toBeVisible();
+  await page.getByRole("button", { name: /先保存，再开始 AI 整理/ }).click();
+  await expect(page.getByText(/检测到原始记录有未保存修改/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "保存修改" })).toBeFocused();
+  await page.getByRole("button", { name: "保存修改" }).click();
+  await expect(page.getByText("Source record · v2")).toBeVisible();
+  await expect(page.locator(".form-saved")).toHaveText("已保存版本 v2");
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("button", { name: /开始分析版本/ })).toBeEnabled();
+
+  await page.getByRole("button", { name: /开始分析版本/ }).click();
   await expect(page.getByText("等待你的决定")).toBeVisible();
   await expect(page.getByText("这是本地规则生成的演示建议，不包含事实核验。")).toBeVisible();
   await expect(page.locator(".review-options label")).toHaveCount(1);
   await expect(page.locator(".content-suggestion-list label")).toHaveCount(1);
+  const comparison = page.locator(".content-comparison-block");
+  await expect(comparison.getByRole("heading", { name: "AI 文本替换前后对比" })).toBeVisible();
+  await expect(comparison.getByText("0 处替换")).toBeVisible();
+  await expect(comparison.getByText("尚未选择文本替换")).toBeVisible();
   await page.locator(".content-suggestion-list input").check();
+  await expect(comparison.getByText("1 处替换")).toBeVisible();
+  await expect(comparison.getByText("应用当前所选建议")).toBeVisible();
+  await expect(comparison.locator("article").nth(0).locator("pre")).toContainText("输入不确定性");
+  await expect(comparison.locator("article").nth(1).locator("pre")).toContainText("将不确定输入整理为结构化、系统化内容");
+  await page.screenshot({
+    fullPage: true,
+    path: "test-results/ai-text-comparison.png",
+  });
 
   await page.getByRole("button", { name: /接受当前选择/ }).click();
   await expect(page.getByText("生成一份可审阅的整理建议")).toBeVisible();
@@ -87,6 +115,18 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
   await expect(page.getByLabel("原文")).toHaveValue(/将不确定输入整理为结构化、系统化内容/);
   await page.locator(".history-list summary").click();
   await expect(page.getByText(/修改后接受/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "整体回退这次整理" })).toBeVisible();
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("button", { name: "整体回退这次整理" })).toBeEnabled();
+
+  await page.getByRole("button", { name: "整体回退这次整理" }).click();
+  await expect(page.getByText("恢复采纳前的标题、内容类型、原文和 AI 分类。")).toBeVisible();
+  await page.getByRole("button", { name: "确认整体回退" }).click();
+  await expect(page.getByLabel("原文")).toHaveValue(savedContent);
+  await page.locator(".history-list summary").click();
+  await expect(page.getByText("已整体回退")).toBeVisible();
+  await expect(page.getByRole("button", { name: "整体回退这次整理" })).toHaveCount(0);
 
   await page.screenshot({ fullPage: true, path: "test-results/knowtrace-flow.png" });
   await page.getByRole("link", { name: /返回收集箱/ }).click();
@@ -98,5 +138,13 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
   await page.getByRole("button", { name: "永久删除" }).click();
   await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
+
+  await page.goto("/categories");
+  const categoryRow = page.locator(".category-manage-row").filter({
+    has: page.getByLabel(`${categoryName}的名称`),
+  });
+  page.once("dialog", (dialog) => dialog.accept());
+  await categoryRow.getByRole("button", { name: "删除" }).click();
+  await expect(categoryRow).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });

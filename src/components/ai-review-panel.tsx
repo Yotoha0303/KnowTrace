@@ -16,6 +16,8 @@ import {
   FilePenLine,
   LoaderCircle,
   PlugZap,
+  RotateCcw,
+  Save,
   ShieldCheck,
   Sparkles,
   X,
@@ -26,9 +28,11 @@ import {
   decideSuggestionAction,
   detectCCSwitchAction,
   organizeCaptureAction,
+  rollbackSuggestionAction,
   testCCSwitchCodexOAuthAction,
 } from "@/app/actions";
 import { DEFAULT_CC_SWITCH_BASE_URL } from "@/features/ai-processing/connection";
+import { applySelectedContentSuggestions } from "@/features/ai-processing/content-edits";
 import type { CaptureDetailDTO, CategoryDTO } from "@/features/capture/queries";
 import { CONTENT_TYPE_LABELS, CONTENT_TYPES, type ContentType } from "@/features/capture/schema";
 
@@ -38,6 +42,7 @@ const statusLabels = {
   modified: "修改后接受",
   rejected: "已驳回",
   stale: "已过期",
+  rolled_back: "已整体回退",
 } as const;
 
 const runStatusLabels = {
@@ -171,9 +176,13 @@ function historyProviderLabel(provider: string): string {
 export function AIReviewPanel({
   capture,
   categories,
+  editorReady,
+  hasUnsavedChanges,
 }: {
   capture: CaptureDetailDTO;
   categories: CategoryDTO[];
+  editorReady: boolean;
+  hasUnsavedChanges: boolean;
 }) {
   const router = useRouter();
   const [provider, setProvider] = useState<AIProvider>("mock");
@@ -203,6 +212,21 @@ export function AIReviewPanel({
   } = credentials;
   const pendingSuggestion = capture.aiHistory.find((item) => item.suggestion?.status === "pending")?.suggestion;
   const payload = pendingSuggestion?.payload;
+  const latestAppliedOutcome = capture.aiHistory.find(
+    (item) =>
+      item.taskType === "organize" &&
+      item.suggestion &&
+      ["accepted", "modified", "rolled_back"].includes(
+        item.suggestion.status,
+      ),
+  )?.suggestion;
+  const rollbackableSuggestion =
+    latestAppliedOutcome?.status === "accepted" ||
+    latestAppliedOutcome?.status === "modified"
+      ? latestAppliedOutcome.acceptedPayload?.rollback
+        ? latestAppliedOutcome
+        : null
+      : null;
   const [title, setTitle] = useState(payload?.suggested_title ?? "");
   const [contentType, setContentType] = useState<ContentType>(payload?.content_type ?? capture.contentType);
   const [existingCategoryIds, setExistingCategoryIds] = useState(
@@ -215,6 +239,8 @@ export function AIReviewPanel({
   const [claimCandidateIndexes, setClaimCandidateIndexes] = useState<number[]>([]);
   const [message, setMessage] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [rollingBack, setRollingBack] = useState(false);
+  const [confirmingRollback, setConfirmingRollback] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [auditingClaimId, setAuditingClaimId] = useState<string | null>(null);
   const [auditElapsedSeconds, setAuditElapsedSeconds] = useState(0);
@@ -231,6 +257,17 @@ export function AIReviewPanel({
     [categories],
   );
   const isBusy = processing || auditingClaimId !== null || isPending;
+  const proposedContent = useMemo(
+    () =>
+      payload
+        ? applySelectedContentSuggestions(
+            capture.content,
+            payload.content_suggestions,
+            contentSuggestionIndexes,
+          )
+        : capture.content,
+    [capture.content, contentSuggestionIndexes, payload],
+  );
   const usesCodexOAuthRoute =
     provider === "openai" &&
     openAIConnectionMode === "ccswitch_codex_oauth";
@@ -409,6 +446,21 @@ export function AIReviewPanel({
 
   function runAI() {
     setMessage("");
+    if (!editorReady) {
+      setMessage("正在确认记录的保存状态，请稍候再试。");
+      return;
+    }
+    if (hasUnsavedChanges) {
+      setMessage(
+        `检测到原始记录有未保存修改。请先保存，再分析已保存版本 v${capture.version}。`,
+      );
+      const saveButton = document.querySelector<HTMLButtonElement>(
+        "#capture-save-button",
+      );
+      saveButton?.scrollIntoView({ behavior: "smooth", block: "center" });
+      saveButton?.focus({ preventScroll: true });
+      return;
+    }
     setElapsedSeconds(0);
     setProcessing(true);
     startTransition(async () => {
@@ -426,6 +478,45 @@ export function AIReviewPanel({
         router.refresh();
       } finally {
         setProcessing(false);
+      }
+    });
+  }
+
+  function requestRollback() {
+    if (!rollbackableSuggestion) return;
+    setMessage("");
+    if (!editorReady) {
+      setMessage("正在确认记录的保存状态，请稍候再试。");
+      return;
+    }
+    if (hasUnsavedChanges) {
+      setMessage("请先保存或放弃当前手动修改，再整体回退 AI 整理。");
+      document.querySelector<HTMLButtonElement>("#capture-save-button")?.focus();
+      return;
+    }
+    setConfirmingRollback(true);
+  }
+
+  function rollbackAI() {
+    if (!rollbackableSuggestion || hasUnsavedChanges) return;
+    setMessage("");
+    setRollingBack(true);
+    startTransition(async () => {
+      try {
+        const result = await rollbackSuggestionAction({
+          suggestionId: rollbackableSuggestion.id,
+          expectedCaptureVersion: capture.version,
+        });
+        if (!result.ok) {
+          setMessage(result.error.message);
+          return;
+        }
+        setConfirmingRollback(false);
+        router.refresh();
+      } catch {
+        setMessage("整体回退请求未完成，请检查服务状态后重试。原记录没有被覆盖。");
+      } finally {
+        setRollingBack(false);
       }
     });
   }
@@ -535,9 +626,22 @@ export function AIReviewPanel({
           <div className="ai-orbit"><Sparkles size={22} /></div>
           <h3>生成一份可审阅的整理建议</h3>
           <p>AI 会给出少量分类和局部原文修改建议。任何内容都要经过你勾选、接受后才会写回。</p>
+          <div className={`ai-save-preflight${!editorReady ? " is-checking" : hasUnsavedChanges ? " is-unsaved" : " is-saved"}`}>
+            {!editorReady ? <LoaderCircle className="processing-spinner" size={17} /> : hasUnsavedChanges ? <CircleAlert size={17} /> : <Save size={17} />}
+            <div>
+              <strong>{!editorReady ? "正在确认保存状态" : hasUnsavedChanges ? "请先保存当前修改" : `将分析已保存版本 v${capture.version}`}</strong>
+              <p>
+                {!editorReady
+                  ? "确认完成前不会启动 AI，避免遗漏正在编辑的内容。"
+                  : hasUnsavedChanges
+                  ? "AI 不会分析左侧尚未保存的内容；点击整理会定位到“保存修改”。"
+                  : "AI 只读取数据库中的已保存内容，不会读取正在编辑但尚未保存的文字。"}
+              </p>
+            </div>
+          </div>
           <label className="provider-select">
             <span>处理引擎</span>
-            <select value={provider} onChange={(event) => setProvider(event.target.value as typeof provider)}>
+            <select disabled={!editorReady || isBusy} value={provider} onChange={(event) => setProvider(event.target.value as typeof provider)}>
               <option value="mock">本地规则（无需密钥）</option>
               <option value="openai">Codex / OpenAI</option>
               <option value="deepseek">DeepSeek</option>
@@ -755,12 +859,41 @@ export function AIReviewPanel({
           ) : null}
           <button
             className="button button-dark"
-            disabled={isBusy || (usesCodexOAuthRoute && !ccSwitchReady)}
+            disabled={!editorReady || isBusy || (usesCodexOAuthRoute && !ccSwitchReady)}
             onClick={runAI}
             type="button"
           >
-            <Sparkles size={16} /> {processing ? "处理中，请稍候" : "开始 AI 整理"}
+            <Sparkles size={16} /> {processing ? "处理中，请稍候" : !editorReady ? "正在确认保存状态…" : hasUnsavedChanges ? "先保存，再开始 AI 整理" : `开始分析版本 v${capture.version}`}
           </button>
+          {rollbackableSuggestion ? (
+            <div className="ai-rollback-card">
+              <div>
+                <strong>最近一次 AI 整理已写入记录</strong>
+                <p>如果整体结果不合适，可以恢复采纳前内容；手动分类和完整版本历史会保留。</p>
+              </div>
+              <button className="button button-quiet" disabled={!editorReady || isBusy} onClick={requestRollback} type="button">
+                <RotateCcw size={15} /> 整体回退这次整理
+              </button>
+              {confirmingRollback ? (
+                <div className="ai-rollback-confirmation" role="alert">
+                  <strong>确认整体回退</strong>
+                  <ul>
+                    <li>恢复采纳前的标题、内容类型、原文和 AI 分类。</li>
+                    <li>移除本次创建且尚未开始调查的候选主张。</li>
+                    <li>保留手动分类和全部版本历史；回退会生成新的可追溯版本。</li>
+                    <li>若记录或候选主张已进入后续处理，系统会拒绝回退，不覆盖新内容。</li>
+                  </ul>
+                  <div>
+                    <button className="button button-quiet" disabled={rollingBack} onClick={() => setConfirmingRollback(false)} type="button">取消</button>
+                    <button aria-busy={rollingBack} className="button button-danger" disabled={rollingBack} onClick={rollbackAI} type="button">
+                      {rollingBack ? <LoaderCircle className="processing-spinner" size={15} /> : <RotateCcw size={15} />}
+                      {rollingBack ? "正在整体回退…" : "确认整体回退"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="suggestion-review">
@@ -803,6 +936,26 @@ export function AIReviewPanel({
               </div>
             </div>
           ) : null}
+
+          <div className="suggestion-block content-comparison-block">
+            <div className="content-comparison-heading">
+              <div>
+                <h3>AI 文本替换前后对比</h3>
+                <p>随下方局部建议的勾选实时更新；这里只预览，点击“接受当前选择”后才会写回。</p>
+              </div>
+              <span>{contentSuggestionIndexes.length} 处替换</span>
+            </div>
+            <div className="content-comparison-grid">
+              <article>
+                <header><span>修改前</span><small>已保存版本 v{pendingSuggestion.sourceCaptureVersion}</small></header>
+                <pre>{capture.content}</pre>
+              </article>
+              <article className={proposedContent === capture.content ? "is-unchanged" : "is-changed"}>
+                <header><span>修改后</span><small>{proposedContent === capture.content ? "尚未选择文本替换" : "应用当前所选建议"}</small></header>
+                <pre>{proposedContent}</pre>
+              </article>
+            </div>
+          </div>
 
           {payload!.content_suggestions.length ? (
             <div className="suggestion-block content-suggestion-block">

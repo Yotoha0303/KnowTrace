@@ -15,6 +15,7 @@ import { listCategories } from "@/features/capture/queries";
 import type { KnowledgeSearchItem, SearchEntityType } from "@/features/search/queries";
 import { searchKnowledge } from "@/features/search/queries";
 import {
+  dateInKnowTraceTimeZone,
   normalizeDateFilter,
   normalizeSearchQuery,
   normalizeSubjectFilter,
@@ -111,8 +112,9 @@ export default async function SearchPage({
   const params = await searchParams;
   const query = normalizeSearchQuery(params.q);
   const subject = normalizeSubjectFilter(params.subject);
-  const from = normalizeDateFilter(params.from);
-  const to = normalizeDateFilter(params.to);
+  const today = dateInKnowTraceTimeZone(new Date());
+  const from = normalizeDateFilter(params.from === undefined ? today : params.from);
+  const to = normalizeDateFilter(params.to === undefined ? today : params.to);
   const { start, endExclusive } = occurredAtBounds(from, to);
   const invalidDateRange = Boolean(start && endExclusive && start >= endExclusive);
   const type = allowedTypes.has(params.type as SearchEntityType)
@@ -133,7 +135,14 @@ export default async function SearchPage({
         occurredToExclusive: endExclusive,
         limitPerType: 20,
       });
-  const hasCriteria = Boolean(query || subject || from || to);
+  const hasCriteria = Boolean(
+    query ||
+    subject ||
+    params.from !== undefined ||
+    params.to !== undefined ||
+    categoryId ||
+    type !== "all",
+  );
   const resultDescription = [
     query ? `全文“${query}”` : "",
     subject ? `对象“${subject}”` : "",
@@ -182,7 +191,7 @@ export default async function SearchPage({
           </select>
         </label>
         <button className="button button-dark" type="submit">检索</button>
-        {hasCriteria || categoryId || type !== "all" ? <Link className="button button-quiet" href="/search">清除</Link> : null}
+        {hasCriteria ? <Link className="button button-quiet" href="/search">清除</Link> : null}
         <div className="knowledge-search-metadata">
           <label>
             <span><UserRoundSearch size={13} /> 描述对象</span>

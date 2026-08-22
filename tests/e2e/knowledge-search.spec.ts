@@ -31,11 +31,25 @@ test("capture → category dossier → unified search", async ({ page }) => {
 
   await page.goto("/search");
   await expect(page.getByRole("heading", { name: "知识检索" })).toBeVisible();
+  const todayParts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Shanghai",
+  }).formatToParts(new Date());
+  const todayValues = Object.fromEntries(todayParts.map((part) => [part.type, part.value]));
+  const today = `${todayValues.year}-${todayValues.month}-${todayValues.day}`;
+  await expect(page.getByLabel("发生时间开始日期")).toHaveValue(today);
+  await expect(page.getByLabel("发生时间结束日期")).toHaveValue(today);
+  await page.getByLabel("发生时间开始日期").fill("");
+  await page.getByLabel("发生时间结束日期").fill("");
   await page.getByLabel("检索知识库").fill(subject);
   await page.getByLabel("知识分类").selectOption({ label: categoryName });
   await page.getByRole("button", { name: "检索" }).click();
 
   await expect(page).toHaveURL(/\/search\?.*q=/);
+  await expect(page.getByLabel("发生时间开始日期")).toHaveValue("");
+  await expect(page.getByLabel("发生时间结束日期")).toHaveValue("");
   await expect(page.getByRole("heading", { name: "原始记录" })).toBeVisible();
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await expect(page.locator(".search-result-card.is-capture")).toContainText(categoryName);
@@ -59,5 +73,13 @@ test("capture → category dossier → unified search", async ({ page }) => {
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "永久删除" }).click();
   await expect(page).toHaveURL(/\/$/);
+
+  await page.goto("/categories");
+  const categoryRow = page.locator(".category-manage-row").filter({
+    has: page.getByLabel(`${categoryName}的名称`),
+  });
+  page.once("dialog", (dialog) => dialog.accept());
+  await categoryRow.getByRole("button", { name: "删除" }).click();
+  await expect(categoryRow).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });

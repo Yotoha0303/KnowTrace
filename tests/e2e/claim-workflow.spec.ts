@@ -19,7 +19,7 @@ test("AI candidate claim → evidence review → ready for review", async ({ pag
 
   await expect(page).toHaveURL(/\/captures\/[0-9a-f-]+$/);
   await page.getByLabel("处理引擎").selectOption("mock");
-  await page.getByRole("button", { name: /开始 AI 整理/ }).click();
+  await page.getByRole("button", { name: /开始分析版本/ }).click();
 
   const candidate = page.locator(".claim-candidate-list label");
   await expect(candidate).toHaveCount(1);
@@ -103,14 +103,26 @@ test("AI candidate claim → evidence review → ready for review", async ({ pag
   await expect(auditResult).toContainText("输入已变化，请重新审查");
   await expect(page.getByText("这里没有“已验证”按钮")).toBeVisible();
   await expect(page.getByRole("button", { name: /退回补充证据/ })).toBeVisible();
+  const concludeButton = claimCard.getByRole("button", { name: "保存人工结论" });
+  await expect(claimCard.getByText("结论类型（必选）")).toBeVisible();
+  await expect(claimCard.getByText("结论依据（必填）")).toBeVisible();
+  await expect(claimCard.getByText("限制与未知（选填）")).toBeVisible();
+  await expect(claimCard.getByText("还需 10 个字符")).toBeVisible();
+  await expect(concludeButton).toBeDisabled();
   await claimCard.getByLabel(/结论类型/).selectOption("supported");
+  await expect(claimCard.getByText("需要至少 1 条已采纳的支持证据；当前 1 条。")).toBeVisible();
+  await claimCard.getByLabel(/结论依据/).fill("自主审核");
+  await expect(claimCard.getByText("还需 6 个字符")).toBeVisible();
+  await expect(concludeButton).toBeDisabled();
   await claimCard
     .getByLabel(/结论依据/)
     .fill("来源快照中的摘录与保存内容一致，现有支持证据满足本次最小判断范围。");
+  await expect(claimCard.getByText("已满足最少字符要求")).toBeVisible();
+  await expect(concludeButton).toBeEnabled();
   await claimCard
     .getByLabel(/结论限制/)
     .fill("该示例来源只用于验证流程，不代表真实研究质量。");
-  await claimCard.getByRole("button", { name: /保存人工结论/ }).click();
+  await concludeButton.click();
 
   await expect(claimCard.locator(".claim-status")).toContainText("已形成结论");
   await expect(claimCard.getByText("现有证据支持")).toBeVisible();
@@ -162,7 +174,7 @@ test("image evidence can be manually verified without a source URL", async ({ pa
 
   await expect(page).toHaveURL(/\/captures\/[0-9a-f-]+$/);
   await page.getByLabel("处理引擎").selectOption("mock");
-  await page.getByRole("button", { name: /开始 AI 整理/ }).click();
+  await page.getByRole("button", { name: /开始分析版本/ }).click();
 
   const candidate = page.locator(".claim-candidate-list label");
   await expect(candidate).toHaveCount(1);

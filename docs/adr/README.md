@@ -15,6 +15,7 @@ ADR 用于记录重要技术决策及其背景，避免以后只知道“用了�
 - [ADR-0009：用证据边界结论替代 verified 布尔值](0009-evidence-bounded-claim-conclusions.md)
 - [ADR-0010：AI 可靠性审查只生成有输入快照的非裁决建议](0010-bounded-ai-reliability-audits.md)
 - [ADR-0011：先建立可追溯的统一检索读模型](0011-unified-knowledge-retrieval.md)
+- [ADR-0012：先用可解释的本地信号发现相似记录](0012-explainable-similar-captures.md)
 
 状态说明：
 

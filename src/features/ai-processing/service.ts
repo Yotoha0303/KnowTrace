@@ -26,6 +26,7 @@ import { AppError } from "@/shared/errors/app-error";
 import { sha256, stableStringify } from "@/shared/hash";
 
 import {
+  acceptedSuggestionPayloadSchema,
   aiSuggestionPayloadSchema,
   MAX_AI_CATEGORY_CANDIDATES,
   MAX_AI_NEW_CATEGORY_CANDIDATES,
@@ -33,6 +34,7 @@ import {
   MAX_CONTENT_SUGGESTIONS,
   MAX_CLAIM_CANDIDATES,
   type AIConnectionInput,
+  type AcceptedSuggestionPayload,
   type AISuggestionPayload,
 } from "./schema";
 import { applySelectedContentSuggestions } from "./content-edits";
@@ -656,14 +658,7 @@ export async function decideSuggestion(input: {
         .where(and(eq(captures.id, capture.id), eq(captures.version, capture.version)));
     }
 
-    const acceptedPayload = {
-      title: title?.trim() || null,
-      contentType,
-      existingCategoryIds: activeExisting.map(({ id }) => id),
-      newCategoryNames,
-      contentSuggestionIndexes: requestedContentSuggestionIndexes,
-      claimCandidateIndexes: requestedClaimCandidateIndexes,
-    };
+    const createdClaimIds: string[] = [];
     for (const index of requestedClaimCandidateIndexes) {
       const candidate = payload.claim_candidates[index];
       const statementHash = sha256(
@@ -673,7 +668,7 @@ export async function decideSuggestion(input: {
           statement: candidate.statement.trim().toLocaleLowerCase("zh-CN"),
         }),
       );
-      await transaction
+      const [createdClaim] = await transaction
         .insert(claims)
         .values({
           captureId: capture.id,
@@ -684,8 +679,32 @@ export async function decideSuggestion(input: {
           sourceExcerpt: candidate.source_excerpt,
           falsificationCriteria: candidate.falsification_criteria.trim(),
         })
-        .onConflictDoNothing({ target: claims.statementHash });
+        .onConflictDoNothing({ target: claims.statementHash })
+        .returning({ id: claims.id });
+      if (createdClaim) createdClaimIds.push(createdClaim.id);
     }
+    const acceptedPayload: AcceptedSuggestionPayload = {
+      title: title?.trim() || null,
+      contentType,
+      existingCategoryIds: activeExisting.map(({ id }) => id),
+      newCategoryNames,
+      contentSuggestionIndexes: requestedContentSuggestionIndexes,
+      claimCandidateIndexes: requestedClaimCandidateIndexes,
+      rollback: {
+        beforeTitle: capture.title,
+        beforeContent: capture.content,
+        beforeContentType: capture.contentType,
+        beforeAICategoryIds: currentCategoryLinks
+          .filter(({ assignedBy }) => assignedBy === "ai_accepted")
+          .map(({ categoryId }) => categoryId),
+        appliedCaptureVersion: captureVersion,
+        appliedAICategoryIds: [
+          ...activeExisting.map(({ id }) => id),
+          ...newCategoryIds,
+        ],
+        createdClaimIds,
+      },
+    };
     const [updated] = await transaction
       .update(aiSuggestions)
       .set({
@@ -698,5 +717,213 @@ export async function decideSuggestion(input: {
     if (!updated) throw new AppError("AI_SUGGESTION_ALREADY_DECIDED", "这条 AI 建议已经处理。");
 
     return { captureId: capture.id, captureVersion, stale: false as const };
+  });
+}
+
+export async function rollbackSuggestion(input: {
+  suggestionId: string;
+  expectedCaptureVersion: number;
+}) {
+  return db.transaction(async (transaction) => {
+    const [suggestion] = await transaction
+      .select()
+      .from(aiSuggestions)
+      .where(eq(aiSuggestions.id, input.suggestionId))
+      .for("update")
+      .limit(1);
+    if (!suggestion) {
+      throw new AppError("AI_SUGGESTION_NOT_FOUND", "AI 建议不存在。");
+    }
+    if (suggestion.status !== "accepted" && suggestion.status !== "modified") {
+      throw new AppError(
+        "AI_SUGGESTION_ROLLBACK_NOT_ALLOWED",
+        "只有已采纳且尚未回退的 AI 整理可以整体回退。",
+      );
+    }
+
+    const acceptedPayload = acceptedSuggestionPayloadSchema.safeParse(
+      suggestion.acceptedPayload,
+    );
+    if (!acceptedPayload.success) {
+      throw new AppError(
+        "AI_SUGGESTION_ROLLBACK_UNAVAILABLE",
+        "这次 AI 整理生成于整体回退功能之前，缺少完整快照，无法安全回退。",
+      );
+    }
+
+    const [latestAppliedSuggestion] = await transaction
+      .select({ id: aiSuggestions.id })
+      .from(aiSuggestions)
+      .where(
+        and(
+          eq(aiSuggestions.captureId, suggestion.captureId),
+          inArray(aiSuggestions.status, ["accepted", "modified"]),
+        ),
+      )
+      .orderBy(desc(aiSuggestions.createdAt))
+      .limit(1);
+    if (latestAppliedSuggestion?.id !== suggestion.id) {
+      throw new AppError(
+        "AI_SUGGESTION_NOT_LATEST",
+        "只能回退最近一次已采纳的 AI 整理。",
+      );
+    }
+
+    const [capture] = await transaction
+      .select()
+      .from(captures)
+      .where(eq(captures.id, suggestion.captureId))
+      .for("update")
+      .limit(1);
+    if (!capture) {
+      throw new AppError("CAPTURE_NOT_FOUND", "记录不存在。");
+    }
+    const rollback = acceptedPayload.data.rollback;
+    if (
+      capture.version !== input.expectedCaptureVersion ||
+      capture.version !== rollback.appliedCaptureVersion
+    ) {
+      throw new AppError(
+        "AI_SUGGESTION_ROLLBACK_VERSION_CONFLICT",
+        "记录在 AI 整理后已经修改。为避免覆盖后续内容，本次整体回退已停止。",
+      );
+    }
+
+    const currentAICategoryRows = await transaction
+      .select({ categoryId: captureCategories.categoryId })
+      .from(captureCategories)
+      .where(
+        and(
+          eq(captureCategories.captureId, capture.id),
+          eq(captureCategories.assignedBy, "ai_accepted"),
+        ),
+      );
+    const currentAICategoryIds = currentAICategoryRows
+      .map(({ categoryId }) => categoryId)
+      .sort();
+    const appliedAICategoryIds = [...rollback.appliedAICategoryIds].sort();
+    if (
+      currentAICategoryIds.length !== appliedAICategoryIds.length ||
+      currentAICategoryIds.some(
+        (categoryId, index) => categoryId !== appliedAICategoryIds[index],
+      )
+    ) {
+      throw new AppError(
+        "AI_SUGGESTION_ROLLBACK_CATEGORY_CONFLICT",
+        "AI 分类在整理后已经变化。为避免覆盖后续分类，本次整体回退已停止。",
+      );
+    }
+
+    const createdClaimRows = rollback.createdClaimIds.length
+      ? await transaction
+          .select({ id: claims.id, status: claims.status })
+          .from(claims)
+          .where(inArray(claims.id, rollback.createdClaimIds))
+      : [];
+    if (
+      createdClaimRows.length !== rollback.createdClaimIds.length ||
+      createdClaimRows.some(({ status }) => status !== "candidate")
+    ) {
+      throw new AppError(
+        "AI_SUGGESTION_ROLLBACK_CLAIM_IN_USE",
+        "这次整理创建的候选主张已经进入后续流程，不能整体回退。请先处理相关主张。",
+      );
+    }
+
+    const coreChanged =
+      capture.title !== rollback.beforeTitle ||
+      capture.content !== rollback.beforeContent ||
+      capture.contentType !== rollback.beforeContentType;
+    let resultingCaptureVersion = capture.version;
+    if (coreChanged) {
+      await transaction.insert(captureRevisions).values({
+        captureId: capture.id,
+        version: capture.version,
+        title: capture.title,
+        subject: capture.subject,
+        content: capture.content,
+        contentType: capture.contentType,
+        occurredAt: capture.occurredAt,
+      });
+      resultingCaptureVersion += 1;
+      const [restored] = await transaction
+        .update(captures)
+        .set({
+          title: rollback.beforeTitle,
+          content: rollback.beforeContent,
+          contentType: rollback.beforeContentType,
+          version: resultingCaptureVersion,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(captures.id, capture.id),
+            eq(captures.version, capture.version),
+          ),
+        )
+        .returning({ id: captures.id });
+      if (!restored) {
+        throw new AppError(
+          "AI_SUGGESTION_ROLLBACK_VERSION_CONFLICT",
+          "记录状态已经变化，请刷新后重试。",
+        );
+      }
+    } else {
+      await transaction
+        .update(captures)
+        .set({ updatedAt: new Date() })
+        .where(eq(captures.id, capture.id));
+    }
+
+    if (rollback.createdClaimIds.length) {
+      await transaction
+        .delete(claims)
+        .where(
+          and(
+            inArray(claims.id, rollback.createdClaimIds),
+            eq(claims.status, "candidate"),
+          ),
+        );
+    }
+    await transaction
+      .delete(captureCategories)
+      .where(
+        and(
+          eq(captureCategories.captureId, capture.id),
+          eq(captureCategories.assignedBy, "ai_accepted"),
+        ),
+      );
+    if (rollback.beforeAICategoryIds.length) {
+      await transaction
+        .insert(captureCategories)
+        .values(
+          rollback.beforeAICategoryIds.map((categoryId) => ({
+            captureId: capture.id,
+            categoryId,
+            assignedBy: "ai_accepted" as const,
+          })),
+        )
+        .onConflictDoNothing();
+    }
+
+    const rolledBackAt = new Date();
+    await transaction
+      .update(aiSuggestions)
+      .set({
+        status: "rolled_back",
+        acceptedPayload: {
+          ...acceptedPayload.data,
+          rollbackResult: {
+            rolledBackAt: rolledBackAt.toISOString(),
+            resultingCaptureVersion,
+          },
+        },
+      })
+      .where(eq(aiSuggestions.id, suggestion.id));
+
+    return {
+      captureId: capture.id,
+      captureVersion: resultingCaptureVersion,
+    };
   });
 }

@@ -178,6 +178,8 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .editor-actions > span { flex: 1; text-align: center; }
 .form-error { color: var(--red); font-size: 11px; line-height: 1.4; }
 .form-success { color: #4a7139; font-size: 11px; }
+.form-unsaved { color: #9a5b32; font-size: 11px; line-height: 1.4; }
+.form-saved { color: #718078; font-size: 11px; line-height: 1.4; }
 .muted { color: var(--muted); font-size: 12px; }
 
 .ai-panel { position: sticky; top: 20px; background: #f9faf4; }
@@ -185,6 +187,24 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .ai-orbit { display: grid; place-items: center; width: 56px; height: 56px; color: var(--dark); background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 8px rgb(201 255 100 / 22%); }
 .ai-empty h3 { margin: 20px 0 6px; font: 650 19px/1.35 Georgia, "Songti SC", serif; }
 .ai-empty > p { max-width: 360px; margin: 0 0 20px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.ai-save-preflight { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; width: min(390px, 100%); padding: 11px 12px; margin: 0 0 13px; text-align: left; border: 1px solid; border-radius: 9px; }
+.ai-save-preflight svg { margin-top: 1px; }
+.ai-save-preflight strong { display: block; font-size: 11px; }
+.ai-save-preflight p { margin: 3px 0 0; font-size: 10px; line-height: 1.55; }
+.ai-save-preflight.is-saved { color: #4c643e; background: #f1f7e9; border-color: #cbdcb9; }
+.ai-save-preflight.is-saved p { color: #75816f; }
+.ai-save-preflight.is-checking { color: #59665e; background: #f3f5f1; border-color: #d9ddd6; }
+.ai-save-preflight.is-checking p { color: #7c857f; }
+.ai-save-preflight.is-unsaved { color: #8b4d30; background: #fff5e9; border-color: #e7c7a9; }
+.ai-save-preflight.is-unsaved p { color: #8c725f; }
+.ai-rollback-card { display: grid; gap: 10px; width: min(390px, 100%); padding: 12px; margin-top: 14px; color: #665d45; text-align: left; background: #fffaf0; border: 1px solid #e4d7b9; border-radius: 9px; }
+.ai-rollback-card strong { font-size: 11px; }
+.ai-rollback-card p { margin: 3px 0 0; color: #80765e; font-size: 10px; line-height: 1.55; }
+.ai-rollback-card .button { justify-self: end; }
+.ai-rollback-confirmation { display: grid; gap: 9px; padding: 11px; color: #74483f; background: #fff5f2; border: 1px solid #e8c8c1; border-radius: 8px; }
+.ai-rollback-confirmation > strong { font-size: 11px; }
+.ai-rollback-confirmation ul { padding-left: 17px; margin: 0; color: #80675f; font-size: 10px; line-height: 1.6; }
+.ai-rollback-confirmation > div { display: flex; justify-content: flex-end; gap: 7px; }
 .provider-select { display: grid; gap: 6px; width: min(300px, 100%); margin-bottom: 12px; text-align: left; }
 .provider-select span { color: #78827b; font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .provider-select select { padding: 9px 10px; background: white; border: 1px solid var(--line); border-radius: 8px; }
@@ -239,6 +259,18 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .content-suggestion-list strong { margin-bottom: 6px; font-size: 11px; }
 .content-suggestion-list small { color: #8a928d; font-size: 10px; line-height: 1.5; text-decoration: line-through; }
 .content-suggestion-list b { margin-top: 4px; color: #43563a; font-size: 11px; font-weight: 650; line-height: 1.55; }
+.content-comparison-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.content-comparison-heading h3 { margin-bottom: 4px; }
+.content-comparison-heading p { margin: 0; color: #7b857f; font-size: 10px; line-height: 1.55; }
+.content-comparison-heading > span { flex: 0 0 auto; padding: 4px 7px; color: #526a43; background: #edf5e5; border-radius: 99px; font-size: 9px; font-weight: 800; }
+.content-comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.content-comparison-grid article { min-width: 0; overflow: hidden; background: #fffafa; border: 1px solid #eadbd7; border-radius: 8px; }
+.content-comparison-grid article.is-changed { background: #f8fff1; border-color: #cee0bc; }
+.content-comparison-grid article.is-unchanged { background: #f7f8f5; border-color: #e1e3de; }
+.content-comparison-grid header { display: flex; justify-content: space-between; gap: 8px; padding: 8px 9px; border-bottom: 1px solid rgb(90 100 93 / 10%); }
+.content-comparison-grid header span { color: #59655e; font-size: 10px; font-weight: 800; }
+.content-comparison-grid header small { color: #8a938d; font-size: 8px; text-align: right; }
+.content-comparison-grid pre { max-height: 260px; padding: 10px; margin: 0; overflow: auto; color: #4d5751; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.7 ui-monospace, "SFMono-Regular", Consolas, monospace; }
 .claim-candidate-list { display: grid; gap: 8px; }
 .claim-candidate-list label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: flex-start; gap: 9px; padding: 11px; background: #fffdf4; border: 1px solid #e7dfbe; border-radius: 9px; cursor: pointer; }
 .claim-candidate-list label:has(input:checked) { background: #f4ffe1; border-color: #b8db7d; }
@@ -364,14 +396,32 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .evidence-revisions > div { padding-top: 8px; margin-top: 8px; border-top: 1px solid #e3e5de; }
 .evidence-revisions p { margin: 4px 0 !important; }
 .claim-review-form { display: grid; gap: 11px; padding: 15px; margin-top: 14px; background: #f6f4fb; border: 1px solid #dcd5ed; border-radius: 10px; }
-.claim-review-form h4 { display: flex; align-items: center; gap: 6px; margin: 0; color: #564a7a; font-size: 12px; }
-.claim-review-form > p { margin: -3px 0 2px; color: #7d758f; font-size: 10px; line-height: 1.6; }
+.claim-review-form h4 { display: flex; align-items: center; gap: 6px; margin: 0; color: #564a7a; font-size: 14px; }
+.claim-review-form > p { margin: -3px 0 2px; color: #716982; font-size: 11px; line-height: 1.65; }
 .claim-review-form label { display: grid; gap: 5px; }
-.claim-review-form label > span { color: #726987; font-size: 9px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.claim-review-form label > span { color: #665c7c; font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.claim-review-form .review-field-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.claim-review-form .review-field-heading b { font: inherit; }
+.claim-review-form .review-field-heading small { color: #81798f; font-size: 10px; font-weight: 650; letter-spacing: 0; text-transform: none; }
 .claim-review-form select, .claim-review-form textarea { width: 100%; padding: 9px 10px; color: var(--ink); background: white; border: 1px solid #d8d2e6; border-radius: 7px; outline: none; }
 .claim-review-form textarea { resize: vertical; line-height: 1.65; }
 .claim-review-form select:focus, .claim-review-form textarea:focus { border-color: #9385bd; box-shadow: 0 0 0 3px rgb(107 93 168 / 12%); }
+.claim-review-form textarea[aria-invalid="true"] { border-color: #d8978e; }
+.claim-review-form .review-field-help { color: #756d84; font-size: 11px; font-weight: 550; letter-spacing: 0; line-height: 1.5; text-transform: none; }
+.review-field-meta { display: flex; justify-content: space-between; gap: 12px; color: #81798f !important; font-size: 11px !important; font-weight: 550 !important; letter-spacing: 0 !important; text-transform: none !important; }
+.review-field-meta small:last-child { margin-left: auto; white-space: nowrap; }
+.claim-review-form .is-valid { color: #4f713e; }
+.claim-review-form .is-invalid { color: #9a5147; }
+.review-save-requirements { padding: 11px 12px; color: #625a75; background: rgb(255 255 255 / 62%); border: 1px solid #ddd7e9; border-radius: 8px; }
+.review-save-requirements > strong { display: block; margin-bottom: 7px; font-size: 11px; }
+.review-save-requirements ul { display: grid; gap: 5px; padding: 0; margin: 0; list-style: none; }
+.review-save-requirements li { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.45; }
+.review-save-requirements svg { flex: 0 0 auto; }
+.review-submit-message, .review-submit-status { margin: 0; font-size: 11px; line-height: 1.5; text-align: right; }
+.review-submit-status { color: #625a75; }
 .claim-review-form .button { justify-self: end; }
+.claim-review-form .button:disabled { cursor: not-allowed; }
+.claim-review-form .button[aria-busy="true"] { cursor: wait; }
 .claim-conclusion { padding: 14px; margin-top: 14px; color: #51486e; background: #f4f1fb; border: 1px solid #d9d1ed; border-radius: 10px; }
 .claim-conclusion.is-supported { color: #46653a; background: #eff7e9; border-color: #c8ddb9; }
 .claim-conclusion.is-refuted { color: #84483f; background: #fff0ed; border-color: #e9c3bd; }
@@ -391,6 +441,27 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .claim-empty p { max-width: 500px; margin: 0; font-size: 11px; line-height: 1.65; }
 
 .revision-panel { margin-top: 18px; box-shadow: none; }
+.similar-captures-panel { padding: 22px; margin-top: 18px; background: rgb(255 255 255 / 58%); border: 1px solid var(--line); border-radius: 14px; }
+.similar-captures-heading { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.similar-captures-heading h2 { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font: 650 25px/1.3 Georgia, "Songti SC", serif; }
+.similar-captures-heading > span { padding: 5px 8px; color: #59665e; background: #edf1e8; border-radius: 99px; font-size: 9px; font-weight: 850; }
+.similar-captures-boundary { max-width: 760px; margin: 10px 0 17px; color: #768079; font-size: 10px; line-height: 1.65; }
+.similar-capture-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 9px; }
+.similar-capture-card { display: flex; flex-direction: column; min-width: 0; min-height: 230px; padding: 16px; background: #fbfcf8; border: 1px solid #dde2d9; border-top: 3px solid #81976d; border-radius: 11px; transition: .18s ease; }
+.similar-capture-card:hover { background: white; box-shadow: 0 12px 30px rgb(28 42 34 / 7%); transform: translateY(-1px); }
+.similar-capture-card > header, .similar-capture-card > footer { display: flex; justify-content: space-between; align-items: center; gap: 9px; }
+.similar-capture-card > header > span { padding: 4px 7px; color: #59655e; background: #edf0eb; border-radius: 99px; font-size: 9px; font-weight: 800; }
+.similar-capture-card > header time { display: flex; align-items: center; gap: 4px; color: #89918c; font-size: 9px; }
+.similar-capture-card h3 { margin: 13px 0 7px; font: 650 17px/1.4 Georgia, "Songti SC", serif; }
+.similar-capture-card > p { display: -webkit-box; overflow: hidden; margin: 0; color: #68736d; font-size: 11px; line-height: 1.65; white-space: pre-wrap; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.similar-reason-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 13px; }
+.similar-reason-list span { padding: 5px 7px; color: #526349; background: #edf5e6; border: 1px solid #d8e6cc; border-radius: 6px; font-size: 8px; font-weight: 750; }
+.similar-capture-card > footer { padding-top: 12px; margin-top: auto; color: #78827c; border-top: 1px solid #e5e8e1; }
+.similar-capture-card > footer > div { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; min-width: 0; }
+.similar-capture-card > footer > div > span:not(.tag) { display: flex; align-items: center; gap: 4px; max-width: 150px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.similar-capture-empty { display: flex; align-items: center; gap: 11px; padding: 17px; color: #7d8881; background: #f7f8f3; border: 1px dashed #d4d9d0; border-radius: 10px; }
+.similar-capture-empty strong { color: #5e6a63; font-size: 11px; }
+.similar-capture-empty p { margin: 3px 0 0; font-size: 10px; line-height: 1.55; }
 .revision-list { display: grid; gap: 8px; margin-top: 18px; }
 .revision-list details { padding: 12px; background: #f7f7f2; border: 1px solid #e2e3dc; border-radius: 8px; }
 .revision-list summary { color: #5e6a63; font-size: 12px; font-weight: 700; cursor: pointer; }
@@ -525,6 +596,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
   .capture-composer { padding: 20px; }
   .composer-options, .composer-footer { align-items: stretch; flex-direction: column; }
   .capture-context-fields, .capture-context-grid, .knowledge-search-metadata { grid-template-columns: 1fr; }
+  .content-comparison-grid { grid-template-columns: 1fr; }
   .composer-options > label, .category-picker summary { justify-content: space-between; }
   .category-picker-menu { width: 100%; }
   .capture-grid { grid-template-columns: 1fr; }

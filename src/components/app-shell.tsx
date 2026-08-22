@@ -49,7 +49,9 @@ export function AppShell({
               categories.map((category) => (
                 <Link href={`/categories/${category.id}`} key={category.id}>
                   <span>{category.name}</span>
-                  <small>{category.captureCount}</small>
+                  <small aria-label={`${category.name}使用中记录数`}>
+                    {category.activeCaptureCount}
+                  </small>
                 </Link>
               ))
             )}

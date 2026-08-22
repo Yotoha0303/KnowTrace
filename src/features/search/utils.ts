@@ -1,5 +1,20 @@
+import { KNOWTRACE_TIME_ZONE } from "@/features/capture/datetime";
+
 export const SEARCH_QUERY_MAX_LENGTH = 100;
 export const SEARCH_SUBJECT_MAX_LENGTH = 200;
+
+const calendarDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: KNOWTRACE_TIME_ZONE,
+});
+
+export function dateInKnowTraceTimeZone(date: Date): string {
+  const parts = calendarDateFormatter.formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
 
 export function normalizeSearchQuery(value: string | undefined): string {
   return (value ?? "")

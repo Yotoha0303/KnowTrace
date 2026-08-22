@@ -61,6 +61,9 @@ const evidenceStatusLabels = {
   rejected: "已排除",
 } as const;
 
+const REVIEW_RATIONALE_MIN_LENGTH = 10;
+const REVIEW_TEXT_MAX_LENGTH = 2_000;
+
 const sourceErrorLabels: Record<string, string> = {
   EVIDENCE_SOURCE_CHARSET_UNSUPPORTED: "来源字符编码暂不支持",
   EVIDENCE_SOURCE_CONTENT_TYPE_BLOCKED: "来源不是 HTML 或纯文本",
@@ -338,6 +341,7 @@ function EvidenceItem({
 function ClaimCard({ claim }: { claim: ClaimDTO }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isConcluding, setIsConcluding] = useState(false);
   const [message, setMessage] = useState("");
   const [checkingEvidenceId, setCheckingEvidenceId] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
@@ -353,6 +357,33 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
   const acceptedEvidenceCount = claim.evidence.filter(
     (evidence) => evidence.reviewStatus === "accepted",
   ).length;
+  const acceptedSupportingEvidenceCount = claim.evidence.filter(
+    (evidence) =>
+      evidence.reviewStatus === "accepted" && evidence.stance === "supports",
+  ).length;
+  const acceptedContradictingEvidenceCount = claim.evidence.filter(
+    (evidence) =>
+      evidence.reviewStatus === "accepted" && evidence.stance === "contradicts",
+  ).length;
+  const trimmedRationaleLength = rationale.trim().length;
+  const rationaleLengthSatisfied =
+    trimmedRationaleLength >= REVIEW_RATIONALE_MIN_LENGTH;
+  const assessmentEvidenceSatisfied =
+    assessment === "supported"
+      ? acceptedSupportingEvidenceCount > 0
+      : assessment === "refuted"
+        ? acceptedContradictingEvidenceCount > 0
+        : acceptedEvidenceCount > 0;
+  const canConclude = rationaleLengthSatisfied && assessmentEvidenceSatisfied;
+  const rationaleHelpId = `claim-${claim.id}-rationale-help`;
+  const assessmentHelpId = `claim-${claim.id}-assessment-help`;
+
+  const assessmentRequirement =
+    assessment === "supported"
+      ? `需要至少 1 条已采纳的支持证据；当前 ${acceptedSupportingEvidenceCount} 条。`
+      : assessment === "refuted"
+        ? `需要至少 1 条已采纳的反驳证据；当前 ${acceptedContradictingEvidenceCount} 条。`
+        : `需要至少 1 条已采纳证据；当前 ${acceptedEvidenceCount} 条。`;
 
   function transition(targetStatus: ClaimDTO["status"]) {
     setMessage("");
@@ -441,24 +472,29 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
 
   function conclude() {
     setMessage("");
+    setIsConcluding(true);
     startTransition(async () => {
-      const result = await concludeClaimAction({
-        claimId: claim.id,
-        assessment,
-        rationale,
-        limitations: limitations || undefined,
-      });
-      if (!result.ok) {
-        setMessage(
-          result.error.fieldErrors
-            ? Object.values(result.error.fieldErrors).flat()[0]
-            : result.error.message,
-        );
-        return;
+      try {
+        const result = await concludeClaimAction({
+          claimId: claim.id,
+          assessment,
+          rationale,
+          limitations: limitations || undefined,
+        });
+        if (!result.ok) {
+          setMessage(
+            result.error.fieldErrors
+              ? Object.values(result.error.fieldErrors).flat()[0]
+              : result.error.message,
+          );
+          return;
+        }
+        setRationale("");
+        setLimitations("");
+        router.refresh();
+      } finally {
+        setIsConcluding(false);
       }
-      setRationale("");
-      setLimitations("");
-      router.refresh();
     });
   }
 
@@ -533,22 +569,63 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
             <h4><Scale size={15} /> 形成人工结论</h4>
             <p>结论必须说明现有证据能支持到什么程度。它会冻结本次使用的证据与来源哈希，但不会变成“永远正确”。</p>
             <label>
-              <span>结论类型</span>
-              <select aria-label={`${claim.statement} 结论类型`} onChange={(event) => setAssessment(event.target.value as typeof assessment)} value={assessment}>
+              <span className="review-field-heading"><b>结论类型（必选）</b><small>选择 1 项</small></span>
+              <select aria-describedby={assessmentHelpId} aria-label={`${claim.statement} 结论类型`} onChange={(event) => setAssessment(event.target.value as typeof assessment)} required value={assessment}>
                 <option value="inconclusive">证据不足</option>
                 <option value="supported">现有证据支持</option>
                 <option value="refuted">现有证据反驳</option>
               </select>
+              <small className={assessmentEvidenceSatisfied ? "review-field-help is-valid" : "review-field-help is-invalid"} id={assessmentHelpId}>
+                {assessmentRequirement}
+              </small>
             </label>
             <label>
-              <span>结论依据</span>
-              <textarea aria-label={`${claim.statement} 结论依据`} maxLength={2000} onChange={(event) => setRationale(event.target.value)} placeholder="说明采纳了哪些证据、为什么得到这个结论……" rows={4} value={rationale} />
+              <span className="review-field-heading"><b>结论依据（必填）</b><small>10–2,000 个字符</small></span>
+              <textarea
+                aria-describedby={rationaleHelpId}
+                aria-invalid={rationale.length > 0 && !rationaleLengthSatisfied}
+                aria-label={`${claim.statement} 结论依据`}
+                maxLength={REVIEW_TEXT_MAX_LENGTH}
+                minLength={REVIEW_RATIONALE_MIN_LENGTH}
+                onChange={(event) => setRationale(event.target.value)}
+                placeholder="说明采纳了哪些证据、为什么得到这个结论……"
+                required
+                rows={4}
+                value={rationale}
+              />
+              <span className="review-field-meta" id={rationaleHelpId}>
+                <small className={rationaleLengthSatisfied ? "is-valid" : "is-invalid"}>
+                  {rationaleLengthSatisfied
+                    ? "已满足最少字符要求"
+                    : `还需 ${REVIEW_RATIONALE_MIN_LENGTH - trimmedRationaleLength} 个字符`}
+                </small>
+                <small>{rationale.length.toLocaleString()} / {REVIEW_TEXT_MAX_LENGTH.toLocaleString()}</small>
+              </span>
             </label>
             <label>
-              <span>限制与未知（可选）</span>
-              <textarea aria-label={`${claim.statement} 结论限制`} maxLength={2000} onChange={(event) => setLimitations(event.target.value)} placeholder="样本范围、时间边界、仍存在的反例……" rows={3} value={limitations} />
+              <span className="review-field-heading"><b>限制与未知（选填）</b><small>最多 2,000 个字符</small></span>
+              <textarea aria-label={`${claim.statement} 结论限制`} maxLength={REVIEW_TEXT_MAX_LENGTH} onChange={(event) => setLimitations(event.target.value)} placeholder="样本范围、时间边界、仍存在的反例……" rows={3} value={limitations} />
+              <span className="review-field-meta"><small>不填写也可以保存</small><small>{limitations.length.toLocaleString()} / {REVIEW_TEXT_MAX_LENGTH.toLocaleString()}</small></span>
             </label>
-            <button className="button button-primary" disabled={isPending || rationale.trim().length < 10} onClick={conclude} type="button"><Check size={15} /> 保存人工结论</button>
+            <div aria-live="polite" className="review-save-requirements">
+              <strong>保存前需满足</strong>
+              <ul>
+                <li className={assessmentEvidenceSatisfied ? "is-valid" : "is-invalid"}>
+                  {assessmentEvidenceSatisfied ? <Check size={13} /> : <CircleDot size={13} />}
+                  所选结论具备对应的已采纳证据
+                </li>
+                <li className={rationaleLengthSatisfied ? "is-valid" : "is-invalid"}>
+                  {rationaleLengthSatisfied ? <Check size={13} /> : <CircleDot size={13} />}
+                  结论依据不少于 {REVIEW_RATIONALE_MIN_LENGTH} 个字符
+                </li>
+              </ul>
+            </div>
+            {message ? <p aria-live="assertive" className="form-error review-submit-message" role="alert">未能完成操作：{message}</p> : null}
+            {isConcluding ? <p aria-live="polite" className="review-submit-status">正在保存结论并冻结 {acceptedEvidenceCount} 条证据快照，请稍候……</p> : null}
+            <button aria-busy={isConcluding} className="button button-primary" disabled={isPending || !canConclude} onClick={conclude} type="button">
+              {isConcluding ? <LoaderCircle className="processing-spinner" size={15} /> : <Check size={15} />}
+              {isConcluding ? "正在保存人工结论…" : "保存人工结论"}
+            </button>
           </div>
           <div className="claim-actions">
             <button className="button button-quiet" disabled={isPending} onClick={() => transition("investigating")} type="button"><ArrowLeftRight size={15} /> 退回补充证据</button>
@@ -580,7 +657,7 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
           <button className="button button-quiet" disabled={isPending} onClick={() => transition("withdrawn")} type="button"><X size={15} /> 撤回</button>
         </div>
       ) : null}
-      {message ? <p className="form-error claim-message">{message}</p> : null}
+      {message && claim.status !== "ready_for_review" ? <p className="form-error claim-message">{message}</p> : null}
     </article>
   );
 }

@@ -5,6 +5,7 @@ import {
   claimAIAuditPayloadSchema,
   aiSuggestionPayloadSchema,
   organizeCaptureSchema,
+  rollbackSuggestionSchema,
   testCCSwitchCodexOAuthSchema,
 } from "./schema";
 
@@ -161,6 +162,21 @@ describe("aiSuggestionPayloadSchema", () => {
       testCCSwitchCodexOAuthSchema.safeParse({
         baseURL: "http://host.docker.internal:15721/v1",
         model: "gpt-5.6-sol",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires an optimistic capture version for a full AI rollback", () => {
+    expect(
+      rollbackSuggestionSchema.safeParse({
+        suggestionId: "d92f5b20-52d0-4b3e-b9ad-3b1fd759bd6a",
+        expectedCaptureVersion: 3,
+      }).success,
+    ).toBe(true);
+    expect(
+      rollbackSuggestionSchema.safeParse({
+        suggestionId: "d92f5b20-52d0-4b3e-b9ad-3b1fd759bd6a",
+        expectedCaptureVersion: 0,
       }).success,
     ).toBe(false);
   });

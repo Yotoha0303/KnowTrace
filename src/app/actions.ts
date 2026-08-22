@@ -8,6 +8,7 @@ import {
   detectCCSwitchSchema,
   decideSuggestionSchema,
   organizeCaptureSchema,
+  rollbackSuggestionSchema,
   testCCSwitchCodexOAuthSchema,
 } from "@/features/ai-processing/schema";
 import {
@@ -18,6 +19,7 @@ import {
   auditClaim,
   decideSuggestion,
   organizeCapture,
+  rollbackSuggestion,
 } from "@/features/ai-processing/service";
 import {
   captureIdSchema,
@@ -295,6 +297,21 @@ export async function decideSuggestionAction(raw: unknown) {
   if (result.ok) {
     revalidatePath("/");
     revalidatePath(`/captures/${result.data.captureId}`);
+  }
+  return result;
+}
+
+export async function rollbackSuggestionAction(raw: unknown) {
+  const result = await runAction(
+    rollbackSuggestionSchema,
+    raw,
+    rollbackSuggestion,
+  );
+  if (result.ok) {
+    revalidatePath("/");
+    revalidatePath(`/captures/${result.data.captureId}`);
+    revalidatePath("/claims");
+    revalidatePath("/search");
   }
   return result;
 }

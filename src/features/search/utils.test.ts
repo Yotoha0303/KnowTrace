@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSearchPattern,
+  dateInKnowTraceTimeZone,
   makeSearchSnippet,
   normalizeDateFilter,
   normalizeSearchQuery,
@@ -10,6 +11,11 @@ import {
 } from "./utils";
 
 describe("search utilities", () => {
+  it("formats the default search day in the KnowTrace time zone", () => {
+    expect(dateInKnowTraceTimeZone(new Date("2026-08-21T15:59:59.999Z"))).toBe("2026-08-21");
+    expect(dateInKnowTraceTimeZone(new Date("2026-08-21T16:00:00.000Z"))).toBe("2026-08-22");
+  });
+
   it("normalizes whitespace and bounds user queries", () => {
     expect(normalizeSearchQuery("  AI\n  知识库  ")).toBe("AI 知识库");
     expect(normalizeSearchQuery("x".repeat(120))).toHaveLength(100);

@@ -116,8 +116,8 @@
 | source_capture_version | integer | 来源版本 |
 | schema_version | varchar(40) | Payload Schema |
 | payload | jsonb | 通过校验的结构化建议 |
-| status | varchar(20) | pending/accepted/modified/rejected/stale |
-| accepted_payload | jsonb | modified 时保存用户确认结果 |
+| status | varchar(20) | pending/accepted/modified/rejected/stale/rolled_back |
+| accepted_payload | jsonb | 保存用户确认结果、采纳前回退快照和可选回退结果 |
 | decided_at | timestamptz | 可空 |
 | created_at | timestamptz | 创建时间 |
 
@@ -269,7 +269,7 @@ WHERE id = $4
   AND version = $5;
 ```
 
-### 接受 AI 分类
+### 接受或回退 AI 整理
 
 同一事务中：
 
@@ -278,9 +278,11 @@ WHERE id = $4
 3. 创建或查找被接受的 Category。
 4. 幂等写入 capture_categories。
 5. 如果标题或 Content Type 改变，按 Capture 修订规则写入 Revision 并增加版本。
-6. 更新 Suggestion 决策状态。
+6. 在 accepted payload 保存采纳前核心字段、AI 分类、应用版本和本次新建 Claim ID，再更新 Suggestion 决策状态。
 
-不得更新 Capture 正文。
+正文只允许应用用户明确勾选且原片段仍唯一匹配的局部建议，并遵循 Capture 修订规则。
+
+整体回退锁定已采纳 Suggestion 和 Capture，要求它仍是最近一次已采纳整理、Capture 版本与应用后版本一致、AI 分类未变化且本次 Claim 仍为 candidate。事务恢复采纳前核心字段与 AI 分类、删除这些 candidate Claim、写入新 Revision，并把 Suggestion 设为 rolled_back；任一检查失败都不得局部回退。
 
 ### 接纳候选主张与提交审核
 
@@ -314,6 +316,8 @@ Migration `0005_knowledge_search.sql` 启用 PostgreSQL `pg_trgm`，为 Capture�
 ## 7. 描述对象与发生时间
 
 Migration `0006_capture_subject_and_occurred_at.sql` 为 Capture 和 Revision 增加 `subject` 与 `occurred_at`。现有 Capture 以自身 `created_at` 回填发生时间；旧 Revision 继承所属 Capture 的回填值，避免迁移时刻伪装成历史事件时间。
+
+Migration `0010_capture_similarity_search.sql` 在 Capture 的标题、描述对象和正文组合表达式上增加 GiST `gist_trgm_ops` 索引，用于有界近邻候选查询。相似分数不持久化；详情读取时再结合共同 Category 和同一描述对象排序。
 
 - `subject varchar(200)` 可空，是公司、人物、项目等自由文本，不建立强制实体表。
 - `occurred_at timestamptz not null` 保存事件时点，默认 `now()` 只作为新建请求的数据库后备。

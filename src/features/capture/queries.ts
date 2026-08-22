@@ -27,6 +27,7 @@ import {
 } from "@/server/db/schema";
 import { db } from "@/server/db/client";
 import {
+  acceptedSuggestionPayloadSchema,
   aiSuggestionPayloadSchema,
   claimAIAuditEvidenceSnapshotSchema,
   claimAIAuditPayloadSchema,
@@ -39,6 +40,7 @@ export type CategoryDTO = {
   description: string | null;
   status: "active" | "archived";
   captureCount: number;
+  activeCaptureCount: number;
 };
 
 export type CaptureListItemDTO = {
@@ -105,9 +107,18 @@ export type CaptureDetailDTO = CaptureListItemDTO & {
     createdAt: string;
     suggestion: null | {
       id: string;
-      status: "pending" | "accepted" | "modified" | "rejected" | "stale";
+      status:
+        | "pending"
+        | "accepted"
+        | "modified"
+        | "rejected"
+        | "stale"
+        | "rolled_back";
       sourceCaptureVersion: number;
       payload: ReturnType<typeof aiSuggestionPayloadSchema.parse>;
+      acceptedPayload: ReturnType<
+        typeof acceptedSuggestionPayloadSchema.parse
+      > | null;
       createdAt: string;
     };
   }>;
@@ -249,14 +260,26 @@ export async function listCategories(includeArchived = false): Promise<CategoryD
       description: categories.description,
       status: categories.status,
       captureCount: countDistinct(captureCategories.captureId),
+      activeCaptureCount: countDistinct(captures.id),
     })
     .from(categories)
     .leftJoin(captureCategories, eq(categories.id, captureCategories.categoryId))
+    .leftJoin(
+      captures,
+      and(
+        eq(captures.id, captureCategories.captureId),
+        eq(captures.status, "active"),
+      ),
+    )
     .where(includeArchived ? undefined : eq(categories.status, "active"))
     .groupBy(categories.id)
     .orderBy(categories.name);
 
-  return rows.map((row) => ({ ...row, captureCount: Number(row.captureCount) }));
+  return rows.map((row) => ({
+    ...row,
+    captureCount: Number(row.captureCount),
+    activeCaptureCount: Number(row.activeCaptureCount),
+  }));
 }
 
 export async function listCaptures(options?: {
@@ -696,6 +719,11 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
             status: suggestion.status,
             sourceCaptureVersion: suggestion.sourceCaptureVersion,
             payload: aiSuggestionPayloadSchema.parse(suggestion.payload),
+            acceptedPayload: suggestion.acceptedPayload
+              ? acceptedSuggestionPayloadSchema.safeParse(
+                  suggestion.acceptedPayload,
+                ).data ?? null
+              : null,
             createdAt: toIso(suggestion.createdAt),
           }
         : null,

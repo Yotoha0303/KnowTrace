@@ -16,6 +16,10 @@ function CategoryRow({ category }: { category: CategoryDTO }) {
   const [name, setName] = useState(category.name);
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  const archivedCaptureCount = Math.max(
+    category.captureCount - category.activeCaptureCount,
+    0,
+  );
 
   function rename() {
     if (!name.trim() || name.trim() === category.name) return;
@@ -55,7 +59,11 @@ function CategoryRow({ category }: { category: CategoryDTO }) {
     <article className="category-manage-row">
       <div>
         <input aria-label={`${category.name}的名称`} maxLength={60} onChange={(event) => setName(event.target.value)} value={name} />
-        <p>{category.captureCount} 条记录 · {category.status === "active" ? "使用中" : "已归档"}</p>
+        <p aria-label={`${category.name}记录统计`}>
+          使用中 {category.activeCaptureCount} 条 · 已归档 {archivedCaptureCount} 条 · 共 {category.captureCount} 条
+          <br />
+          分类状态：{category.status === "active" ? "使用中" : "已归档"}
+        </p>
       </div>
       <span className={message === "已保存" || message === "状态已更新" ? "form-success" : "form-error"}>{message}</span>
       <button className="button button-quiet" disabled={isPending || !name.trim() || name.trim() === category.name} onClick={rename} type="button"><Save size={15} /> 保存名称</button>

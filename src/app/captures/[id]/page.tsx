@@ -2,10 +2,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Clock3 } from "lucide-react";
 import Link from "next/link";
 
-import { AIReviewPanel } from "@/components/ai-review-panel";
-import { CaptureEditor } from "@/components/capture-editor";
+import { CaptureWorkspace } from "@/components/capture-workspace";
 import { ClaimWorkflowPanel } from "@/components/claim-workflow-panel";
+import { SimilarCapturePanel } from "@/components/similar-capture-panel";
 import { getCaptureDetail, listCategories } from "@/features/capture/queries";
+import { findSimilarCaptures } from "@/features/similarity/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +16,10 @@ export default async function CapturePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [capture, categories] = await Promise.all([
+  const [capture, categories, similarCaptures] = await Promise.all([
     getCaptureDetail(id),
     listCategories(),
+    findSimilarCaptures(id),
   ]);
   if (!capture) notFound();
 
@@ -27,10 +29,12 @@ export default async function CapturePage({
         <Link className="back-link" href="/"><ArrowLeft size={16} /> 返回收集箱</Link>
         <div className="detail-meta"><Clock3 size={15} /> 更新于 {new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(capture.updatedAt))}</div>
       </header>
-      <div className="detail-grid">
-        <CaptureEditor capture={capture} categories={categories} key={`editor-${capture.version}`} />
-        <AIReviewPanel capture={capture} categories={categories} key={`ai-${capture.version}-${capture.aiHistory[0]?.id ?? "none"}`} />
-      </div>
+      <CaptureWorkspace
+        capture={capture}
+        categories={categories}
+        key={`workspace-${capture.version}-${capture.aiHistory[0]?.id ?? "none"}`}
+      />
+      <SimilarCapturePanel items={similarCaptures} />
       <ClaimWorkflowPanel claims={capture.claims} />
       {capture.revisions.length ? (
         <section className="revision-panel">

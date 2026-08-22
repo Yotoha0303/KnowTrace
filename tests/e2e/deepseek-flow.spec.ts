@@ -25,7 +25,7 @@ test("@deepseek organizes a real capture", async ({ page }) => {
 
   await page.getByLabel("处理引擎").selectOption("deepseek");
   await page.getByLabel("DeepSeek API Key").fill(process.env.DEEPSEEK_E2E_KEY!);
-  await page.getByRole("button", { name: /开始 AI 整理/ }).click();
+  await page.getByRole("button", { name: /开始分析版本/ }).click();
   await expect(page.getByText("DeepSeek 正在整理")).toBeVisible();
   await expect(page.getByText(/正在分析原文|正在等待模型/)).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("等待你的决定")).toBeVisible({ timeout: 120_000 });

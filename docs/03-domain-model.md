@@ -130,9 +130,10 @@ pending → accepted
         → modified
         → rejected
         → stale
+accepted/modified → rolled_back
 ```
 
-Suggestion 的决策不可重复覆盖；需要重新判断时应创建新的处理或决策版本。
+Suggestion 的首次决策不可重复覆盖。accepted/modified 可以进行一次受保护的整体回退：accepted payload 保存采纳前核心字段、采纳前后 AI 分类、应用后的 Capture 版本和本次新建 Claim ID；回退成功后状态变为 rolled_back，并记录结果版本。回退不是删除历史。
 
 ## 8. 关系
 
