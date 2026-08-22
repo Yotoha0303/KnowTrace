@@ -18,6 +18,10 @@ export const renameCategorySchema = z.object({
   name: createCategorySchema.shape.name,
 });
 
+export const deleteCategorySchema = z.object({
+  id: z.uuid(),
+});
+
 export const setCaptureCategoriesSchema = z.object({
   captureId: z.uuid(),
   categoryIds: z.array(z.uuid()).max(20, "每条记录最多选择 20 个分类"),

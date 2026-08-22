@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { createCategoryAction } from "@/app/actions";
 
 export function CategoryCreator() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -18,6 +20,7 @@ export function CategoryCreator() {
       if (result.ok) {
         setName("");
         setMessage("");
+        router.refresh();
       } else {
         setMessage(result.error.message);
       }

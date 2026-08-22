@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 
 import { categories, captureCategories, captures } from "@/server/db/schema";
 import { db } from "@/server/db/client";
@@ -75,6 +75,40 @@ export async function setCategoryStatus(
     throw new AppError("CATEGORY_NOT_FOUND", "分类不存在。");
   }
   return updated;
+}
+
+export async function deleteCategory(id: string) {
+  return db.transaction(async (transaction) => {
+    const [category] = await transaction
+      .select({ id: categories.id, name: categories.name })
+      .from(categories)
+      .where(eq(categories.id, id))
+      .limit(1)
+      .for("update");
+    if (!category) {
+      throw new AppError("CATEGORY_NOT_FOUND", "分类不存在或已经被删除。");
+    }
+
+    const [usage] = await transaction
+      .select({ count: count() })
+      .from(captureCategories)
+      .where(eq(captureCategories.categoryId, category.id));
+    if (Number(usage?.count ?? 0) > 0) {
+      throw new AppError(
+        "CATEGORY_IN_USE",
+        "这个分类仍有关联记录，请先移除所有记录上的分类关联。",
+      );
+    }
+
+    const [deleted] = await transaction
+      .delete(categories)
+      .where(eq(categories.id, category.id))
+      .returning({ id: categories.id, name: categories.name });
+    if (!deleted) {
+      throw new AppError("CATEGORY_NOT_FOUND", "分类不存在或已经被删除。");
+    }
+    return deleted;
+  });
 }
 
 export async function addCategoriesToCapture(

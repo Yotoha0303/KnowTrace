@@ -93,6 +93,8 @@ MVP 不支持：
 - 自动合并同义分类。
 - 删除仍被 Capture 使用的 Category。
 
+没有任何 Capture 关联的空 Category 可以永久删除。删除前必须在事务中重新统计关联，不能信任页面上的旧计数；归档状态不会放宽删除条件。
+
 ## 6. AIProcessingRun
 
 每次模型调用创建一个独立 Run。

@@ -16,7 +16,7 @@ export default async function CategoriesPage() {
           <Link className="back-link" href="/"><ArrowLeft size={16} /> 返回收集箱</Link>
           <p className="eyebrow">Taxonomy</p>
           <h1>分类管理</h1>
-          <p>分类可以重命名、归档和恢复。归档不会移除记录上的历史关联。</p>
+          <p>分类可以重命名、归档和恢复。没有关联记录的空分类可以永久删除；归档不会移除历史关联。</p>
         </div>
         <Settings2 size={32} />
       </header>

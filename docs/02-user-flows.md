@@ -129,7 +129,7 @@ active Capture → archive → archived
 archived Capture → restore → active
 ```
 
-Category 也支持相同的归档与恢复。Capture 可以在二次确认后永久删除；删除会级联移除 Revision、分类关系、AI Run 和 Suggestion，Category 本身不会因此删除。
+Category 也支持相同的归档与恢复。没有关联记录的空 Category 可以在二次确认后永久删除；仍有关联时必须先从所有 Capture 移除该分类。Capture 可以在二次确认后永久删除；删除会级联移除 Revision、分类关系、AI Run 和 Suggestion，Category 本身不会因此删除。
 
 ## 9. 小群体使用
 

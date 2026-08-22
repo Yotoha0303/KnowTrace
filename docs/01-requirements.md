@@ -61,6 +61,7 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 验收标准：
 
 - Category 名称必填并进行规范化后唯一判断。
+- 没有关联任何 Capture 的 Category 可以在二次确认后永久删除；有关联记录时必须拒绝，记录是否归档不影响该限制。
 - 支持重命名和归档。
 - MVP 不做无限层级目录；Category 为扁平结构。
 - Category 归档不影响 Capture 本身。

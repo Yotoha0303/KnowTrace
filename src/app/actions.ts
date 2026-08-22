@@ -33,11 +33,13 @@ import {
 } from "@/features/capture/service";
 import {
   createCategorySchema,
+  deleteCategorySchema,
   renameCategorySchema,
   setCaptureCategoriesSchema,
 } from "@/features/classification/schema";
 import {
   createCategory,
+  deleteCategory,
   renameCategory,
   setCategoryStatus,
 } from "@/features/classification/service";
@@ -175,6 +177,18 @@ export async function renameCategoryAction(raw: unknown) {
     return { id: row.id, name: row.name };
   });
   if (result.ok) revalidatePath("/", "layout");
+  return result;
+}
+
+export async function deleteCategoryAction(raw: unknown) {
+  const result = await runAction(deleteCategorySchema, raw, async ({ id }) => {
+    const row = await deleteCategory(id);
+    return { id: row.id, name: row.name };
+  });
+  if (result.ok) {
+    revalidatePath("/", "layout");
+    revalidatePath("/categories");
+  }
   return result;
 }
 

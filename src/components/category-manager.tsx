@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Archive, RotateCcw, Save } from "lucide-react";
+import { Archive, RotateCcw, Save, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
-import { renameCategoryAction, setCategoryStatusAction } from "@/app/actions";
+import {
+  deleteCategoryAction,
+  renameCategoryAction,
+  setCategoryStatusAction,
+} from "@/app/actions";
 import type { CategoryDTO } from "@/features/capture/queries";
 
 function CategoryRow({ category }: { category: CategoryDTO }) {
+  const router = useRouter();
   const [name, setName] = useState(category.name);
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -29,6 +35,22 @@ function CategoryRow({ category }: { category: CategoryDTO }) {
     });
   }
 
+  function remove() {
+    if (category.captureCount !== 0) return;
+    if (!window.confirm(`确定永久删除空分类“${category.name}”吗？此操作不可恢复。`)) {
+      return;
+    }
+    setMessage("");
+    startTransition(async () => {
+      const result = await deleteCategoryAction({ id: category.id });
+      if (!result.ok) {
+        setMessage(result.error.message);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   return (
     <article className="category-manage-row">
       <div>
@@ -40,6 +62,15 @@ function CategoryRow({ category }: { category: CategoryDTO }) {
       <button className="button button-quiet" disabled={isPending} onClick={toggleStatus} type="button">
         {category.status === "active" ? <Archive size={15} /> : <RotateCcw size={15} />}
         {category.status === "active" ? "归档" : "恢复"}
+      </button>
+      <button
+        className="button button-danger"
+        disabled={isPending || category.captureCount !== 0}
+        onClick={remove}
+        title={category.captureCount === 0 ? "永久删除空分类" : "仍有关联记录，不能删除"}
+        type="button"
+      >
+        <Trash2 size={15} /> 删除
       </button>
     </article>
   );

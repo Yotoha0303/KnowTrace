@@ -31,6 +31,7 @@
 - Capture/Category 重复关联幂等。
 - 超过每条 Capture 的 Category 数量限制被拒绝。
 - 归档 Category 不能新增关联。
+- 空 Category 经二次确认后可以删除；有关联记录（包括已归档记录）的 Category 在界面和服务端都不能删除。
 
 ### AI Processing
 

@@ -407,7 +407,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .category-create-card h2 { margin: 0; font: 650 20px Georgia, "Songti SC", serif; }
 .category-create-card .category-create { margin: 0; }
 .category-manager { display: grid; gap: 8px; }
-.category-manage-row { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(80px, auto) auto auto; align-items: center; gap: 10px; padding: 14px 16px; background: rgb(255 255 255 / 60%); border: 1px solid var(--line); border-radius: 11px; }
+.category-manage-row { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(80px, auto) auto auto auto; align-items: center; gap: 10px; padding: 14px 16px; background: rgb(255 255 255 / 60%); border: 1px solid var(--line); border-radius: 11px; }
 .category-manage-row input { width: 100%; padding: 7px 8px; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 7px; font-weight: 700; outline: none; }
 .category-manage-row input:focus { background: white; border-color: #aab5a3; }
 .category-manage-row p { margin: 2px 8px 0; color: var(--muted); font-size: 10px; }

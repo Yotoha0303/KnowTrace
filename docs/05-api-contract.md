@@ -97,6 +97,10 @@ type CreateCategoryInput = {
 
 归档 Category 后不能再为 Capture 新增此分类。
 
+### deleteCategory
+
+输入 Category ID。服务端在事务中锁定 Category 并重新统计全部 Capture 关联；计数为 0 时永久删除，存在活跃或已归档记录关联时返回 `CATEGORY_IN_USE`。页面计数和按钮禁用只用于反馈，不作为最终授权条件。
+
 ## 5. AI Commands
 
 ### organizeCapture
