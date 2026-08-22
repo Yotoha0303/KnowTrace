@@ -88,6 +88,14 @@ type EvidenceDTO = ClaimDTO["evidence"][number];
 
 function EvidenceSourceResult({ evidence }: { evidence: EvidenceDTO }) {
   const sourceCheck = evidence.sourceCheck;
+  if (!evidence.sourceUrl) {
+    return (
+      <div className="evidence-source-result is-unchecked">
+        <ShieldAlert size={16} />
+        <div><strong>未提供来源链接</strong><p>证据可以保存；如需自动检查来源，请编辑并补充链接。</p></div>
+      </div>
+    );
+  }
   if (!sourceCheck) {
     return (
       <div className="evidence-source-result is-unchecked">
@@ -224,7 +232,7 @@ function EvidenceItem({
         <div className="evidence-edit-form">
           <div className="evidence-form-grid">
             <label><span>来源标题</span><input maxLength={300} onChange={(event) => setSourceTitle(event.target.value)} value={sourceTitle} /></label>
-            <label><span>来源 URL</span><input maxLength={2000} onChange={(event) => setSourceUrl(event.target.value)} type="url" value={sourceUrl} /></label>
+            <label><span>来源 URL（可选）</span><input maxLength={2000} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://…" type="url" value={sourceUrl} /></label>
             <label className="wide"><span>证据原文摘录</span><textarea maxLength={2000} onChange={(event) => setExcerpt(event.target.value)} rows={3} value={excerpt} /></label>
             <label><span>与主张的关系</span><select onChange={(event) => setStance(event.target.value as typeof stance)} value={stance}><option value="supports">支持</option><option value="contradicts">反驳</option><option value="context">仅提供背景</option></select></label>
             <label><span>备注（可选）</span><input maxLength={1000} onChange={(event) => setNote(event.target.value)} value={note} /></label>
@@ -232,12 +240,16 @@ function EvidenceItem({
           <p className="evidence-edit-warning">保存后会生成历史版本，并清除当前来源检查；重新采纳前必须再次检查来源。</p>
           <div className="evidence-review-actions">
             <button className="button button-quiet" disabled={busy} onClick={cancelEdit} type="button"><X size={14} /> 取消</button>
-            <button className="button button-primary" disabled={busy || !sourceTitle.trim() || !sourceUrl.trim() || !excerpt.trim()} onClick={saveEdit} type="button"><Save size={14} /> {isPending ? "正在保存" : "保存修改"}</button>
+            <button className="button button-primary" disabled={busy || !sourceTitle.trim() || !excerpt.trim()} onClick={saveEdit} type="button"><Save size={14} /> {isPending ? "正在保存" : "保存修改"}</button>
           </div>
         </div>
       ) : (
         <>
-          <a href={evidence.sourceUrl} rel="noreferrer" target="_blank">{evidence.sourceTitle} <ExternalLink size={12} /></a>
+          {evidence.sourceUrl ? (
+            <a href={evidence.sourceUrl} rel="noreferrer" target="_blank">{evidence.sourceTitle} <ExternalLink size={12} /></a>
+          ) : (
+            <strong>{evidence.sourceTitle}</strong>
+          )}
           <blockquote>“{evidence.excerpt}”</blockquote>
           {evidence.note ? <p>{evidence.note}</p> : null}
         </>
@@ -279,7 +291,7 @@ function EvidenceItem({
       {editable && !editing ? (
         <div className="evidence-review-actions">
           <button className="button button-quiet" disabled={busy} onClick={() => setEditing(true)} type="button"><Pencil size={14} /> 编辑</button>
-          <button className="button button-quiet" disabled={busy} onClick={() => onCheck(evidence.id)} type="button">
+          <button className="button button-quiet" disabled={busy || !evidence.sourceUrl} onClick={() => onCheck(evidence.id)} title={evidence.sourceUrl ? undefined : "请先编辑并填写来源链接"} type="button">
             {checking ? <LoaderCircle className="processing-spinner" size={14} /> : evidence.sourceCheck ? <RefreshCw size={14} /> : <ShieldCheck size={14} />}
             {checking ? "正在检查来源" : evidence.sourceCheck ? "重新检查来源" : "检查来源"}
           </button>
@@ -439,12 +451,12 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
             <h4><Plus size={14} /> 添加证据</h4>
             <div className="evidence-form-grid">
               <label><span>来源标题</span><input aria-label={`${claim.statement} 来源标题`} maxLength={300} onChange={(event) => setSourceTitle(event.target.value)} value={sourceTitle} /></label>
-              <label><span>来源 URL</span><input aria-label={`${claim.statement} 来源 URL`} maxLength={2000} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://…" type="url" value={sourceUrl} /></label>
+              <label><span>来源 URL（可选）</span><input aria-label={`${claim.statement} 来源 URL`} maxLength={2000} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://…" type="url" value={sourceUrl} /></label>
               <label className="wide"><span>证据原文摘录</span><textarea aria-label={`${claim.statement} 证据摘录`} maxLength={2000} onChange={(event) => setExcerpt(event.target.value)} rows={3} value={excerpt} /></label>
               <label><span>与主张的关系</span><select aria-label={`${claim.statement} 证据立场`} onChange={(event) => setStance(event.target.value as typeof stance)} value={stance}><option value="supports">支持</option><option value="contradicts">反驳</option><option value="context">仅提供背景</option></select></label>
               <label><span>备注（可选）</span><input aria-label={`${claim.statement} 证据备注`} maxLength={1000} onChange={(event) => setNote(event.target.value)} value={note} /></label>
             </div>
-            <button className="button button-quiet" disabled={isPending || !sourceTitle.trim() || !sourceUrl.trim() || !excerpt.trim()} onClick={addEvidence} type="button"><Plus size={15} /> 保存为未审核证据</button>
+            <button className="button button-quiet" disabled={isPending || !sourceTitle.trim() || !excerpt.trim()} onClick={addEvidence} type="button"><Plus size={15} /> 保存为未审核证据</button>
           </div>
         </>
       ) : null}

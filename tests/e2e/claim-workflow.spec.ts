@@ -142,3 +142,49 @@ test("AI candidate claim → evidence review → ready for review", async ({ pag
   await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   expect(consoleErrors).toEqual([]);
 });
+
+test("evidence can be saved without a source URL", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleErrors.push(message.text());
+    }
+  });
+
+  const suffix = Date.now().toString().slice(-6);
+  const title = `无链接证据 ${suffix}`;
+  const statement = "每天复盘能够提高问题处理效率";
+
+  await page.goto("/");
+  await page.getByPlaceholder("标题可以稍后再补").fill(title);
+  await page.getByPlaceholder(/输入关键词/).fill(`${statement}。`);
+  await page.getByRole("button", { name: /保存并整理/ }).click();
+
+  await expect(page).toHaveURL(/\/captures\/[0-9a-f-]+$/);
+  await page.getByLabel("处理引擎").selectOption("mock");
+  await page.getByRole("button", { name: /开始 AI 整理/ }).click();
+
+  const candidate = page.locator(".claim-candidate-list label");
+  await expect(candidate).toHaveCount(1);
+  await candidate.locator("input").check();
+  await page.getByRole("button", { name: /接受当前选择/ }).click();
+
+  const claimCard = page.locator(".claim-card");
+  await claimCard.getByRole("button", { name: /开始调查/ }).click();
+  await claimCard.getByLabel(/来源标题/).fill("微信现场记录");
+  await claimCard.getByLabel(/证据摘录/).fill("现场观察到的原始内容");
+
+  const saveButton = claimCard.getByRole("button", { name: /保存为未审核证据/ });
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+
+  const evidenceItem = claimCard.locator(".evidence-list > article");
+  await expect(evidenceItem).toContainText("微信现场记录");
+  await expect(evidenceItem.getByText("未提供来源链接")).toBeVisible();
+  await expect(evidenceItem.getByRole("button", { name: /^检查来源$/ })).toBeDisabled();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "永久删除" }).click();
+  await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
+  expect(consoleErrors).toEqual([]);
+});

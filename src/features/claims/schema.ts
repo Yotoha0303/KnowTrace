@@ -22,6 +22,32 @@ export const EVIDENCE_STANCES = [
 
 export const claimStatusSchema = z.enum(CLAIM_STATUSES);
 
+const optionalEvidenceSourceUrlSchema = z
+  .string()
+  .trim()
+  .max(2_000)
+  .superRefine((value, context) => {
+    if (!value) return;
+
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "请输入有效的来源 URL。",
+      });
+      return;
+    }
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      context.addIssue({
+        code: "custom",
+        message: "来源仅支持 HTTP(S) URL。",
+      });
+    }
+  });
+
 export const transitionClaimSchema = z.object({
   claimId: z.uuid(),
   expectedStatus: claimStatusSchema,
@@ -30,12 +56,7 @@ export const transitionClaimSchema = z.object({
 
 export const addClaimEvidenceSchema = z.object({
   claimId: z.uuid(),
-  sourceUrl: z
-    .url("请输入有效的来源 URL。")
-    .max(2_000)
-    .refine((value) => ["http:", "https:"].includes(new URL(value).protocol), {
-      message: "来源仅支持 HTTP(S) URL。",
-    }),
+  sourceUrl: optionalEvidenceSourceUrlSchema,
   sourceTitle: z.string().trim().min(1, "来源标题不能为空。").max(300),
   excerpt: z.string().trim().min(1, "证据摘录不能为空。").max(2_000),
   stance: z.enum(EVIDENCE_STANCES),

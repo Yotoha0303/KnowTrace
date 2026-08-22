@@ -302,6 +302,12 @@ export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
       "只有调查中且尚未审核的证据可以检查来源。",
     );
   }
+  if (!row.sourceUrl.trim()) {
+    throw new AppError(
+      "CLAIM_EVIDENCE_SOURCE_URL_MISSING",
+      "该证据未填写来源链接，无法自动检查来源。",
+    );
+  }
 
   const inspection = await inspectEvidenceSource({
     sourceUrl: row.sourceUrl,

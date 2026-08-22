@@ -18,7 +18,7 @@ describe("claim workflow schemas", () => {
     ).toBe(true);
   });
 
-  it("only accepts HTTP(S) evidence sources", () => {
+  it("accepts an empty evidence source URL or a valid HTTP(S) URL", () => {
     const base = {
       claimId: "d92f5b20-52d0-4b3e-b9ad-3b1fd759bd6a",
       sourceTitle: "来源标题",
@@ -29,6 +29,12 @@ describe("claim workflow schemas", () => {
     expect(
       addClaimEvidenceSchema.safeParse({
         ...base,
+        sourceUrl: "",
+      }).success,
+    ).toBe(true);
+    expect(
+      addClaimEvidenceSchema.safeParse({
+        ...base,
         sourceUrl: "https://example.com/source",
       }).success,
     ).toBe(true);
@@ -36,6 +42,12 @@ describe("claim workflow schemas", () => {
       addClaimEvidenceSchema.safeParse({
         ...base,
         sourceUrl: "file:///tmp/source",
+      }).success,
+    ).toBe(false);
+    expect(
+      addClaimEvidenceSchema.safeParse({
+        ...base,
+        sourceUrl: "微信",
       }).success,
     ).toBe(false);
   });
