@@ -411,11 +411,72 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .claim-index-assessment span { font-size: 10px; line-height: 1.55; }
 .claim-index-card > footer { padding-top: 12px; margin-top: 12px; color: #737d77; border-top: 1px solid #e6e7e1; font-size: 10px; }
 
+.knowledge-search-form { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(150px, 190px) minmax(150px, 210px) auto auto; align-items: end; gap: 9px; padding: 15px; background: rgb(255 255 255 / 62%); border: 1px solid var(--line); border-radius: 13px; }
+.knowledge-search-form > label:not(.knowledge-search-input) { display: grid; gap: 5px; }
+.knowledge-search-form > label > span { color: #727d76; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.knowledge-search-form select { width: 100%; min-height: 41px; padding: 0 10px; color: var(--ink); background: white; border: 1px solid #dfe1da; border-radius: 8px; outline: none; }
+.knowledge-search-input { display: flex; align-items: center; gap: 9px; min-height: 41px; padding: 0 12px; color: #718078; background: white; border: 1px solid #d7dbd3; border-radius: 9px; }
+.knowledge-search-input:focus-within, .knowledge-search-form select:focus { border-color: #91a679; box-shadow: 0 0 0 3px rgb(201 255 100 / 18%); }
+.knowledge-search-input input { width: 100%; min-width: 0; padding: 10px 0; color: var(--ink); background: transparent; border: 0; outline: none; }
+.search-entry-state { display: grid; justify-items: center; gap: 16px; padding: 50px 30px; margin-top: 30px; color: #68766e; text-align: center; background: rgb(255 255 255 / 35%); border: 1px dashed #c8cdc4; border-radius: 16px; }
+.search-entry-state > svg { color: #6f854f; }
+.search-entry-state h2 { margin: 0; font: 650 25px/1.3 Georgia, "Songti SC", serif; }
+.search-entry-state p { max-width: 650px; margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.search-scope-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: min(820px, 100%); margin-top: 8px; }
+.search-scope-grid article { display: grid; justify-items: center; gap: 5px; padding: 15px 10px; color: #58675f; background: rgb(255 255 255 / 68%); border: 1px solid #e0e2db; border-radius: 10px; }
+.search-scope-grid strong { font-size: 11px; }
+.search-scope-grid span { color: #87908b; font-size: 9px; }
+.search-empty { margin-top: 30px; }
+.search-results { margin-top: 30px; }
+.search-result-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 13px; color: #667169; background: #edf1e8; border-radius: 9px; font-size: 11px; }
+.search-result-summary strong { color: #3f5046; }
+.search-result-group { margin-top: 36px; }
+.search-result-group .section-title h2 { display: flex; align-items: center; gap: 8px; }
+.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.search-result-card { display: flex; flex-direction: column; min-height: 190px; padding: 17px; background: rgb(255 255 255 / 66%); border: 1px solid var(--line); border-top: 3px solid #89978d; border-radius: 11px; transition: .18s ease; }
+.search-result-card.is-claim { border-top-color: #769a43; }
+.search-result-card.is-evidence { border-top-color: #4c8385; }
+.search-result-card.is-conclusion { border-top-color: #7465a0; }
+.search-result-card:hover { background: white; box-shadow: 0 12px 32px rgb(28 42 34 / 7%); transform: translateY(-1px); }
+.search-result-card > header, .search-result-card > footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.search-result-card > header span { padding: 4px 7px; color: #59655e; background: #edf0eb; border-radius: 99px; font-size: 9px; font-weight: 800; }
+.search-result-card > header time { color: #8b938e; font-size: 9px; }
+.search-result-card h3 { margin: 13px 0 7px; font: 650 17px/1.4 Georgia, "Songti SC", serif; }
+.search-result-card > p { margin: 0; color: #6c756f; font-size: 11px; line-height: 1.65; }
+.search-result-card > footer { padding-top: 13px; margin-top: auto; color: #77827b; }
+.search-result-card > footer > div { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.search-result-card > footer small { margin-right: 4px; font-size: 9px; }
+
+.dossier-overview { display: flex; align-items: center; gap: 14px; }
+.dossier-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; flex: 1; }
+.dossier-metrics article { display: grid; gap: 3px; padding: 15px; background: rgb(255 255 255 / 62%); border: 1px solid var(--line); border-radius: 11px; }
+.dossier-metrics strong { font: 650 27px/1 Georgia, "Songti SC", serif; }
+.dossier-metrics span { color: #546158; font-size: 10px; font-weight: 800; }
+.dossier-metrics small { color: #8a928d; font-size: 9px; }
+.dossier-conclusions { margin-top: 42px; }
+.dossier-conclusion-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dossier-conclusion-card { display: block; padding: 17px; color: #574d72; background: #f5f1fb; border: 1px solid #ddd5ef; border-radius: 11px; transition: .18s ease; }
+.dossier-conclusion-card.is-supported { color: #466339; background: #f0f7eb; border-color: #cbdcbe; }
+.dossier-conclusion-card.is-refuted { color: #80473f; background: #fff2ef; border-color: #ebc7c1; }
+.dossier-conclusion-card:hover { box-shadow: 0 12px 32px rgb(28 42 34 / 7%); transform: translateY(-1px); }
+.dossier-conclusion-card header, .dossier-conclusion-card footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.dossier-conclusion-card header span { display: flex; align-items: center; gap: 5px; padding: 4px 7px; background: rgb(255 255 255 / 58%); border-radius: 99px; font-size: 9px; font-weight: 850; }
+.dossier-conclusion-card header small { opacity: .7; font-size: 9px; }
+.dossier-conclusion-card h3 { margin: 13px 0 7px; font: 650 17px/1.42 Georgia, "Songti SC", serif; }
+.dossier-conclusion-card > p { margin: 0; font-size: 11px; line-height: 1.65; }
+.dossier-conclusion-card aside { padding: 8px 9px; margin-top: 9px; background: rgb(255 255 255 / 48%); border-radius: 7px; font-size: 9px; line-height: 1.55; }
+.dossier-conclusion-card aside strong { display: block; margin-bottom: 2px; }
+.dossier-conclusion-card footer { padding-top: 11px; margin-top: 11px; border-top: 1px solid currentColor; opacity: .72; font-size: 9px; }
+.dossier-captures { margin-top: 42px; }
+
 @media (max-width: 1000px) {
   .app-frame { grid-template-columns: 205px minmax(0, 1fr); }
   .sidebar { padding-inline: 14px; }
   .detail-grid { grid-template-columns: 1fr; }
   .ai-panel { position: static; }
+  .knowledge-search-form { grid-template-columns: minmax(250px, 1fr) repeat(2, minmax(140px, 180px)); }
+  .knowledge-search-form .button { min-height: 36px; }
+  .dossier-overview { align-items: stretch; flex-direction: column; }
 }
 
 @media (max-width: 720px) {
@@ -446,4 +507,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
   .category-manage-row { grid-template-columns: 1fr 1fr; }
   .category-manage-row > div, .category-manage-row > span { grid-column: 1 / -1; }
   .claims-filter { grid-template-columns: 1fr; }
+  .knowledge-search-form { grid-template-columns: 1fr; align-items: stretch; }
+  .search-scope-grid, .search-result-list, .dossier-metrics, .dossier-conclusion-list { grid-template-columns: 1fr; }
+  .search-result-summary { align-items: flex-start; flex-direction: column; }
 }

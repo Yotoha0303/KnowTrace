@@ -7,9 +7,12 @@ Capture        原始记录、修订和归档
 Classification 内容类型、Category 及关联
 AIProcessing   AI 运行记录、结构化建议和用户决策
 ClaimReview    候选主张、证据及人工审核状态
+KnowledgeRead  统一检索和主题档案只读投影
 ```
 
 身份、成员和 Workspace 已从当前模型移除。整个部署实例只有一个共享数据域。
+
+`KnowledgeRead` 不拥有事实表，也没有独立状态机。它从上述聚合根读取有界结果，保留实体类型、当前状态、Category 和 Capture 回链；任何检索命中都不能提升内容的可靠性等级。
 
 ## 2. Capture
 

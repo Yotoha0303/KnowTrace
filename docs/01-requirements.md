@@ -122,6 +122,18 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 - 审查保存输入快照、指纹、Provider、模型、耗时和状态。
 - 审查不修改 Claim、Evidence、人工 Review 或状态；输入变化后旧结果标记过期。
 
+### US-09 统一检索与主题档案
+
+作为使用者，我希望凭一段不完整线索同时找到相关原文、主张、证据和结论，并能按主题回看知识进展。
+
+验收标准：
+
+- 检索词最多 100 个字符，按对象类型和 Category 组合限制结果。
+- 每类结果有界返回，显示对象状态、Category 和来源 Capture 回链。
+- Capture、Claim、Evidence 和人工 Review 必须分组展示，不混成无来源摘要。
+- Category 页面显示活跃/归档记录、Claim 状态、Evidence 数量、有效采纳证据与最新人工结论。
+- 检索与主题档案只读，不改变任何业务状态。
+
 ## 4. 状态
 
 Capture：
@@ -196,6 +208,7 @@ AI Audit Recommendation：`supported / refuted / inconclusive / needs_more_evide
 - 不调用 AI 时，单实例本地环境创建 Capture 的 P95 目标小于 500ms。
 - 最近列表默认 20 条，最大 100 条。
 - 首版按单实例、20 个同时访问者设计。
+- 中文片段检索使用 `pg_trgm` 索引；统一检索每类最多返回 50 条，页面默认 20 条。
 
 ### 安全
 

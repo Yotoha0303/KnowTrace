@@ -281,3 +281,9 @@ WHERE id = $4
 - 已执行 Migration 不修改，只追加。
 - CI 在空数据库执行全部 Migration。
 - 生产部署前进行备份和恢复演练。
+
+## 6. 统一检索索引
+
+Migration `0005_knowledge_search.sql` 启用 PostgreSQL `pg_trgm`，为 Capture、Claim、Evidence 和 ClaimReview 的组合文本表达式创建 GIN trigram 索引。这样可以支持中文关键词和不完整片段的 `ILIKE '%query%'` 查询，而不依赖 PostgreSQL 内置英文分词。
+
+查询表达式必须与索引表达式保持一致；用户输入参数化并转义 `%`、`_` 和反斜杠。该扩展可能需要数据库管理员权限，受限托管环境应在迁移前预先启用。
