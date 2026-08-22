@@ -87,6 +87,19 @@ export const sourceCheckAttemptStatusEnum = pgEnum(
   ["passed", "failed"],
 );
 
+export const evidenceVerificationMethodEnum = pgEnum(
+  "evidence_verification_method",
+  ["web", "manual_attachment"],
+);
+
+export type EvidenceAttachmentVerificationSnapshot = Array<{
+  id: string;
+  originalName: string;
+  mimeType: string;
+  byteSize: number;
+  sha256: string;
+}>;
+
 export const captures = pgTable(
   "captures",
   {
@@ -424,6 +437,9 @@ export const evidenceSourceChecks = pgTable(
     evidenceId: uuid("evidence_id")
       .notNull()
       .references(() => claimEvidence.id, { onDelete: "cascade" }),
+    verificationMethod: evidenceVerificationMethodEnum("verification_method")
+      .notNull()
+      .default("web"),
     requestedUrl: varchar("requested_url", { length: 2_000 }).notNull(),
     finalUrl: varchar("final_url", { length: 2_000 }),
     status: sourceCheckAttemptStatusEnum("status").notNull(),
@@ -434,6 +450,9 @@ export const evidenceSourceChecks = pgTable(
     excerptMatch: boolean("excerpt_match"),
     responseBytes: integer("response_bytes"),
     errorCode: varchar("error_code", { length: 80 }),
+    attachmentSnapshot: jsonb("attachment_snapshot")
+      .$type<EvidenceAttachmentVerificationSnapshot>(),
+    verificationNote: varchar("verification_note", { length: 1_000 }),
     checkedAt: timestamp("checked_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -446,8 +465,30 @@ export const evidenceSourceChecks = pgTable(
     check(
       "evidence_source_checks_result_consistency_chk",
       sql`(
-        (${table.status} = 'passed' AND ${table.finalUrl} IS NOT NULL AND ${table.httpStatus} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.excerptMatch} IS NOT NULL AND ${table.responseBytes} IS NOT NULL AND ${table.errorCode} IS NULL)
-        OR (${table.status} = 'failed' AND ${table.errorCode} IS NOT NULL)
+        (
+          ${table.verificationMethod} = 'web'
+          AND ${table.attachmentSnapshot} IS NULL
+          AND ${table.verificationNote} IS NULL
+          AND (
+            (${table.status} = 'passed' AND ${table.finalUrl} IS NOT NULL AND ${table.httpStatus} IS NOT NULL AND ${table.contentHash} IS NOT NULL AND ${table.excerptMatch} IS NOT NULL AND ${table.responseBytes} IS NOT NULL AND ${table.errorCode} IS NULL)
+            OR (${table.status} = 'failed' AND ${table.errorCode} IS NOT NULL)
+          )
+        )
+        OR (
+          ${table.verificationMethod} = 'manual_attachment'
+          AND ${table.status} = 'passed'
+          AND ${table.requestedUrl} = ''
+          AND ${table.finalUrl} IS NOT NULL
+          AND ${table.httpStatus} IS NULL
+          AND ${table.contentType} = 'application/vnd.knowtrace.evidence-attachments+json'
+          AND ${table.contentHash} IS NOT NULL
+          AND ${table.excerptMatch} = true
+          AND ${table.responseBytes} IS NOT NULL
+          AND ${table.errorCode} IS NULL
+          AND jsonb_typeof(${table.attachmentSnapshot}) = 'array'
+          AND jsonb_array_length(${table.attachmentSnapshot}) > 0
+          AND ${table.verificationNote} IS NOT NULL
+        )
       )`,
     ),
   ],

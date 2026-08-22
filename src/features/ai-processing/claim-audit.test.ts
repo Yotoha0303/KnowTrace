@@ -21,6 +21,7 @@ function evidence(
     excerpt: "可追溯摘录",
     note: null,
     sourceCheckId: id.replace(/.$/, "f"),
+    verificationMethod: "web",
     finalUrl: `https://${host}/source`,
     contentHash: "a".repeat(64),
     sourceCheckedAt: "2026-08-15T00:00:00.000Z",

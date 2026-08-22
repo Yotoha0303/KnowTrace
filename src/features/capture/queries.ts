@@ -171,6 +171,7 @@ export type ClaimDTO = {
     sourceCheckedAt: string | null;
     sourceCheck: null | {
       id: string;
+      verificationMethod: "web" | "manual_attachment";
       finalUrl: string | null;
       status: "passed" | "failed";
       httpStatus: number | null;
@@ -180,6 +181,14 @@ export type ClaimDTO = {
       excerptMatch: boolean | null;
       responseBytes: number | null;
       errorCode: string | null;
+      attachmentSnapshot: Array<{
+        id: string;
+        originalName: string;
+        mimeType: string;
+        byteSize: number;
+        sha256: string;
+      }> | null;
+      verificationNote: string | null;
       checkedAt: string;
     };
     reviewedAt: string | null;
@@ -547,6 +556,7 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
                   excerpt: evidence.excerpt,
                   note: evidence.note,
                   sourceCheckId: sourceCheck.id,
+                  verificationMethod: sourceCheck.verificationMethod,
                   finalUrl: sourceCheck.finalUrl,
                   contentHash: sourceCheck.contentHash,
                   sourceCheckedAt: toIso(sourceCheck.checkedAt),
@@ -608,6 +618,7 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
               return sourceCheck
                 ? {
                     id: sourceCheck.id,
+                    verificationMethod: sourceCheck.verificationMethod,
                     finalUrl: sourceCheck.finalUrl,
                     status: sourceCheck.status,
                     httpStatus: sourceCheck.httpStatus,
@@ -617,6 +628,8 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
                     excerptMatch: sourceCheck.excerptMatch,
                     responseBytes: sourceCheck.responseBytes,
                     errorCode: sourceCheck.errorCode,
+                    attachmentSnapshot: sourceCheck.attachmentSnapshot,
+                    verificationNote: sourceCheck.verificationNote,
                     checkedAt: toIso(sourceCheck.checkedAt),
                   }
                 : null;

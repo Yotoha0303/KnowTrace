@@ -339,6 +339,7 @@ export async function auditClaim(input: {
         excerpt: claimEvidence.excerpt,
         note: claimEvidence.note,
         sourceCheckId: evidenceSourceChecks.id,
+        verificationMethod: evidenceSourceChecks.verificationMethod,
         finalUrl: evidenceSourceChecks.finalUrl,
         contentHash: evidenceSourceChecks.contentHash,
         sourceCheckedAt: evidenceSourceChecks.checkedAt,

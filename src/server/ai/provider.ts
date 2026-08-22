@@ -18,6 +18,7 @@ import {
 import {
   calculateEvidenceBalance,
   calculateEvidenceCoverage,
+  evidenceSourceIdentity,
   type ClaimAuditEvidenceInput,
 } from "@/features/ai-processing/claim-audit";
 import { normalizeCCSwitchBaseURL } from "@/features/ai-processing/connection";
@@ -357,7 +358,7 @@ function mockAuditClaim(input: {
     (item) => item.stance === "contradicts",
   );
   const hostCount = new Set(
-    input.evidence.map((item) => new URL(item.finalUrl).hostname.toLowerCase()),
+    input.evidence.map(evidenceSourceIdentity),
   ).size;
   const findings: ClaimAIAuditPayload["findings"] = [];
   const missingChecks: string[] = [];

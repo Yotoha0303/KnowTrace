@@ -149,7 +149,7 @@
 |---|---|---|
 | id | uuid | 主键 |
 | claim_id | uuid | 所属 Claim，删除时级联 |
-| source_url | varchar(2000) | HTTP(S) 来源 |
+| source_url | varchar(2000) | 可选 HTTP(S) 来源，空字符串表示无链接 |
 | source_title | varchar(300) | 来源标题 |
 | excerpt | varchar(2000) | 证据摘录 |
 | stance | varchar(20) | supports/contradicts/context |
@@ -188,6 +188,7 @@
 |---|---|---|
 | id | uuid | 主键 |
 | evidence_id | uuid | 所属 Evidence，删除时级联 |
+| verification_method | enum | web/manual_attachment |
 | requested_url / final_url | varchar(2000) | 请求与重定向后的最终地址 |
 | status | varchar(20) | passed/failed |
 | http_status | integer | 可空 |
@@ -197,9 +198,11 @@
 | excerpt_match | boolean | 成功时是否匹配摘录 |
 | response_bytes | integer | 响应体字节数 |
 | error_code | varchar(80) | 失败时的稳定错误码 |
+| attachment_snapshot | jsonb | 附件人工核验冻结的 ID、文件名、MIME、大小与 SHA-256 |
+| verification_note | varchar(1000) | 附件人工核验的固定确认说明 |
 | checked_at | timestamptz | 检查时间 |
 
-SourceCheck 只允许 INSERT/SELECT。`claim_evidence.latest_source_check_id` 是事务内维护的当前投影标识；历史检查不会被覆盖。
+SourceCheck 只允许 INSERT/SELECT。`web` 遵守 HTTP 抓取结果约束；`manual_attachment` 必须成功、摘录确认匹配、至少冻结一张附件并保存确认说明。`claim_evidence.latest_source_check_id` 是事务内维护的当前投影标识；历史检查不会被覆盖，Evidence 编辑或新增附件只清除当前投影。
 
 ### claim_reviews
 

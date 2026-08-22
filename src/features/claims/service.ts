@@ -15,15 +15,28 @@ import {
   claims,
   evidenceAttachments,
   evidenceSourceChecks,
+  type EvidenceAttachmentVerificationSnapshot,
 } from "@/server/db/schema";
 import { db } from "@/server/db/client";
 import { AppError } from "@/shared/errors/app-error";
+import { sha256, stableStringify } from "@/shared/hash";
 import { inspectEvidenceSource } from "./source-inspector";
 import {
   removeEvidenceImage,
   writeEvidenceImage,
 } from "./image-storage";
 import { MAX_EVIDENCE_IMAGES, prepareEvidenceImage } from "./image-validation";
+
+const MANUAL_ATTACHMENT_CONTENT_TYPE =
+  "application/vnd.knowtrace.evidence-attachments+json";
+const MANUAL_ATTACHMENT_VERIFICATION_NOTE =
+  "本地使用者确认已查看本次冻结的全部图片附件，并确认保存的证据摘录与附件内容一致。";
+
+function buildAttachmentSnapshot(
+  rows: EvidenceAttachmentVerificationSnapshot,
+): EvidenceAttachmentVerificationSnapshot {
+  return [...rows].sort((left, right) => left.id.localeCompare(right.id));
+}
 
 export async function transitionClaim(input: {
   claimId: string;
@@ -231,6 +244,7 @@ export async function uploadEvidenceImage(input: {
           captureId: claims.captureId,
           claimStatus: claims.status,
           reviewStatus: claimEvidence.reviewStatus,
+          latestSourceCheckId: claimEvidence.latestSourceCheckId,
         })
         .from(claimEvidence)
         .innerJoin(claims, eq(claimEvidence.claimId, claims.id))
@@ -268,6 +282,25 @@ export async function uploadEvidenceImage(input: {
           sha256: prepared.sha256,
         })
         .returning({ id: evidenceAttachments.id });
+      if (current.latestSourceCheckId) {
+        const [latestCheck] = await transaction
+          .select({ verificationMethod: evidenceSourceChecks.verificationMethod })
+          .from(evidenceSourceChecks)
+          .where(eq(evidenceSourceChecks.id, current.latestSourceCheckId))
+          .limit(1);
+        if (latestCheck?.verificationMethod === "manual_attachment") {
+          await transaction
+            .update(claimEvidence)
+            .set({
+              sourceCheckStatus: "unchecked",
+              sourceExcerptMatch: null,
+              sourceCheckedAt: null,
+              latestSourceCheckId: null,
+              updatedAt: new Date(),
+            })
+            .where(eq(claimEvidence.id, current.id));
+        }
+      }
       await transaction
         .update(claims)
         .set({ updatedAt: new Date() })
@@ -280,7 +313,10 @@ export async function uploadEvidenceImage(input: {
   }
 }
 
-export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
+export async function checkClaimEvidenceSource(input: {
+  evidenceId: string;
+  manualConfirmation?: boolean;
+}) {
   const [row] = await db
     .select({
       evidenceId: claimEvidence.id,
@@ -303,10 +339,125 @@ export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
     );
   }
   if (!row.sourceUrl.trim()) {
-    throw new AppError(
-      "CLAIM_EVIDENCE_SOURCE_URL_MISSING",
-      "该证据未填写来源链接，无法自动检查来源。",
-    );
+    if (input.manualConfirmation !== true) {
+      throw new AppError(
+        "CLAIM_EVIDENCE_MANUAL_CONFIRMATION_REQUIRED",
+        "请先查看图片附件，并确认摘录与附件内容一致。",
+      );
+    }
+
+    return db.transaction(async (transaction) => {
+      const [current] = await transaction
+        .select({
+          evidenceId: claimEvidence.id,
+          sourceUrl: claimEvidence.sourceUrl,
+          excerpt: claimEvidence.excerpt,
+          version: claimEvidence.version,
+          reviewStatus: claimEvidence.reviewStatus,
+          claimStatus: claims.status,
+        })
+        .from(claimEvidence)
+        .innerJoin(claims, eq(claimEvidence.claimId, claims.id))
+        .where(eq(claimEvidence.id, row.evidenceId))
+        .limit(1)
+        .for("update");
+      if (
+        !current ||
+        current.claimStatus !== "investigating" ||
+        current.reviewStatus !== "unreviewed" ||
+        current.version !== row.version ||
+        current.sourceUrl.trim()
+      ) {
+        throw new AppError(
+          "CLAIM_EVIDENCE_SOURCE_CHECK_STATE_INVALID",
+          "证据状态或内容已经变化，本次附件核验未写入。",
+        );
+      }
+
+      const attachmentSnapshot = buildAttachmentSnapshot(
+        await transaction
+          .select({
+            id: evidenceAttachments.id,
+            originalName: evidenceAttachments.originalName,
+            mimeType: evidenceAttachments.mimeType,
+            byteSize: evidenceAttachments.byteSize,
+            sha256: evidenceAttachments.sha256,
+          })
+          .from(evidenceAttachments)
+          .where(eq(evidenceAttachments.evidenceId, current.evidenceId)),
+      );
+      if (!attachmentSnapshot.length) {
+        throw new AppError(
+          "CLAIM_EVIDENCE_ATTACHMENT_REQUIRED",
+          "无来源链接时，至少需要上传一张图片才能进行人工核验。",
+        );
+      }
+
+      const checkedAt = new Date();
+      const contentHash = sha256(
+        stableStringify({
+          evidenceId: current.evidenceId,
+          evidenceVersion: current.version,
+          excerpt: current.excerpt,
+          attachments: attachmentSnapshot,
+        }),
+      );
+      const [attempt] = await transaction
+        .insert(evidenceSourceChecks)
+        .values({
+          evidenceId: current.evidenceId,
+          verificationMethod: "manual_attachment",
+          requestedUrl: "",
+          finalUrl: `/api/evidence-images/${attachmentSnapshot[0]!.id}`,
+          status: "passed",
+          httpStatus: null,
+          contentType: MANUAL_ATTACHMENT_CONTENT_TYPE,
+          contentHash,
+          fetchedTitle: null,
+          excerptMatch: true,
+          responseBytes: attachmentSnapshot.reduce(
+            (total, attachment) => total + attachment.byteSize,
+            0,
+          ),
+          errorCode: null,
+          attachmentSnapshot,
+          verificationNote: MANUAL_ATTACHMENT_VERIFICATION_NOTE,
+          checkedAt,
+        })
+        .returning({ id: evidenceSourceChecks.id });
+
+      const [updated] = await transaction
+        .update(claimEvidence)
+        .set({
+          sourceCheckStatus: "passed",
+          sourceExcerptMatch: true,
+          sourceCheckedAt: checkedAt,
+          latestSourceCheckId: attempt.id,
+        })
+        .where(
+          and(
+            eq(claimEvidence.id, current.evidenceId),
+            eq(claimEvidence.reviewStatus, "unreviewed"),
+            eq(claimEvidence.version, current.version),
+          ),
+        )
+        .returning({ id: claimEvidence.id });
+      if (!updated) {
+        throw new AppError(
+          "CLAIM_EVIDENCE_SOURCE_CHECK_STATE_INVALID",
+          "证据状态已经变化，本次附件核验未写入。",
+        );
+      }
+
+      return {
+        id: updated.id,
+        captureId: row.captureId,
+        status: "passed" as const,
+        excerptMatch: true,
+        errorCode: null,
+        verificationMethod: "manual_attachment" as const,
+      };
+    });
   }
 
   const inspection = await inspectEvidenceSource({
@@ -342,6 +493,7 @@ export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
       .insert(evidenceSourceChecks)
       .values({
         evidenceId: row.evidenceId,
+        verificationMethod: "web",
         requestedUrl: inspection.requestedUrl,
         finalUrl: inspection.finalUrl,
         status: inspection.status,
@@ -384,6 +536,7 @@ export async function checkClaimEvidenceSource(input: { evidenceId: string }) {
       status: inspection.status,
       excerptMatch: inspection.excerptMatch,
       errorCode: inspection.errorCode,
+      verificationMethod: "web" as const,
     };
   });
 }

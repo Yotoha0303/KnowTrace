@@ -88,11 +88,34 @@ type EvidenceDTO = ClaimDTO["evidence"][number];
 
 function EvidenceSourceResult({ evidence }: { evidence: EvidenceDTO }) {
   const sourceCheck = evidence.sourceCheck;
+  if (sourceCheck?.verificationMethod === "manual_attachment") {
+    return (
+      <div className="evidence-source-result is-matched">
+        <ShieldCheck size={16} />
+        <div>
+          <strong>附件已人工核验</strong>
+          <p>
+            已冻结 {sourceCheck.attachmentSnapshot?.length ?? 0} 张图片
+            {sourceCheck.contentHash ? <> · <Fingerprint size={11} /> {sourceCheck.contentHash.slice(0, 12)}…</> : null}
+          </p>
+          {sourceCheck.verificationNote ? <small>{sourceCheck.verificationNote}</small> : null}
+          <small>核验时间：{checkTimeFormatter.format(new Date(sourceCheck.checkedAt))}</small>
+        </div>
+      </div>
+    );
+  }
   if (!evidence.sourceUrl) {
     return (
       <div className="evidence-source-result is-unchecked">
         <ShieldAlert size={16} />
-        <div><strong>未提供来源链接</strong><p>证据可以保存；如需自动检查来源，请编辑并补充链接。</p></div>
+        <div>
+          <strong>{evidence.attachments.length ? "附件尚未核验" : "未提供来源材料"}</strong>
+          <p>
+            {evidence.attachments.length
+              ? "请先在线查看图片，再点击“核对附件”确认图片与摘录一致。"
+              : "请补充来源链接，或先上传至少一张证据图片。"}
+          </p>
+        </div>
       </div>
     );
   }
@@ -152,7 +175,7 @@ function EvidenceItem({
   evidence: EvidenceDTO;
   parentPending: boolean;
   checking: boolean;
-  onCheck: (evidenceId: string) => void;
+  onCheck: (evidence: EvidenceDTO) => void;
   onReview: (evidenceId: string, decision: "accepted" | "rejected") => void;
 }) {
   const router = useRouter();
@@ -262,7 +285,11 @@ function EvidenceItem({
               <a href={`/api/evidence-images/${attachment.id}`} rel="noreferrer" target="_blank">
                 <Image alt={attachment.originalName} fill sizes="(max-width: 700px) 100vw, 220px" src={`/api/evidence-images/${attachment.id}`} unoptimized />
               </a>
-              <figcaption title={attachment.originalName}>{attachment.originalName}<small>{(attachment.byteSize / 1024).toFixed(1)} KB · SHA-256 {attachment.sha256.slice(0, 10)}…</small></figcaption>
+              <figcaption title={attachment.originalName}>
+                {attachment.originalName}
+                <small>{(attachment.byteSize / 1024).toFixed(1)} KB · SHA-256 {attachment.sha256.slice(0, 10)}…</small>
+                <a href={`/api/evidence-images/${attachment.id}`} rel="noreferrer" target="_blank">在线查看原图 <ExternalLink size={10} /></a>
+              </figcaption>
             </figure>
           ))}
         </div>
@@ -291,9 +318,13 @@ function EvidenceItem({
       {editable && !editing ? (
         <div className="evidence-review-actions">
           <button className="button button-quiet" disabled={busy} onClick={() => setEditing(true)} type="button"><Pencil size={14} /> 编辑</button>
-          <button className="button button-quiet" disabled={busy || !evidence.sourceUrl} onClick={() => onCheck(evidence.id)} title={evidence.sourceUrl ? undefined : "请先编辑并填写来源链接"} type="button">
+          <button className="button button-quiet" disabled={busy || (!evidence.sourceUrl && evidence.attachments.length === 0)} onClick={() => onCheck(evidence)} title={!evidence.sourceUrl && evidence.attachments.length === 0 ? "请先上传至少一张证据图片" : undefined} type="button">
             {checking ? <LoaderCircle className="processing-spinner" size={14} /> : evidence.sourceCheck ? <RefreshCw size={14} /> : <ShieldCheck size={14} />}
-            {checking ? "正在检查来源" : evidence.sourceCheck ? "重新检查来源" : "检查来源"}
+            {checking
+              ? evidence.sourceUrl ? "正在检查来源" : "正在记录核验"
+              : evidence.sourceUrl
+                ? evidence.sourceCheck ? "重新检查来源" : "检查来源"
+                : evidence.sourceCheck ? "重新核对附件" : "核对附件"}
           </button>
           <button className="button button-quiet" disabled={busy} onClick={() => onReview(evidence.id, "rejected")} type="button"><X size={14} /> 排除</button>
           <button className="button button-primary" disabled={busy || evidence.sourceCheckStatus !== "passed" || evidence.sourceExcerptMatch !== true} onClick={() => onReview(evidence.id, "accepted")} type="button"><Check size={14} /> 采纳</button>
@@ -381,11 +412,23 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
     });
   }
 
-  function checkEvidenceSource(evidenceId: string) {
+  function checkEvidenceSource(evidence: EvidenceDTO) {
+    const manualConfirmation = !evidence.sourceUrl;
+    if (
+      manualConfirmation &&
+      !window.confirm(
+        "请先在线查看全部图片。确认继续即表示：你已核对图片内容，并确认保存的证据摘录与图片一致。",
+      )
+    ) {
+      return;
+    }
     setMessage("");
-    setCheckingEvidenceId(evidenceId);
+    setCheckingEvidenceId(evidence.id);
     startTransition(async () => {
-      const result = await checkClaimEvidenceSourceAction({ evidenceId });
+      const result = await checkClaimEvidenceSourceAction({
+        evidenceId: evidence.id,
+        manualConfirmation,
+      });
       if (!result.ok) {
         setMessage(result.error.message);
         setCheckingEvidenceId(null);

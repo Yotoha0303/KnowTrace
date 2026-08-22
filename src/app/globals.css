@@ -358,6 +358,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .evidence-attachments img { object-fit: cover; }
 .evidence-attachments figcaption { padding: 7px 8px; overflow: hidden; color: #68736d; font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .evidence-attachments figcaption small { display: block; margin-top: 3px; color: #959b97; font: 8px/1.4 ui-monospace, monospace; }
+.evidence-attachments figcaption a { display: inline-flex; margin-top: 5px; font-size: 8px; }
 .evidence-revisions { padding: 8px 10px; margin-top: 9px; color: #737c76; background: #f8f8f4; border-radius: 7px; font-size: 9px; }
 .evidence-revisions summary { cursor: pointer; font-weight: 800; }
 .evidence-revisions > div { padding-top: 8px; margin-top: 8px; border-top: 1px solid #e3e5de; }

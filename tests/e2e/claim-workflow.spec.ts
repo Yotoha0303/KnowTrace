@@ -143,7 +143,7 @@ test("AI candidate claim → evidence review → ready for review", async ({ pag
   expect(consoleErrors).toEqual([]);
 });
 
-test("evidence can be saved without a source URL", async ({ page }) => {
+test("image evidence can be manually verified without a source URL", async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -180,8 +180,59 @@ test("evidence can be saved without a source URL", async ({ page }) => {
 
   const evidenceItem = claimCard.locator(".evidence-list > article");
   await expect(evidenceItem).toContainText("微信现场记录");
-  await expect(evidenceItem.getByText("未提供来源链接")).toBeVisible();
-  await expect(evidenceItem.getByRole("button", { name: /^检查来源$/ })).toBeDisabled();
+  await expect(evidenceItem.getByText("未提供来源材料")).toBeVisible();
+  await expect(evidenceItem.getByRole("button", { name: /^核对附件$/ })).toBeDisabled();
+
+  await evidenceItem.locator('input[type="file"]').setInputFiles({
+    name: "wechat-evidence.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await evidenceItem.getByRole("button", { name: "上传图片" }).click();
+  await expect(evidenceItem.getByRole("img", { name: "wechat-evidence.png" })).toBeVisible();
+  const originalImageLink = evidenceItem.getByRole("link", { name: /在线查看原图/ });
+  await expect(originalImageLink).toBeVisible();
+  const imageResponse = await page.request.get(
+    await originalImageLink.getAttribute("href") as string,
+  );
+  expect(imageResponse.ok()).toBe(true);
+  expect(imageResponse.headers()["content-type"]).toBe("image/png");
+  await expect(evidenceItem.getByText("附件尚未核验")).toBeVisible();
+
+  const verifyAttachmentButton = evidenceItem.getByRole("button", { name: /^核对附件$/ });
+  await expect(verifyAttachmentButton).toBeEnabled();
+  page.once("dialog", (dialog) => dialog.accept());
+  await verifyAttachmentButton.click();
+  await expect(evidenceItem.getByText("附件已人工核验")).toBeVisible();
+  await expect(evidenceItem.getByText("已冻结 1 张图片")).toBeVisible();
+  await expect(evidenceItem.getByRole("button", { name: /采纳/ })).toBeEnabled();
+
+  await evidenceItem.locator('input[type="file"]').setInputFiles({
+    name: "wechat-evidence-followup.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await evidenceItem.getByRole("button", { name: "上传图片" }).click();
+  await expect(evidenceItem.getByText("附件尚未核验")).toBeVisible();
+  await expect(evidenceItem.getByRole("button", { name: /采纳/ })).toBeDisabled();
+
+  const reverifyAttachmentButton = evidenceItem.getByRole("button", { name: /^核对附件$/ });
+  page.once("dialog", (dialog) => dialog.accept());
+  await reverifyAttachmentButton.click();
+  await expect(evidenceItem.getByText("已冻结 2 张图片")).toBeVisible();
+  await expect(evidenceItem.getByRole("button", { name: /采纳/ })).toBeEnabled();
+  await evidenceItem.getByRole("button", { name: /采纳/ }).click();
+
+  const submitButton = claimCard.getByRole("button", { name: /提交待审核/ });
+  await expect(submitButton).toBeEnabled();
+  await submitButton.click();
+  await expect(claimCard.locator(".claim-status")).toContainText("待审核");
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "永久删除" }).click();

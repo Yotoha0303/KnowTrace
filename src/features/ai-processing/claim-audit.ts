@@ -16,10 +16,18 @@ function sourceHost(sourceUrl: string): string {
   }
 }
 
+export function evidenceSourceIdentity(
+  evidence: ClaimAuditEvidenceInput,
+): string {
+  return evidence.verificationMethod === "manual_attachment"
+    ? `manual:${evidence.contentHash}`
+    : sourceHost(evidence.finalUrl);
+}
+
 export function calculateEvidenceCoverage(
   evidence: ClaimAuditEvidenceInput[],
 ): ClaimAIAuditPayload["evidence_coverage"] {
-  const hostCount = new Set(evidence.map((item) => sourceHost(item.finalUrl))).size;
+  const hostCount = new Set(evidence.map(evidenceSourceIdentity)).size;
   if (evidence.length >= 4 && hostCount >= 3) return "broad";
   if (evidence.length >= 2 && hostCount >= 2) return "moderate";
   return "limited";
@@ -46,6 +54,7 @@ export function claimAuditEvidenceFingerprint(
           id: item.id,
           stance: item.stance,
           sourceCheckId: item.sourceCheckId,
+          verificationMethod: item.verificationMethod,
           finalUrl: item.finalUrl,
           contentHash: item.contentHash,
           sourceCheckedAt: item.sourceCheckedAt,

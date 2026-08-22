@@ -218,12 +218,15 @@ export const claimAIAuditEvidenceSnapshotSchema = z
     z.object({
       id: z.uuid(),
       stance: z.enum(["supports", "contradicts", "context"]),
-      sourceUrl: z.string().url().max(2_000),
+      sourceUrl: z.union([z.literal(""), z.url().max(2_000)]),
       sourceTitle: z.string().min(1).max(300),
       excerpt: z.string().min(1).max(2_000),
       note: z.string().max(1_000).nullable(),
       sourceCheckId: z.uuid(),
-      finalUrl: z.string().url().max(2_000),
+      verificationMethod: z
+        .enum(["web", "manual_attachment"])
+        .default("web"),
+      finalUrl: z.string().min(1).max(2_000),
       contentHash: z.string().length(64),
       sourceCheckedAt: z.iso.datetime(),
     }),

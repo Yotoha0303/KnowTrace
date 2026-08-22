@@ -167,11 +167,11 @@ candidate / investigating / ready_for_review / concluded ──withdraw──> w
 
 进入 `ready_for_review` 前至少需要一条 `accepted` Evidence。`ready_for_review` 只表示材料满足提交条件，不表示主张真实。当前没有 `verified` 状态。
 
-Evidence 保存可选来源 URL、来源标题、逐字摘录、与主张的关系（支持/反驳/背景）以及审核状态。新证据默认为 `unreviewed`，只能在调查中由人工一次性决定为 `accepted` 或 `rejected`。调查中的未审核 Evidence 可以按版本编辑；编辑前创建不可变 EvidenceRevision，版本号递增，并清除当前来源检查投影，要求重新检查。来源 URL 留空时仍可记录 Evidence，但当前不能自动检查或采纳。
+Evidence 保存可选来源 URL、来源标题、逐字摘录、与主张的关系（支持/反驳/背景）以及审核状态。新证据默认为 `unreviewed`，只能在调查中由人工一次性决定为 `accepted` 或 `rejected`。调查中的未审核 Evidence 可以按版本编辑；编辑前创建不可变 EvidenceRevision，版本号递增，并清除当前来源检查投影，要求重新检查。来源 URL 留空时仍可记录 Evidence；至少有一张图片且附件人工核验通过后可以采纳。
 
-EvidenceAttachment 是 Evidence 的图片附件。文件保存在单实例项目目录 `data/uploads/evidence`，数据库仅保存不可推测的相对文件名、原文件名、真实 MIME、字节数与 SHA-256。每条 Evidence 最多 5 张，单张最多 10 MB；已审核 Evidence 不再允许追加图片。附件存在只说明文件已保存，不代表内容已经核验，也不自动改变 Evidence 审核状态。
+EvidenceAttachment 是 Evidence 的图片附件。文件保存在单实例项目目录 `data/uploads/evidence`，数据库仅保存不可推测的相对文件名、原文件名、真实 MIME、字节数与 SHA-256。每条 Evidence 最多 5 张，单张最多 10 MB；已审核 Evidence 不再允许追加图片。附件可通过受控 API 在线查看。附件存在只说明文件已保存，不代表内容已经核验，也不自动改变 Evidence 审核状态；新增附件会使当前 `manual_attachment` 核验失效。
 
-每次来源检查创建不可变 EvidenceSourceCheck，记录请求 URL、最终 URL、HTTP 状态、内容类型、内容哈希、页面标题、响应字节数、检查时间和摘录匹配结果。Evidence 保存当前检查投影；只有当前检查成功且摘录匹配时才能被采纳。检查结果不评价来源权威性，也不等于支持该 Claim。
+每次核验创建不可变 EvidenceSourceCheck，并以 `verification_method` 区分网页自动检查与附件人工核验。网页检查记录请求 URL、最终 URL、HTTP 状态、内容类型、内容哈希、页面标题、响应字节数、检查时间和摘录匹配结果；附件核验记录冻结附件清单、组合哈希、固定人工确认说明和核验时间。Evidence 保存当前检查投影；只有当前核验成功且摘录匹配时才能被采纳。核验结果不评价来源权威性，也不等于支持该 Claim。
 
 ClaimReview 是一次不可变人工结论，使用 `supported / refuted / inconclusive`，保存依据、限制和审查序号。ClaimReviewEvidence 冻结该次结论使用的 Evidence、来源 URL、摘录、立场、SourceCheck ID、最终 URL、内容哈希与检查时间。重新调查后可以形成新结论，但不能覆盖旧结论。
 
@@ -210,4 +210,4 @@ Capture → Candidate Claim → Evidence → ready_for_review
                          独立审核角色与 Claim Version（后续）
 ```
 
-当前已实现个人可信环境中的证据化人工结论和非裁决 AI 审查，但没有无链接图片/线下材料的人工核验记录、独立审核角色与可靠知识发布。无链接证据人工核验已暂缓；后续如果加入该能力或发布能力，必须增加不可变核验记录，并按使用范围决定身份、职责分离和发布版本，不能给 Capture、Evidence 或 Claim 简单增加 `verified=true`。
+当前已实现个人可信环境中的网页来源检查、无链接图片附件人工核验、证据化人工结论和非裁决 AI 审查，但没有身份化的独立审核角色与可靠知识发布。后续如果加入多人审核或发布能力，必须增加身份、职责分离和发布版本，不能给 Capture、Evidence 或 Claim 简单增加 `verified=true`。

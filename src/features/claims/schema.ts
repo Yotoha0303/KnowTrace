@@ -89,6 +89,7 @@ export const reviewClaimEvidenceSchema = z.object({
 
 export const checkClaimEvidenceSourceSchema = z.object({
   evidenceId: z.uuid(),
+  manualConfirmation: z.boolean().optional(),
 });
 
 export const concludeClaimSchema = z.object({

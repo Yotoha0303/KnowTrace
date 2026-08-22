@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   addClaimEvidenceSchema,
+  checkClaimEvidenceSourceSchema,
   transitionClaimSchema,
   updateClaimEvidenceSchema,
   uploadEvidenceImageSchema,
@@ -73,6 +74,15 @@ describe("claim workflow schemas", () => {
         stance: "supports",
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts an explicit manual attachment confirmation", () => {
+    expect(
+      checkClaimEvidenceSourceSchema.safeParse({
+        evidenceId: "d92f5b20-52d0-4b3e-b9ad-3b1fd759bd6a",
+        manualConfirmation: true,
+      }).success,
+    ).toBe(true);
   });
 
   it("limits evidence uploads to supported images under 10 MB", () => {
