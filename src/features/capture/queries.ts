@@ -42,7 +42,9 @@ export type CategoryDTO = {
 export type CaptureListItemDTO = {
   id: string;
   title: string | null;
+  subject: string | null;
   content: string;
+  occurredAt: string;
   contentType:
     | "keyword_set"
     | "thought_fragment"
@@ -84,7 +86,9 @@ export type CaptureDetailDTO = CaptureListItemDTO & {
     id: string;
     version: number;
     title: string | null;
+    subject: string | null;
     content: string;
+    occurredAt: string;
     contentType: CaptureListItemDTO["contentType"];
     createdAt: string;
   }>;
@@ -254,7 +258,9 @@ export async function listCaptures(options?: {
   return rows.map((row) => ({
     id: row.id,
     title: row.title,
+    subject: row.subject,
     content: row.content,
+    occurredAt: toIso(row.occurredAt),
     contentType: row.contentType,
     status: row.status,
     version: row.version,
@@ -453,7 +459,9 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
   return {
     id: row.id,
     title: row.title,
+    subject: row.subject,
     content: row.content,
+    occurredAt: toIso(row.occurredAt),
     contentType: row.contentType,
     status: row.status,
     version: row.version,
@@ -578,7 +586,9 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
       id: revision.id,
       version: revision.version,
       title: revision.title,
+      subject: revision.subject,
       content: revision.content,
+      occurredAt: toIso(revision.occurredAt),
       contentType: revision.contentType,
       createdAt: toIso(revision.createdAt),
     })),

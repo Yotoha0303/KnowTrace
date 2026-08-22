@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Contact } from "lucide-react";
 
 import type { CaptureListItemDTO } from "@/features/capture/queries";
 import { CONTENT_TYPE_LABELS } from "@/features/capture/schema";
@@ -21,12 +21,13 @@ export function CaptureCard({ capture }: { capture: CaptureListItemDTO }) {
     <Link className="capture-card" href={`/captures/${capture.id}`}>
       <div className="capture-card-meta">
         <span>{CONTENT_TYPE_LABELS[capture.contentType]}</span>
-        <time dateTime={capture.createdAt}>{dateFormatter.format(new Date(capture.createdAt))}</time>
+        <time dateTime={capture.occurredAt}>{dateFormatter.format(new Date(capture.occurredAt))}</time>
       </div>
       <h3>{capture.title || "未命名记录"}</h3>
       <p>{excerpt}</p>
       <div className="capture-card-footer">
         <div className="tag-row">
+          {capture.subject ? <span className="subject-tag"><Contact size={11} />{capture.subject}</span> : null}
           {capture.categories.slice(0, 3).map((category) => (
             <span className="tag" key={category.id}>{category.name}</span>
           ))}

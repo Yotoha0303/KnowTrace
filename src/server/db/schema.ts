@@ -92,7 +92,11 @@ export const captures = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     title: varchar("title", { length: 200 }),
+    subject: varchar("subject", { length: 200 }),
     content: text("content").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     contentType: contentTypeEnum("content_type").notNull().default("unknown"),
     status: recordStatusEnum("status").notNull().default("active"),
     version: integer("version").notNull().default(1),
@@ -113,6 +117,7 @@ export const captures = pgTable(
       table.createdAt,
       table.id,
     ),
+    index("captures_occurred_idx").on(table.occurredAt, table.id),
     check(
       "captures_content_length_chk",
       sql`char_length(${table.content}) between 1 and 20000`,
@@ -130,8 +135,10 @@ export const captureRevisions = pgTable(
       .references(() => captures.id, { onDelete: "cascade" }),
     version: integer("version").notNull(),
     title: varchar("title", { length: 200 }),
+    subject: varchar("subject", { length: 200 }),
     content: text("content").notNull(),
     contentType: contentTypeEnum("content_type").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -41,6 +41,10 @@ export default async function CapturePage({
               <details key={revision.id}>
                 <summary>版本 {revision.version} · {new Date(revision.createdAt).toLocaleString("zh-CN")}</summary>
                 <h3>{revision.title || "未命名记录"}</h3>
+                <div className="revision-context">
+                  <span>对象：{revision.subject || "未填写"}</span>
+                  <span>发生时间：{new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Shanghai" }).format(new Date(revision.occurredAt))}</span>
+                </div>
                 <p>{revision.content}</p>
               </details>
             ))}

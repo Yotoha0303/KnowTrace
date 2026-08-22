@@ -25,7 +25,9 @@ function createRequestHash(input: CreateCaptureInput): string {
   return sha256(
     stableStringify({
       title: input.title ?? null,
+      subject: input.subject ?? null,
       content: input.content,
+      occurredAt: input.occurredAt,
       contentType: input.contentType,
       categoryIds: [...input.categoryIds].sort(),
     }),
@@ -79,7 +81,9 @@ export async function createCapture(input: CreateCaptureInput) {
         .insert(captures)
         .values({
           title: input.title?.trim() || null,
+          subject: input.subject?.trim() || null,
           content: input.content,
+          occurredAt: new Date(input.occurredAt),
           contentType: input.contentType,
           idempotencyKey: input.idempotencyKey,
           idempotencyHash: requestHash,
@@ -140,16 +144,20 @@ export async function updateCapture(input: UpdateCaptureInput) {
       captureId: current.id,
       version: current.version,
       title: current.title,
+      subject: current.subject,
       content: current.content,
       contentType: current.contentType,
+      occurredAt: current.occurredAt,
     });
 
     const [updated] = await transaction
       .update(captures)
       .set({
         title: input.title?.trim() || null,
+        subject: input.subject?.trim() || null,
         content: input.content,
         contentType: input.contentType,
+        occurredAt: new Date(input.occurredAt),
         version: current.version + 1,
         updatedAt: new Date(),
       })

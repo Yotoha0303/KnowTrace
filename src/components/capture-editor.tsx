@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Archive, CalendarClock, Contact, RotateCcw, Save, Trash2 } from "lucide-react";
 
 import {
   deleteCaptureAction,
@@ -16,6 +16,7 @@ import {
   CONTENT_TYPES,
   type ContentType,
 } from "@/features/capture/schema";
+import { dateTimeLocalToIso, toDateTimeLocalValue } from "@/features/capture/datetime";
 
 export function CaptureEditor({
   capture,
@@ -26,6 +27,10 @@ export function CaptureEditor({
 }) {
   const router = useRouter();
   const [title, setTitle] = useState(capture.title ?? "");
+  const [subject, setSubject] = useState(capture.subject ?? "");
+  const [occurredAt, setOccurredAt] = useState(() =>
+    toDateTimeLocalValue(new Date(capture.occurredAt)),
+  );
   const [content, setContent] = useState(capture.content);
   const [contentType, setContentType] = useState<ContentType>(capture.contentType);
   const [categoryIds, setCategoryIds] = useState(capture.categories.map(({ id }) => id));
@@ -42,15 +47,27 @@ export function CaptureEditor({
     event.preventDefault();
     setMessage("");
     startTransition(async () => {
+      const occurredAtIso = dateTimeLocalToIso(occurredAt);
+      if (!occurredAtIso) {
+        setMessage("请选择有效的发生时间。");
+        return;
+      }
       const updateResult = await updateCaptureAction({
         id: capture.id,
         title: title || null,
+        subject: subject || null,
         content,
+        occurredAt: occurredAtIso,
         contentType,
         expectedVersion: capture.version,
       });
       if (!updateResult.ok) {
-        setMessage(updateResult.error.fieldErrors?.content?.[0] ?? updateResult.error.message);
+        setMessage(
+          updateResult.error.fieldErrors?.subject?.[0] ??
+            updateResult.error.fieldErrors?.occurredAt?.[0] ??
+            updateResult.error.fieldErrors?.content?.[0] ??
+            updateResult.error.message,
+        );
         return;
       }
       const categoryResult = await setCaptureCategoriesAction({
@@ -110,6 +127,29 @@ export function CaptureEditor({
         <span>标题</span>
         <input maxLength={200} onChange={(event) => setTitle(event.target.value)} value={title} />
       </label>
+      <div className="capture-context-grid">
+        <label className="field">
+          <span><Contact size={14} /> 描述对象</span>
+          <input
+            aria-label="描述对象"
+            maxLength={200}
+            onChange={(event) => setSubject(event.target.value)}
+            placeholder="例如：某公司、某个人、某个项目"
+            value={subject}
+          />
+        </label>
+        <label className="field">
+          <span><CalendarClock size={14} /> 发生时间</span>
+          <input
+            aria-label="发生时间"
+            onChange={(event) => setOccurredAt(event.target.value)}
+            required
+            step={60}
+            type="datetime-local"
+            value={occurredAt}
+          />
+        </label>
+      </div>
       <label className="field">
         <span>原文</span>
         <textarea maxLength={20_000} onChange={(event) => setContent(event.target.value)} rows={12} value={content} />

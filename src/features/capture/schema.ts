@@ -36,9 +36,21 @@ const contentSchema = z
   .max(20_000, "内容不能超过 20,000 个字符")
   .refine((value) => value.trim().length > 0, "请输入记录内容");
 
+const subjectSchema = z
+  .string()
+  .max(200, "描述对象不能超过 200 个字符")
+  .nullable()
+  .optional();
+
+const occurredAtSchema = z.iso.datetime({
+  message: "请选择有效的发生时间",
+});
+
 export const createCaptureSchema = z.object({
   title: titleSchema,
+  subject: subjectSchema,
   content: contentSchema,
+  occurredAt: occurredAtSchema,
   contentType: z.enum(CONTENT_TYPES).default("unknown"),
   categoryIds: z.array(z.uuid()).max(20).default([]),
   idempotencyKey: z.string().min(8).max(128),
@@ -47,7 +59,9 @@ export const createCaptureSchema = z.object({
 export const updateCaptureSchema = z.object({
   id: z.uuid(),
   title: titleSchema,
+  subject: subjectSchema,
   content: contentSchema,
+  occurredAt: occurredAtSchema,
   contentType: z.enum(CONTENT_TYPES),
   expectedVersion: z.number().int().positive(),
 });

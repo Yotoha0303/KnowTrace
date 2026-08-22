@@ -95,6 +95,11 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .composer-title { margin-bottom: 8px; font: 650 21px/1.35 Georgia, "Songti SC", serif; }
 .composer-title::placeholder, .capture-composer textarea::placeholder { color: #a2a8a4; }
 .capture-composer textarea { min-height: 125px; font-size: 15px; line-height: 1.75; }
+.capture-context-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, .58fr); gap: 9px; padding: 14px 0; border-top: 1px solid #ecece6; }
+.capture-context-fields label { display: grid; gap: 6px; }
+.capture-context-fields span, .capture-context-grid .field > span { display: flex; align-items: center; gap: 6px; color: #68736d; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.capture-context-fields input { width: 100%; min-width: 0; padding: 9px 10px; color: var(--ink); background: #f7f7f2; border: 1px solid #dfe1d9; border-radius: 8px; outline: none; }
+.capture-context-fields input:focus { background: white; border-color: #98aa83; box-shadow: 0 0 0 3px rgb(201 255 100 / 18%); }
 .composer-options { display: flex; gap: 9px; align-items: center; padding-top: 14px; border-top: 1px solid #ecece6; }
 .composer-options > label { display: flex; align-items: center; gap: 8px; padding: 7px 10px; color: #606b65; background: #f5f5ef; border: 1px solid #e4e5de; border-radius: 8px; font-size: 12px; }
 .composer-options select, .category-picker summary { color: var(--ink); background: transparent; border: 0; outline: none; font-weight: 600; cursor: pointer; }
@@ -136,6 +141,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .capture-card:hover .capture-card-footer > svg { color: var(--ink); transform: translate(2px, -2px); }
 .tag-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .tag { padding: 4px 8px; color: #516050; background: #e9eddf; border-radius: 99px; font-size: 10px; }
+.subject-tag { display: inline-flex; align-items: center; gap: 4px; max-width: 220px; padding: 4px 8px; overflow: hidden; color: #4f5e6c; background: #e8eff2; border-radius: 99px; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
 
 .empty-state { min-height: 260px; padding: 50px; text-align: center; background: rgb(255 255 255 / 36%); border: 1px dashed #c8cbc2; border-radius: 16px; }
 .empty-state > span { display: block; color: #b5b9b2; font: italic 26px/1 Georgia, serif; }
@@ -160,6 +166,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .field input:focus, .field textarea:focus, .field select:focus { background: white; border-color: #98aa83; box-shadow: 0 0 0 3px rgb(201 255 100 / 18%); }
 .field > small { justify-self: end; color: #929994; font-size: 10px; }
 .compact-field { max-width: 250px; }
+.capture-context-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .72fr); gap: 12px; }
 .category-fieldset { padding: 0; margin: 0 0 20px; border: 0; }
 .category-fieldset legend { margin-bottom: 9px; }
 .checkbox-grid { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -370,6 +377,8 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .revision-list details { padding: 12px; background: #f7f7f2; border: 1px solid #e2e3dc; border-radius: 8px; }
 .revision-list summary { color: #5e6a63; font-size: 12px; font-weight: 700; cursor: pointer; }
 .revision-list h3 { margin: 12px 0 6px; font: 650 16px Georgia, "Songti SC", serif; }
+.revision-context { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.revision-context span { padding: 5px 8px; color: #68736d; background: #ecefe9; border-radius: 6px; font-size: 9px; }
 .revision-list p { margin: 0; color: #6c756f; font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
 
 .collection-header { display: flex; justify-content: space-between; align-items: center; gap: 30px; padding-bottom: 28px; margin-bottom: 28px; border-bottom: 1px solid var(--line); }
@@ -418,6 +427,12 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .knowledge-search-input { display: flex; align-items: center; gap: 9px; min-height: 41px; padding: 0 12px; color: #718078; background: white; border: 1px solid #d7dbd3; border-radius: 9px; }
 .knowledge-search-input:focus-within, .knowledge-search-form select:focus { border-color: #91a679; box-shadow: 0 0 0 3px rgb(201 255 100 / 18%); }
 .knowledge-search-input input { width: 100%; min-width: 0; padding: 10px 0; color: var(--ink); background: transparent; border: 0; outline: none; }
+.knowledge-search-metadata { display: grid; grid-template-columns: minmax(240px, 1fr) repeat(2, minmax(170px, 220px)); gap: 9px; grid-column: 1 / -1; padding-top: 12px; border-top: 1px solid #e5e7e0; }
+.knowledge-search-metadata label { display: grid; gap: 5px; }
+.knowledge-search-metadata span { display: flex; align-items: center; gap: 5px; color: #727d76; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.knowledge-search-metadata input { width: 100%; min-height: 41px; padding: 0 10px; color: var(--ink); background: white; border: 1px solid #dfe1da; border-radius: 8px; outline: none; }
+.knowledge-search-metadata input:focus { border-color: #91a679; box-shadow: 0 0 0 3px rgb(201 255 100 / 18%); }
+.search-filter-error { padding: 11px 13px; margin-top: 12px; color: #8b4239; background: #fff1ee; border: 1px solid #e8c2bc; border-radius: 8px; font-size: 11px; }
 .search-entry-state { display: grid; justify-items: center; gap: 16px; padding: 50px 30px; margin-top: 30px; color: #68766e; text-align: center; background: rgb(255 255 255 / 35%); border: 1px dashed #c8cdc4; border-radius: 16px; }
 .search-entry-state > svg { color: #6f854f; }
 .search-entry-state h2 { margin: 0; font: 650 25px/1.3 Georgia, "Songti SC", serif; }
@@ -491,6 +506,7 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
   .page-header h1, .collection-header h1, .center-state h1 { font-size: 36px; }
   .capture-composer { padding: 20px; }
   .composer-options, .composer-footer { align-items: stretch; flex-direction: column; }
+  .capture-context-fields, .capture-context-grid, .knowledge-search-metadata { grid-template-columns: 1fr; }
   .composer-options > label, .category-picker summary { justify-content: space-between; }
   .category-picker-menu { width: 100%; }
   .capture-grid { grid-template-columns: 1fr; }

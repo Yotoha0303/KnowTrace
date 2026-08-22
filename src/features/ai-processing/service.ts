@@ -637,8 +637,10 @@ export async function decideSuggestion(input: {
         captureId: capture.id,
         version: capture.version,
         title: capture.title,
+        subject: capture.subject,
         content: capture.content,
         contentType: capture.contentType,
+        occurredAt: capture.occurredAt,
       });
       captureVersion += 1;
       await transaction

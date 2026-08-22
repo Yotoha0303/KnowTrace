@@ -36,6 +36,8 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 
 - 正文至少有一个非空白字符。
 - 标题、Content Type 和 Category 都可以为空。
+- 描述对象可以为空；发生时间默认浏览器当前时间并允许通过日期时间选择器调整。
+- 发生时间描述内容中的事件时间，不使用创建时间替代用户明确选择的时间。
 - 服务端不自动重写标点、换行和词序。
 - 数据库提交成功后才能显示保存成功。
 - AI 调用不出现在保存事务中。
@@ -129,6 +131,8 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 验收标准：
 
 - 检索词最多 100 个字符，按对象类型和 Category 组合限制结果。
+- 描述对象自由填写、最多 200 字，并同时支持全文命中和独立部分匹配筛选。
+- 发生时间支持开始/结束日期筛选，结束日期包含当天全部时间。
 - 每类结果有界返回，显示对象状态、Category 和来源 Capture 回链。
 - Capture、Claim、Evidence 和人工 Review 必须分组展示，不混成无来源摘要。
 - Category 页面显示活跃/归档记录、Claim 状态、Evidence 数量、有效采纳证据与最新人工结论。
@@ -189,6 +193,8 @@ AI Audit Recommendation：`supported / refuted / inconclusive / needs_more_evide
 
 - Capture 正文：1～20,000 个 Unicode 字符，可配置。
 - Capture 标题：最多 200 个字符。
+- Capture 描述对象：最多 200 个字符，可空。
+- Capture 发生时间：必填 ISO 时间；新建时由浏览器当前时间初始化。
 - Category 名称：1～60 个字符。
 - 每条 Capture 最多关联 20 个 Category。
 - 每次 AI 最终展示最多 12 个语义单元、3 个候选分类（其中新分类最多 1 个）、5 条局部原文建议和 10 个待补充问题。

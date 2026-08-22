@@ -8,12 +8,18 @@ import {
   Scale,
   Search,
   ShieldCheck,
+  UserRoundSearch,
 } from "lucide-react";
 
 import { listCategories } from "@/features/capture/queries";
 import type { KnowledgeSearchItem, SearchEntityType } from "@/features/search/queries";
 import { searchKnowledge } from "@/features/search/queries";
-import { normalizeSearchQuery } from "@/features/search/utils";
+import {
+  normalizeDateFilter,
+  normalizeSearchQuery,
+  normalizeSubjectFilter,
+  occurredAtBounds,
+} from "@/features/search/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +38,11 @@ const allowedTypes = new Set<SearchEntityType>([
   "evidence",
   "conclusion",
 ]);
+
+const occurredDateFormatter = new Intl.DateTimeFormat("zh-CN", {
+  dateStyle: "medium",
+  timeZone: "Asia/Shanghai",
+});
 
 const groupDefinitions = [
   { key: "captures", label: "原始记录", eyebrow: "Capture", icon: FileText },
@@ -88,10 +99,22 @@ function statusLabel(status: string) {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; category?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    type?: string;
+    category?: string;
+    subject?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
   const params = await searchParams;
   const query = normalizeSearchQuery(params.q);
+  const subject = normalizeSubjectFilter(params.subject);
+  const from = normalizeDateFilter(params.from);
+  const to = normalizeDateFilter(params.to);
+  const { start, endExclusive } = occurredAtBounds(from, to);
+  const invalidDateRange = Boolean(start && endExclusive && start >= endExclusive);
   const type = allowedTypes.has(params.type as SearchEntityType)
     ? (params.type as SearchEntityType)
     : "all";
@@ -99,7 +122,24 @@ export default async function SearchPage({
   const categoryId = categories.some((category) => category.id === params.category)
     ? params.category
     : undefined;
-  const result = await searchKnowledge({ query, type, categoryId, limitPerType: 20 });
+  const result = invalidDateRange
+    ? { query, groups: { captures: [], claims: [], evidence: [], conclusions: [] }, returnedCount: 0 }
+    : await searchKnowledge({
+        query,
+        type,
+        categoryId,
+        subject,
+        occurredFrom: start,
+        occurredToExclusive: endExclusive,
+        limitPerType: 20,
+      });
+  const hasCriteria = Boolean(query || subject || from || to);
+  const resultDescription = [
+    query ? `全文“${query}”` : "",
+    subject ? `对象“${subject}”` : "",
+    from ? `从 ${from}` : "",
+    to ? `至 ${to}` : "",
+  ].filter(Boolean).join(" · ");
 
   return (
     <div className="page-shell search-page">
@@ -121,7 +161,7 @@ export default async function SearchPage({
             defaultValue={query}
             maxLength={100}
             name="q"
-            placeholder="输入关键词、事件、主张或来源摘录"
+            placeholder="输入关键词、对象、事件、主张或来源摘录"
           />
         </label>
         <label>
@@ -142,10 +182,32 @@ export default async function SearchPage({
           </select>
         </label>
         <button className="button button-dark" type="submit">检索</button>
-        {query || categoryId || type !== "all" ? <Link className="button button-quiet" href="/search">清除</Link> : null}
+        {hasCriteria || categoryId || type !== "all" ? <Link className="button button-quiet" href="/search">清除</Link> : null}
+        <div className="knowledge-search-metadata">
+          <label>
+            <span><UserRoundSearch size={13} /> 描述对象</span>
+            <input
+              aria-label="按描述对象筛选"
+              defaultValue={subject}
+              maxLength={200}
+              name="subject"
+              placeholder="公司、人物、项目，可部分匹配"
+            />
+          </label>
+          <label>
+            <span>发生时间从</span>
+            <input aria-label="发生时间开始日期" defaultValue={from} name="from" type="date" />
+          </label>
+          <label>
+            <span>发生时间至</span>
+            <input aria-label="发生时间结束日期" defaultValue={to} name="to" type="date" />
+          </label>
+        </div>
       </form>
 
-      {!query ? (
+      {invalidDateRange ? (
+        <div className="search-filter-error">发生时间的开始日期不能晚于结束日期。</div>
+      ) : !hasCriteria ? (
         <section className="search-entry-state">
           <FolderSearch size={38} />
           <div>
@@ -163,7 +225,7 @@ export default async function SearchPage({
       ) : (
         <div className="search-results">
           <div className="search-result-summary">
-            <strong>“{result.query}”</strong>
+            <strong>{resultDescription}</strong>
             <span>返回 {result.returnedCount} 条结果；每类最多显示 20 条</span>
           </div>
           {groupDefinitions.map(({ key, label, eyebrow, icon: Icon }) => {
@@ -180,13 +242,14 @@ export default async function SearchPage({
                     <Link className={`search-result-card is-${item.type}`} href={resultHref(item)} key={`${item.type}-${item.id}`}>
                       <header>
                         <span>{statusLabel(item.status)}</span>
-                        <time dateTime={item.updatedAt}>{new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(new Date(item.updatedAt))}</time>
+                        <time dateTime={item.occurredAt}>{occurredDateFormatter.format(new Date(item.occurredAt))}</time>
                       </header>
                       <h3>{item.title}</h3>
                       <p>{item.excerpt}</p>
                       <footer>
                         <div>
                           {item.type !== "capture" ? <small>来源：{item.captureTitle || "未命名记录"}</small> : null}
+                          {item.subject ? <span className="subject-tag"><UserRoundSearch size={11} />{item.subject}</span> : null}
                           {item.categories.map((category) => <span className="tag" key={category.id}>{category.name}</span>)}
                         </div>
                         <ArrowUpRight size={16} />

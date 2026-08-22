@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import {
@@ -11,7 +11,12 @@ import {
   claimReviews,
   claims,
 } from "@/server/db/schema";
-import { buildSearchPattern, makeSearchSnippet, normalizeSearchQuery } from "./utils";
+import {
+  buildSearchPattern,
+  makeSearchSnippet,
+  normalizeSearchQuery,
+  normalizeSubjectFilter,
+} from "./utils";
 
 export type SearchEntityType = "all" | "capture" | "claim" | "evidence" | "conclusion";
 
@@ -20,6 +25,8 @@ export type KnowledgeSearchItem = {
   type: Exclude<SearchEntityType, "all">;
   captureId: string;
   captureTitle: string | null;
+  subject: string | null;
+  occurredAt: string;
   title: string;
   excerpt: string;
   status: string;
@@ -66,15 +73,22 @@ export async function searchKnowledge(options: {
   query?: string;
   type?: SearchEntityType;
   categoryId?: string;
+  subject?: string;
+  occurredFrom?: Date | null;
+  occurredToExclusive?: Date | null;
   limitPerType?: number;
 }): Promise<KnowledgeSearchResult> {
   const query = normalizeSearchQuery(options.query);
+  const subject = normalizeSubjectFilter(options.subject);
   const groups = emptyGroups();
-  if (!query) return { query, groups, returnedCount: 0 };
+  if (!query && !subject && !options.occurredFrom && !options.occurredToExclusive) {
+    return { query, groups, returnedCount: 0 };
+  }
 
   const type = options.type ?? "all";
   const limit = Math.min(Math.max(options.limitPerType ?? 20, 1), 50);
   const pattern = buildSearchPattern(query);
+  const subjectPattern = buildSearchPattern(subject);
   const categoryCaptureIds = options.categoryId
     ? db
         .select({ captureId: captureCategories.captureId })
@@ -88,7 +102,9 @@ export async function searchKnowledge(options: {
           .select({
             id: captures.id,
             title: captures.title,
+            subject: captures.subject,
             content: captures.content,
+            occurredAt: captures.occurredAt,
             status: captures.status,
             updatedAt: captures.updatedAt,
           })
@@ -96,7 +112,12 @@ export async function searchKnowledge(options: {
           .where(
             and(
               categoryCaptureIds ? inArray(captures.id, categoryCaptureIds) : undefined,
-              sql<boolean>`(coalesce(${captures.title}, '') || ' ' || ${captures.content}) ILIKE ${pattern}`,
+              subject ? ilike(captures.subject, subjectPattern) : undefined,
+              options.occurredFrom ? gte(captures.occurredAt, options.occurredFrom) : undefined,
+              options.occurredToExclusive ? lt(captures.occurredAt, options.occurredToExclusive) : undefined,
+              query
+                ? sql<boolean>`(coalesce(${captures.title}, '') || ' ' || coalesce(${captures.subject}, '') || ' ' || ${captures.content}) ILIKE ${pattern}`
+                : undefined,
             ),
           )
           .orderBy(desc(captures.updatedAt), desc(captures.id))
@@ -108,6 +129,8 @@ export async function searchKnowledge(options: {
             id: claims.id,
             captureId: claims.captureId,
             captureTitle: captures.title,
+            subject: captures.subject,
+            occurredAt: captures.occurredAt,
             statement: claims.statement,
             sourceExcerpt: claims.sourceExcerpt,
             falsificationCriteria: claims.falsificationCriteria,
@@ -119,7 +142,12 @@ export async function searchKnowledge(options: {
           .where(
             and(
               categoryCaptureIds ? inArray(claims.captureId, categoryCaptureIds) : undefined,
-              sql<boolean>`(${claims.statement} || ' ' || ${claims.sourceExcerpt} || ' ' || ${claims.falsificationCriteria}) ILIKE ${pattern}`,
+              subject ? ilike(captures.subject, subjectPattern) : undefined,
+              options.occurredFrom ? gte(captures.occurredAt, options.occurredFrom) : undefined,
+              options.occurredToExclusive ? lt(captures.occurredAt, options.occurredToExclusive) : undefined,
+              query
+                ? sql<boolean>`(${claims.statement} || ' ' || ${claims.sourceExcerpt} || ' ' || ${claims.falsificationCriteria}) ILIKE ${pattern}`
+                : undefined,
             ),
           )
           .orderBy(desc(claims.updatedAt), desc(claims.id))
@@ -131,6 +159,8 @@ export async function searchKnowledge(options: {
             id: claimEvidence.id,
             captureId: claims.captureId,
             captureTitle: captures.title,
+            subject: captures.subject,
+            occurredAt: captures.occurredAt,
             sourceTitle: claimEvidence.sourceTitle,
             excerpt: claimEvidence.excerpt,
             note: claimEvidence.note,
@@ -145,7 +175,12 @@ export async function searchKnowledge(options: {
           .where(
             and(
               categoryCaptureIds ? inArray(claims.captureId, categoryCaptureIds) : undefined,
-              sql<boolean>`(${claimEvidence.sourceTitle} || ' ' || ${claimEvidence.excerpt} || ' ' || coalesce(${claimEvidence.note}, '')) ILIKE ${pattern}`,
+              subject ? ilike(captures.subject, subjectPattern) : undefined,
+              options.occurredFrom ? gte(captures.occurredAt, options.occurredFrom) : undefined,
+              options.occurredToExclusive ? lt(captures.occurredAt, options.occurredToExclusive) : undefined,
+              query
+                ? sql<boolean>`(${claimEvidence.sourceTitle} || ' ' || ${claimEvidence.excerpt} || ' ' || coalesce(${claimEvidence.note}, '')) ILIKE ${pattern}`
+                : undefined,
             ),
           )
           .orderBy(desc(claimEvidence.createdAt), desc(claimEvidence.id))
@@ -157,6 +192,8 @@ export async function searchKnowledge(options: {
             id: claimReviews.id,
             captureId: claims.captureId,
             captureTitle: captures.title,
+            subject: captures.subject,
+            occurredAt: captures.occurredAt,
             statement: claims.statement,
             rationale: claimReviews.rationale,
             limitations: claimReviews.limitations,
@@ -170,10 +207,15 @@ export async function searchKnowledge(options: {
           .where(
             and(
               categoryCaptureIds ? inArray(claims.captureId, categoryCaptureIds) : undefined,
-              or(
-                sql<boolean>`(${claimReviews.rationale} || ' ' || coalesce(${claimReviews.limitations}, '')) ILIKE ${pattern}`,
-                sql<boolean>`(${claims.statement} || ' ' || ${claims.sourceExcerpt} || ' ' || ${claims.falsificationCriteria}) ILIKE ${pattern}`,
-              ),
+              subject ? ilike(captures.subject, subjectPattern) : undefined,
+              options.occurredFrom ? gte(captures.occurredAt, options.occurredFrom) : undefined,
+              options.occurredToExclusive ? lt(captures.occurredAt, options.occurredToExclusive) : undefined,
+              query
+                ? or(
+                    sql<boolean>`(${claimReviews.rationale} || ' ' || coalesce(${claimReviews.limitations}, '')) ILIKE ${pattern}`,
+                    sql<boolean>`(${claims.statement} || ' ' || ${claims.sourceExcerpt} || ' ' || ${claims.falsificationCriteria}) ILIKE ${pattern}`,
+                  )
+                : undefined,
             ),
           )
           .orderBy(desc(claimReviews.createdAt), desc(claimReviews.id))
@@ -193,8 +235,10 @@ export async function searchKnowledge(options: {
     type: "capture",
     captureId: row.id,
     captureTitle: row.title,
+    subject: row.subject,
+    occurredAt: row.occurredAt.toISOString(),
     title: row.title || "未命名记录",
-    excerpt: makeSearchSnippet([row.title, row.content], query),
+    excerpt: makeSearchSnippet([row.subject, row.title, row.content], query || subject),
     status: row.status,
     categories: categoryMap.get(row.id) ?? [],
     updatedAt: row.updatedAt.toISOString(),
@@ -204,6 +248,8 @@ export async function searchKnowledge(options: {
     type: "claim",
     captureId: row.captureId,
     captureTitle: row.captureTitle,
+    subject: row.subject,
+    occurredAt: row.occurredAt.toISOString(),
     title: row.statement,
     excerpt: makeSearchSnippet([row.sourceExcerpt, row.falsificationCriteria], query),
     status: row.status,
@@ -215,6 +261,8 @@ export async function searchKnowledge(options: {
     type: "evidence",
     captureId: row.captureId,
     captureTitle: row.captureTitle,
+    subject: row.subject,
+    occurredAt: row.occurredAt.toISOString(),
     title: row.sourceTitle,
     excerpt: makeSearchSnippet([row.excerpt, row.note], query),
     status: `${row.reviewStatus}/${row.sourceCheckStatus}/${row.sourceExcerptMatch === true ? "matched" : row.sourceExcerptMatch === false ? "mismatched" : "unknown"}`,
@@ -226,6 +274,8 @@ export async function searchKnowledge(options: {
     type: "conclusion",
     captureId: row.captureId,
     captureTitle: row.captureTitle,
+    subject: row.subject,
+    occurredAt: row.occurredAt.toISOString(),
     title: row.statement,
     excerpt: makeSearchSnippet([row.rationale, row.limitations], query),
     status: `${row.assessment}/v${row.reviewNumber}`,

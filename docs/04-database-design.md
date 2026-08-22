@@ -287,3 +287,12 @@ WHERE id = $4
 Migration `0005_knowledge_search.sql` 启用 PostgreSQL `pg_trgm`，为 Capture、Claim、Evidence 和 ClaimReview 的组合文本表达式创建 GIN trigram 索引。这样可以支持中文关键词和不完整片段的 `ILIKE '%query%'` 查询，而不依赖 PostgreSQL 内置英文分词。
 
 查询表达式必须与索引表达式保持一致；用户输入参数化并转义 `%`、`_` 和反斜杠。该扩展可能需要数据库管理员权限，受限托管环境应在迁移前预先启用。
+
+## 7. 描述对象与发生时间
+
+Migration `0006_capture_subject_and_occurred_at.sql` 为 Capture 和 Revision 增加 `subject` 与 `occurred_at`。现有 Capture 以自身 `created_at` 回填发生时间；旧 Revision 继承所属 Capture 的回填值，避免迁移时刻伪装成历史事件时间。
+
+- `subject varchar(200)` 可空，是公司、人物、项目等自由文本，不建立强制实体表。
+- `occurred_at timestamptz not null` 保存事件时点，默认 `now()` 只作为新建请求的数据库后备。
+- `captures_occurred_idx` 支持日期范围筛选。
+- `captures_subject_trgm_idx` 支持描述对象部分匹配；组合全文索引同时包含标题、描述对象和正文。

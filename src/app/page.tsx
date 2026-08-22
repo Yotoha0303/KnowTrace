@@ -1,6 +1,7 @@
 import { CaptureCard } from "@/components/capture-card";
 import { QuickCaptureForm } from "@/components/quick-capture-form";
 import { listCaptures, listCategories } from "@/features/capture/queries";
+import { toDateTimeLocalValue } from "@/features/capture/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ export default async function HomePage() {
         <div className="status-pill"><span /> 本地工作区</div>
       </header>
 
-      <QuickCaptureForm categories={categories} />
+      <QuickCaptureForm
+        categories={categories}
+        defaultOccurredAt={toDateTimeLocalValue(new Date())}
+      />
 
       <section className="content-section">
         <div className="section-title">

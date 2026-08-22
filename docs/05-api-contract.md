@@ -35,6 +35,8 @@ type ActionResult<T> =
 type CreateCaptureInput = {
   content: string
   title?: string | null
+  subject?: string | null
+  occurredAt: string // ISO 8601 instant
   contentType?: ContentType
   categoryIds?: string[]
   idempotencyKey: string
@@ -49,7 +51,9 @@ type CreateCaptureInput = {
 type UpdateCaptureInput = {
   id: string
   title?: string | null
+  subject?: string | null
   content: string
+  occurredAt: string // ISO 8601 instant
   contentType: ContentType
   expectedVersion: number
 }

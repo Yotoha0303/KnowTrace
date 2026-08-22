@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Check, Sparkles } from "lucide-react";
+import { ArrowUpRight, CalendarClock, Check, Contact, Sparkles } from "lucide-react";
 
 import { createCaptureAction } from "@/app/actions";
 import type { CategoryDTO } from "@/features/capture/queries";
@@ -11,11 +11,20 @@ import {
   CONTENT_TYPES,
   type ContentType,
 } from "@/features/capture/schema";
+import { dateTimeLocalToIso } from "@/features/capture/datetime";
 
-export function QuickCaptureForm({ categories }: { categories: CategoryDTO[] }) {
+export function QuickCaptureForm({
+  categories,
+  defaultOccurredAt,
+}: {
+  categories: CategoryDTO[];
+  defaultOccurredAt: string;
+}) {
   const router = useRouter();
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
+  const [subject, setSubject] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaultOccurredAt);
   const [contentType, setContentType] = useState<ContentType>("unknown");
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [message, setMessage] = useState("");
@@ -31,16 +40,26 @@ export function QuickCaptureForm({ categories }: { categories: CategoryDTO[] }) 
     event.preventDefault();
     setMessage("");
     startTransition(async () => {
+      const occurredAtIso = dateTimeLocalToIso(occurredAt);
+      if (!occurredAtIso) {
+        setMessage("请选择有效的发生时间。");
+        return;
+      }
       const result = await createCaptureAction({
         title: title || null,
+        subject: subject || null,
         content,
+        occurredAt: occurredAtIso,
         contentType,
         categoryIds,
         idempotencyKey: crypto.randomUUID(),
       });
       if (!result.ok) {
         setMessage(
-          result.error.fieldErrors?.content?.[0] ?? result.error.message,
+          result.error.fieldErrors?.subject?.[0] ??
+            result.error.fieldErrors?.occurredAt?.[0] ??
+            result.error.fieldErrors?.content?.[0] ??
+            result.error.message,
         );
         return;
       }
@@ -68,6 +87,30 @@ export function QuickCaptureForm({ categories }: { categories: CategoryDTO[] }) 
         rows={6}
         value={content}
       />
+
+      <div className="capture-context-fields">
+        <label>
+          <span><Contact size={14} /> 描述对象</span>
+          <input
+            aria-label="描述对象"
+            maxLength={200}
+            onChange={(event) => setSubject(event.target.value)}
+            placeholder="例如：某公司、某个人、某个项目"
+            value={subject}
+          />
+        </label>
+        <label>
+          <span><CalendarClock size={14} /> 发生时间</span>
+          <input
+            aria-label="发生时间"
+            onChange={(event) => setOccurredAt(event.target.value)}
+            required
+            step={60}
+            type="datetime-local"
+            value={occurredAt}
+          />
+        </label>
+      </div>
 
       <div className="composer-options">
         <label>
