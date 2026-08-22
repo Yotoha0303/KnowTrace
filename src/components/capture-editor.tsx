@@ -1,0 +1,160 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Archive, RotateCcw, Save, Trash2 } from "lucide-react";
+
+import {
+  deleteCaptureAction,
+  setCaptureCategoriesAction,
+  setCaptureStatusAction,
+  updateCaptureAction,
+} from "@/app/actions";
+import type { CaptureDetailDTO, CategoryDTO } from "@/features/capture/queries";
+import {
+  CONTENT_TYPE_LABELS,
+  CONTENT_TYPES,
+  type ContentType,
+} from "@/features/capture/schema";
+
+export function CaptureEditor({
+  capture,
+  categories,
+}: {
+  capture: CaptureDetailDTO;
+  categories: CategoryDTO[];
+}) {
+  const router = useRouter();
+  const [title, setTitle] = useState(capture.title ?? "");
+  const [content, setContent] = useState(capture.content);
+  const [contentType, setContentType] = useState<ContentType>(capture.contentType);
+  const [categoryIds, setCategoryIds] = useState(capture.categories.map(({ id }) => id));
+  const [message, setMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  function toggleCategory(id: string) {
+    setCategoryIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    );
+  }
+
+  function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    startTransition(async () => {
+      const updateResult = await updateCaptureAction({
+        id: capture.id,
+        title: title || null,
+        content,
+        contentType,
+        expectedVersion: capture.version,
+      });
+      if (!updateResult.ok) {
+        setMessage(updateResult.error.fieldErrors?.content?.[0] ?? updateResult.error.message);
+        return;
+      }
+      const categoryResult = await setCaptureCategoriesAction({
+        captureId: capture.id,
+        categoryIds,
+      });
+      if (!categoryResult.ok) {
+        setMessage(`内容已保存，但分类失败：${categoryResult.error.message}`);
+        router.refresh();
+        return;
+      }
+      setMessage("已保存，并创建了可追溯的版本记录。");
+      router.refresh();
+    });
+  }
+
+  function changeStatus() {
+    startTransition(async () => {
+      const next = capture.status === "active" ? "archived" : "active";
+      const result = await setCaptureStatusAction({ id: capture.id, status: next });
+      if (!result.ok) {
+        setMessage(result.error.message);
+        return;
+      }
+      router.push(next === "archived" ? "/archived" : "/");
+    });
+  }
+
+  function removeCapture() {
+    const confirmed = window.confirm(
+      "确定永久删除这条记录吗？原文、版本历史和 AI 处理记录都会一并删除，且无法恢复。",
+    );
+    if (!confirmed) return;
+
+    startTransition(async () => {
+      const result = await deleteCaptureAction({ id: capture.id });
+      if (!result.ok) {
+        setMessage(result.error.message);
+        return;
+      }
+      router.replace("/");
+      router.refresh();
+    });
+  }
+
+  return (
+    <form className="editor-card" onSubmit={save}>
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Source record · v{capture.version}</p>
+          <h2>原始记录</h2>
+        </div>
+        <span className={`record-status ${capture.status}`}>{capture.status === "active" ? "使用中" : "已归档"}</span>
+      </div>
+
+      <label className="field">
+        <span>标题</span>
+        <input maxLength={200} onChange={(event) => setTitle(event.target.value)} value={title} />
+      </label>
+      <label className="field">
+        <span>原文</span>
+        <textarea maxLength={20_000} onChange={(event) => setContent(event.target.value)} rows={12} value={content} />
+        <small>{content.length.toLocaleString()} / 20,000</small>
+      </label>
+      <label className="field compact-field">
+        <span>内容类型</span>
+        <select onChange={(event) => setContentType(event.target.value as ContentType)} value={contentType}>
+          {CONTENT_TYPES.map((type) => <option key={type} value={type}>{CONTENT_TYPE_LABELS[type]}</option>)}
+        </select>
+      </label>
+
+      <fieldset className="field category-fieldset">
+        <legend>分类</legend>
+        {categories.length === 0 ? (
+          <p className="muted">请先从左侧新建一个分类。</p>
+        ) : (
+          <div className="checkbox-grid">
+            {categories.map((category) => (
+              <label key={category.id}>
+                <input
+                  checked={categoryIds.includes(category.id)}
+                  onChange={() => toggleCategory(category.id)}
+                  type="checkbox"
+                />
+                <span>{category.name}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </fieldset>
+
+      <div className="editor-actions">
+        <button className="button button-danger" disabled={isPending} onClick={removeCapture} type="button">
+          <Trash2 size={16} /> 永久删除
+        </button>
+        <button className="button button-quiet" disabled={isPending} onClick={changeStatus} type="button">
+          {capture.status === "active" ? <Archive size={16} /> : <RotateCcw size={16} />}
+          {capture.status === "active" ? "归档" : "恢复"}
+        </button>
+        <span className={message.startsWith("已保存") ? "form-success" : "form-error"}>{message}</span>
+        <button className="button button-primary" disabled={isPending || !content.trim()} type="submit">
+          <Save size={16} /> {isPending ? "处理中…" : "保存修改"}
+        </button>
+      </div>
+    </form>
+  );
+}

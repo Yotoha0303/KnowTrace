@@ -1,0 +1,61 @@
+import { z } from "zod";
+
+export const CLAIM_STATUSES = [
+  "candidate",
+  "investigating",
+  "ready_for_review",
+  "concluded",
+  "withdrawn",
+] as const;
+
+export const CLAIM_ASSESSMENTS = [
+  "supported",
+  "refuted",
+  "inconclusive",
+] as const;
+
+export const EVIDENCE_STANCES = [
+  "supports",
+  "contradicts",
+  "context",
+] as const;
+
+export const claimStatusSchema = z.enum(CLAIM_STATUSES);
+
+export const transitionClaimSchema = z.object({
+  claimId: z.uuid(),
+  expectedStatus: claimStatusSchema,
+  targetStatus: claimStatusSchema,
+});
+
+export const addClaimEvidenceSchema = z.object({
+  claimId: z.uuid(),
+  sourceUrl: z
+    .url("请输入有效的来源 URL。")
+    .max(2_000)
+    .refine((value) => ["http:", "https:"].includes(new URL(value).protocol), {
+      message: "来源仅支持 HTTP(S) URL。",
+    }),
+  sourceTitle: z.string().trim().min(1, "来源标题不能为空。").max(300),
+  excerpt: z.string().trim().min(1, "证据摘录不能为空。").max(2_000),
+  stance: z.enum(EVIDENCE_STANCES),
+  note: z.string().trim().max(1_000).optional(),
+});
+
+export const reviewClaimEvidenceSchema = z.object({
+  evidenceId: z.uuid(),
+  decision: z.enum(["accepted", "rejected"]),
+});
+
+export const checkClaimEvidenceSourceSchema = z.object({
+  evidenceId: z.uuid(),
+});
+
+export const concludeClaimSchema = z.object({
+  claimId: z.uuid(),
+  assessment: z.enum(CLAIM_ASSESSMENTS),
+  rationale: z.string().trim().min(10, "结论依据至少需要 10 个字符。").max(2_000),
+  limitations: z.string().trim().max(2_000).optional(),
+});
+
+export type ClaimStatus = z.infer<typeof claimStatusSchema>;

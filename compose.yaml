@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: knowtrace
+      POSTGRES_USER: knowtrace
+      POSTGRES_PASSWORD: knowtrace
+    ports:
+      - "54329:5432"
+    volumes:
+      - knowtrace_postgres18:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knowtrace -d knowtrace"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgres://knowtrace:knowtrace@postgres:5432/knowtrace
+      AI_DEFAULT_PROVIDER: ${AI_DEFAULT_PROVIDER:-mock}
+      AI_REQUEST_TIMEOUT_MS: ${AI_REQUEST_TIMEOUT_MS:-90000}
+      AI_MAX_INPUT_CHARS: ${AI_MAX_INPUT_CHARS:-12000}
+      AI_RUNNING_STALE_AFTER_MS: ${AI_RUNNING_STALE_AFTER_MS:-300000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  knowtrace_postgres18:

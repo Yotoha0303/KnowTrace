@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Migrations, checks and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: knowtrace
+          POSTGRES_USER: knowtrace
+          POSTGRES_PASSWORD: knowtrace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U knowtrace -d knowtrace"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://knowtrace:knowtrace@localhost:5432/knowtrace
+      AI_DEFAULT_PROVIDER: mock
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations to an empty database
+        run: pnpm db:migrate
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Build production bundle
+        run: pnpm build
