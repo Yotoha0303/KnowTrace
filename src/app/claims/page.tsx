@@ -64,7 +64,7 @@ export default async function ClaimsPage({
           <div className="claims-index-list">
             {items.map((item) => (
               <Link className={`claim-index-card is-${item.status}`} href={`/captures/${item.captureId}#claims`} key={item.id}>
-                <header><span>{statusLabels[item.status]}</span><small>{item.acceptedEvidenceCount} 条已采纳证据</small></header>
+                <header><span>{statusLabels[item.status]}{item.publishedReleaseCount ? ` · 可靠发布 v${item.publishedReleaseCount}` : ""}</span><small>{item.acceptedEvidenceCount} 条已采纳证据</small></header>
                 <h3>{item.statement}</h3>
                 <blockquote>原文：“{item.sourceExcerpt}”</blockquote>
                 <p><strong>证伪条件</strong>{item.falsificationCriteria}</p>

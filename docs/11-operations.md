@@ -2,7 +2,7 @@
 
 ## 1. 部署边界
 
-KnowTrace 默认不启用登录，只能部署在个人电脑、可信局域网，或由反向代理/VPN 提供访问控制的环境。可以通过 `AUTH_ENABLED=true` 接入独立 go-user-system；这会建立身份门槛，但不提供 Workspace 隔离或完整成员审计。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
+KnowTrace 默认不启用登录，只能部署在个人电脑、可信局域网，或由反向代理/VPN 提供访问控制的环境。可以通过 `AUTH_ENABLED=true` 接入独立 go-user-system；这会建立身份门槛，并为结论作者、独立复核者和发布者提供服务端身份，但不提供 Workspace 隔离或细粒度角色授权。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
 
 启用认证前先确认：
 
@@ -13,7 +13,7 @@ $env:AUTH_SERVICE_URL="http://localhost:8082"
 $env:AUTH_COOKIE_SECURE="false" # 仅本地 HTTP
 ```
 
-go-user-system 的密码、JWT 密钥、MySQL 和 Redis 备份不属于 KnowTrace 备份，必须按其仓库运维文档单独管理。
+go-user-system 的密码、JWT 密钥、MySQL 和 Redis 备份不属于 KnowTrace 备份，必须按其仓库运维文档单独管理。需要独立复核时至少准备两个不同账号；结论作者与复核者不能共享账号。
 
 ## 2. 容器运行
 
@@ -59,7 +59,7 @@ pnpm db:maintenance
 
 脚本在 PostgreSQL 容器中使用 `pg_dump --format=custom --create`，先用 `pg_restore --list` 校验，再复制到项目的 `backups/`。文件名包含时间与随机后缀，已有备份不会被覆盖。`backups/` 已加入 `.gitignore`。
 
-备份包含全部 Capture、Revision、Category、AI Run、Suggestion、Claim、Evidence、来源检查和人工结论，应视为敏感文件。至少保留一份不与运行机器共盘的加密副本。
+备份包含全部 Capture、Revision、Category、AI Run、Suggestion、Claim、Evidence、来源检查、来源权威性评估、人工/独立复核和可靠发布快照，应视为敏感文件。至少保留一份不与运行机器共盘的加密副本。
 
 ## 5. 恢复
 

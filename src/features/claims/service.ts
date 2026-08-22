@@ -617,6 +617,7 @@ export async function concludeClaim(input: {
   assessment: "supported" | "refuted" | "inconclusive";
   rationale: string;
   limitations?: string;
+  reviewer: { id: string; name: string };
 }) {
   return db.transaction(async (transaction) => {
     const [claim] = await transaction
@@ -718,6 +719,8 @@ export async function concludeClaim(input: {
         assessment: input.assessment,
         rationale: input.rationale.trim(),
         limitations: input.limitations?.trim() || null,
+        reviewerId: input.reviewer.id,
+        reviewerName: input.reviewer.name,
       })
       .returning({
         id: claimReviews.id,

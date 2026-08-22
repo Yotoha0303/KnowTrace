@@ -44,7 +44,9 @@ test("subject index builds an occurred-at timeline with source links", async ({ 
   await page.goto(earlyUrl);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "永久删除" }).click();
+  await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
   await page.goto(laterUrl);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "永久删除" }).click();
+  await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
 });

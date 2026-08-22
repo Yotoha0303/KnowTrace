@@ -46,6 +46,7 @@ test("topic synthesis keeps traceable sources and detects changed input", async 
   await page.goto(captureUrl);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "永久删除" }).click();
+  await expect(page).toHaveURL(/http:\/\/localhost:\d+\/$/);
   await page.goto("/categories");
   const categoryRow = page.locator(".category-manage-row").filter({
     has: page.getByLabel(`${categoryName}的名称`),

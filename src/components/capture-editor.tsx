@@ -127,8 +127,7 @@ export function CaptureEditor({
         setMessage(result.error.message);
         return;
       }
-      router.replace("/");
-      router.refresh();
+      window.location.replace("/");
     });
   }
 

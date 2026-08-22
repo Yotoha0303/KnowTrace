@@ -67,6 +67,7 @@ import { toPublicError } from "@/shared/errors/app-error";
 import type { ActionResult } from "@/shared/result";
 import { isAuthEnabled } from "@/features/auth/go-user-system";
 import { requireAuthenticatedUser } from "@/features/auth/session";
+import { currentActionActor } from "@/features/auth/actor";
 import {
   decideTopicSynthesisSchema,
   generateTopicSynthesisSchema,
@@ -75,6 +76,16 @@ import {
   decideTopicSynthesis,
   generateTopicSynthesis,
 } from "@/features/topic-synthesis/service";
+import {
+  assessSourceAuthoritySchema,
+  independentReviewSchema,
+  publishKnowledgeSchema,
+} from "@/features/reliability/schema";
+import {
+  assessSourceAuthority,
+  publishReliableKnowledge,
+  submitIndependentReview,
+} from "@/features/reliability/service";
 
 function fieldErrors(error: z.ZodError): Record<string, string[]> {
   const output: Record<string, string[]> = {};
@@ -127,7 +138,6 @@ export async function createCaptureAction(raw: unknown) {
     const row = await createCapture(input);
     return { id: row.id, version: row.version };
   });
-  if (result.ok) revalidatePath("/");
   return result;
 }
 
@@ -166,8 +176,11 @@ export async function deleteCaptureAction(raw: unknown) {
     return { id };
   });
   if (result.ok) {
-    revalidatePath("/", "layout");
+    revalidatePath("/");
     revalidatePath("/archived");
+    revalidatePath("/claims");
+    revalidatePath("/search");
+    revalidatePath("/subjects");
   }
   return result;
 }
@@ -297,7 +310,12 @@ export async function checkClaimEvidenceSourceAction(raw: unknown) {
 }
 
 export async function concludeClaimAction(raw: unknown) {
-  const result = await runAction(concludeClaimSchema, raw, concludeClaim);
+  const result = await runAction(concludeClaimSchema, raw, async (input) =>
+    concludeClaim({
+      ...input,
+      reviewer: await currentActionActor(),
+    }),
+  );
   if (result.ok) revalidatePath(`/captures/${result.data.captureId}`);
   return result;
 }
@@ -353,5 +371,46 @@ export async function decideTopicSynthesisAction(raw: unknown) {
     decideTopicSynthesis,
   );
   if (result.ok) revalidatePath(`/categories/${result.data.categoryId}`);
+  return result;
+}
+
+export async function assessSourceAuthorityAction(raw: unknown) {
+  const result = await runAction(
+    assessSourceAuthoritySchema,
+    raw,
+    async (input) => assessSourceAuthority({ ...input, actor: await currentActionActor() }),
+  );
+  if (result.ok) {
+    revalidatePath(`/captures/${result.data.captureId}`);
+    revalidatePath(`/claims/${result.data.claimId}/reliability`);
+  }
+  return result;
+}
+
+export async function submitIndependentReviewAction(raw: unknown) {
+  const result = await runAction(
+    independentReviewSchema,
+    raw,
+    async (input) => submitIndependentReview({ ...input, actor: await currentActionActor() }),
+  );
+  if (result.ok) {
+    revalidatePath(`/captures/${result.data.captureId}`);
+    revalidatePath(`/claims/${result.data.claimId}/reliability`);
+  }
+  return result;
+}
+
+export async function publishReliableKnowledgeAction(raw: unknown) {
+  const result = await runAction(
+    publishKnowledgeSchema,
+    raw,
+    async (input) => publishReliableKnowledge({ ...input, actor: await currentActionActor() }),
+  );
+  if (result.ok) {
+    revalidatePath(`/captures/${result.data.captureId}`);
+    revalidatePath(`/claims/${result.data.claimId}/reliability`);
+    revalidatePath("/claims");
+    revalidatePath("/search");
+  }
   return result;
 }

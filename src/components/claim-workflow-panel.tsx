@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
   ArrowLeftRight,
@@ -640,6 +641,9 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
           <p><strong>依据</strong>{latestReview.rationale}</p>
           {latestReview.limitations ? <p><strong>限制</strong>{latestReview.limitations}</p> : null}
           <small>已冻结 {latestReview.evidenceSnapshots.length} 条证据来源快照</small>
+          <Link className="button button-quiet claim-reliability-link" href={`/claims/${claim.id}/reliability`}>
+            <ShieldCheck size={14} /> 来源权威性、独立复核与可靠发布
+          </Link>
           {claim.reviews.length > 1 ? (
             <details>
               <summary>查看全部 {claim.reviews.length} 次结论</summary>

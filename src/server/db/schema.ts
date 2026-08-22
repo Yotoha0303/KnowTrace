@@ -98,6 +98,20 @@ export const evidenceVerificationMethodEnum = pgEnum(
   ["web", "manual_attachment"],
 );
 
+export const sourceAuthorityLevelEnum = pgEnum("source_authority_level", [
+  "primary",
+  "official",
+  "expert",
+  "secondary",
+  "community",
+  "unknown",
+]);
+
+export const independentReviewDecisionEnum = pgEnum(
+  "independent_review_decision",
+  ["approved", "changes_requested"],
+);
+
 export type EvidenceAttachmentVerificationSnapshot = Array<{
   id: string;
   originalName: string;
@@ -511,6 +525,12 @@ export const claimReviews = pgTable(
     assessment: claimAssessmentEnum("assessment").notNull(),
     rationale: varchar("rationale", { length: 2_000 }).notNull(),
     limitations: varchar("limitations", { length: 2_000 }),
+    reviewerId: varchar("reviewer_id", { length: 100 })
+      .notNull()
+      .default("legacy-local"),
+    reviewerName: varchar("reviewer_name", { length: 255 })
+      .notNull()
+      .default("本地历史审核"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -522,6 +542,97 @@ export const claimReviews = pgTable(
     ),
     index("claim_reviews_claim_created_idx").on(table.claimId, table.createdAt),
     check("claim_reviews_number_chk", sql`${table.reviewNumber} > 0`),
+  ],
+);
+
+export const sourceAuthorityAssessments = pgTable(
+  "source_authority_assessments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    evidenceId: uuid("evidence_id")
+      .notNull()
+      .references(() => claimEvidence.id, { onDelete: "cascade" }),
+    evidenceVersion: integer("evidence_version").notNull(),
+    level: sourceAuthorityLevelEnum("level").notNull(),
+    publisher: varchar("publisher", { length: 300 }).notNull(),
+    rationale: varchar("rationale", { length: 1_000 }).notNull(),
+    assessorId: varchar("assessor_id", { length: 100 }).notNull(),
+    assessorName: varchar("assessor_name", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("source_authority_evidence_created_idx").on(
+      table.evidenceId,
+      table.createdAt,
+    ),
+    check(
+      "source_authority_evidence_version_chk",
+      sql`${table.evidenceVersion} > 0`,
+    ),
+  ],
+);
+
+export const independentClaimReviews = pgTable(
+  "independent_claim_reviews",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    claimReviewId: uuid("claim_review_id")
+      .notNull()
+      .references(() => claimReviews.id, { onDelete: "cascade" }),
+    decision: independentReviewDecisionEnum("decision").notNull(),
+    rationale: varchar("rationale", { length: 2_000 }).notNull(),
+    inputHash: varchar("input_hash", { length: 64 }).notNull(),
+    inputSnapshot: jsonb("input_snapshot").notNull(),
+    reviewerId: varchar("reviewer_id", { length: 100 }).notNull(),
+    reviewerName: varchar("reviewer_name", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("independent_claim_reviews_review_reviewer_uq").on(
+      table.claimReviewId,
+      table.reviewerId,
+    ),
+    index("independent_claim_reviews_review_created_idx").on(
+      table.claimReviewId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const knowledgeReleases = pgTable(
+  "knowledge_releases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    claimId: uuid("claim_id")
+      .notNull()
+      .references(() => claims.id, { onDelete: "cascade" }),
+    claimReviewId: uuid("claim_review_id")
+      .notNull()
+      .references(() => claimReviews.id, { onDelete: "cascade" }),
+    releaseNumber: integer("release_number").notNull(),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    publishedById: varchar("published_by_id", { length: 100 }).notNull(),
+    publishedByName: varchar("published_by_name", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("knowledge_releases_claim_number_uq").on(
+      table.claimId,
+      table.releaseNumber,
+    ),
+    uniqueIndex("knowledge_releases_snapshot_hash_uq").on(table.snapshotHash),
+    index("knowledge_releases_claim_created_idx").on(
+      table.claimId,
+      table.createdAt,
+    ),
+    check("knowledge_releases_number_chk", sql`${table.releaseNumber} > 0`),
   ],
 );
 
@@ -635,3 +746,6 @@ export type EvidenceSourceCheckRow = typeof evidenceSourceChecks.$inferSelect;
 export type ClaimReviewRow = typeof claimReviews.$inferSelect;
 export type ClaimAIAuditRow = typeof claimAiAudits.$inferSelect;
 export type TopicSynthesisRow = typeof topicSyntheses.$inferSelect;
+export type SourceAuthorityAssessmentRow = typeof sourceAuthorityAssessments.$inferSelect;
+export type IndependentClaimReviewRow = typeof independentClaimReviews.$inferSelect;
+export type KnowledgeReleaseRow = typeof knowledgeReleases.$inferSelect;

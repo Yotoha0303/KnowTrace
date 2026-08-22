@@ -333,3 +333,15 @@ Migration `0011_topic_syntheses.sql` 增加 `topic_syntheses`。每次生成先�
 - `status` 表示执行状态，`decision` 独立表示人工接受或驳回；只有 `succeeded + pending + 未过期` 可以决策。
 - `provider/model/prompt_version/schema_version/request_id/token/latency` 保留运行审计。
 - Category 删除时级联删除综合历史；Capture、Claim 或 Review 变化不会修改旧快照，只会使其过期。
+
+## 9. 来源权威性、独立复核与发布版本
+
+Migration `0012_reliable_knowledge_release.sql` 增加三类追加式实体，并为 `claim_reviews` 增加结论作者身份：
+
+- `source_authority_assessments` 绑定 `evidence_id + evidence_version`，记录层级、发布主体、依据和评估者；读取时只使用当前 Evidence 版本的最新评估。
+- `independent_claim_reviews` 绑定 ClaimReview 与服务端 reviewer ID，并保存所复核结论、证据哈希及来源权威性评估的输入快照和 SHA-256；唯一索引阻止同一身份覆盖同一结论版本。
+- `knowledge_releases` 以 `claim_id + release_number` 递增，保存完整 JSONB 快照、快照 SHA-256 和发布者身份。
+
+发布服务重新读取当前结论及其冻结 Evidence，确定性检查证据数量、来源检查 ID、来源权威性、独立来源身份、强来源与职责分离。Migration `0013_release_deletion_policy.sql` 将 Release 到 Claim/ClaimReview 的外键改为级联删除：版本在来源存在期间不可变，但用户显式永久删除 Capture 时不会遗留内容副本。
+
+Migration `0014_independent_review_input_snapshot.sql` 为独立复核增加输入快照与哈希。当前结论、证据版本/哈希、快照有效性或来源权威性评估变化后，旧复核读取时标记 stale，不再满足发布门槛。

@@ -24,6 +24,7 @@ import {
   claims,
   evidenceSourceChecks,
   evidenceAttachments,
+  knowledgeReleases,
 } from "@/server/db/schema";
 import { db } from "@/server/db/client";
 import {
@@ -74,6 +75,7 @@ export type ClaimListItemDTO = {
   falsificationCriteria: string;
   status: ClaimDTO["status"];
   acceptedEvidenceCount: number;
+  publishedReleaseCount: number;
   latestAssessment: null | {
     assessment: "supported" | "refuted" | "inconclusive";
     reviewNumber: number;
@@ -155,6 +157,8 @@ export type ClaimDTO = {
     assessment: "supported" | "refuted" | "inconclusive";
     rationale: string;
     limitations: string | null;
+    reviewerId: string;
+    reviewerName: string;
     createdAt: string;
     evidenceSnapshots: Array<{
       evidenceId: string;
@@ -354,7 +358,7 @@ export async function listClaims(options?: {
   if (!rows.length) return [];
 
   const claimIds = rows.map(({ claim }) => claim.id);
-  const [evidenceCounts, reviewRows] = await Promise.all([
+  const [evidenceCounts, reviewRows, releaseCounts] = await Promise.all([
     db
       .select({ claimId: claimEvidence.claimId, value: count() })
       .from(claimEvidence)
@@ -372,11 +376,19 @@ export async function listClaims(options?: {
       .from(claimReviews)
       .where(inArray(claimReviews.claimId, claimIds))
       .orderBy(desc(claimReviews.reviewNumber)),
+    db
+      .select({ claimId: knowledgeReleases.claimId, value: count() })
+      .from(knowledgeReleases)
+      .where(inArray(knowledgeReleases.claimId, claimIds))
+      .groupBy(knowledgeReleases.claimId),
   ]);
   const evidenceCountByClaimId = new Map(
     evidenceCounts.map((item) => [item.claimId, Number(item.value)]),
   );
   const latestReviewByClaimId = new Map<string, (typeof reviewRows)[number]>();
+  const releaseCountByClaimId = new Map(
+    releaseCounts.map((item) => [item.claimId, Number(item.value)]),
+  );
   for (const review of reviewRows) {
     if (!latestReviewByClaimId.has(review.claimId)) {
       latestReviewByClaimId.set(review.claimId, review);
@@ -394,6 +406,7 @@ export async function listClaims(options?: {
       falsificationCriteria: claim.falsificationCriteria,
       status: claim.status,
       acceptedEvidenceCount: evidenceCountByClaimId.get(claim.id) ?? 0,
+      publishedReleaseCount: releaseCountByClaimId.get(claim.id) ?? 0,
       latestAssessment: review
         ? {
             assessment: review.assessment,
@@ -619,6 +632,8 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
         assessment: review.assessment,
         rationale: review.rationale,
         limitations: review.limitations,
+        reviewerId: review.reviewerId,
+        reviewerName: review.reviewerName,
         createdAt: toIso(review.createdAt),
         evidenceSnapshots: (reviewEvidenceByReviewId.get(review.id) ?? []).map(
           (snapshot) => ({

@@ -5,6 +5,10 @@ const baseURL = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // A full knowledge workflow performs several server actions and may trigger
+  // first-use route compilation in `next dev`. Keep the per-assertion timeout
+  // strict while allowing the complete scenario enough time to finish.
+  timeout: 90_000,
   fullyParallel: false,
   // The product currently has one shared knowledge domain even when optional
   // authentication is enabled. Serial browser tests prevent global
@@ -12,8 +16,12 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: "html",
+  expect: {
+    timeout: 15_000,
+  },
   use: {
     baseURL,
+    navigationTimeout: 20_000,
     trace: "retain-on-failure",
   },
   webServer: {

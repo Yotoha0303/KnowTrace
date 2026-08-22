@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowUpRight, CalendarClock, Check, Contact, Sparkles } from "lucide-react";
 
 import { createCaptureAction } from "@/app/actions";
@@ -20,7 +19,6 @@ export function QuickCaptureForm({
   categories: CategoryDTO[];
   defaultOccurredAt: string;
 }) {
-  const router = useRouter();
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
   const [subject, setSubject] = useState("");
@@ -63,7 +61,7 @@ export function QuickCaptureForm({
         );
         return;
       }
-      router.push(`/captures/${result.data.id}`);
+      window.location.assign(`/captures/${result.data.id}`);
     });
   }
 

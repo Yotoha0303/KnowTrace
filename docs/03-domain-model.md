@@ -150,6 +150,10 @@ erDiagram
     CLAIM_EVIDENCE ||--o{ EVIDENCE_SOURCE_CHECK : checked_by
     CLAIM ||--o{ CLAIM_REVIEW : assessed_by
     CLAIM_REVIEW ||--o{ CLAIM_REVIEW_EVIDENCE : freezes
+    CLAIM_EVIDENCE ||--o{ SOURCE_AUTHORITY_ASSESSMENT : assessed_as
+    CLAIM_REVIEW ||--o{ INDEPENDENT_CLAIM_REVIEW : independently_checked_by
+    CLAIM ||--o{ KNOWLEDGE_RELEASE : published_as
+    CLAIM_REVIEW ||--o{ KNOWLEDGE_RELEASE : freezes_conclusion
     CLAIM ||--o{ CLAIM_AI_AUDIT : audited_by
     AI_PROCESSING_RUN ||--o| CLAIM_AI_AUDIT : produces
 ```
@@ -178,6 +182,8 @@ ClaimReview 是一次不可变人工结论，使用 `supported / refuted / incon
 
 ClaimAIAudit 是一次不可变 AI 辅助审查，保存当时的 Claim 时间、已确认采纳证据快照和证据指纹。它只表达覆盖、平衡、问题与待补检查，不是 ClaimReview，也不能改变 Claim 状态。当前输入与快照不一致时标记为 stale。
 
+SourceAuthorityAssessment 是绑定 Evidence 版本的人工来源分级。IndependentClaimReview 保存由 go-user-system 服务端身份确认的第二审核者决定，同一身份不能覆盖同一结论版本。KnowledgeRelease 冻结主张、结论、证据哈希、来源权威性、独立复核和发布者；它是有界知识版本，不是 `verified=true`。
+
 ## 10. 不变量
 
 1. Capture 的 `version` 从 1 开始；标题、正文或 Content Type 变化时递增，Category 变化不递增。
@@ -200,15 +206,21 @@ ClaimAIAudit 是一次不可变 AI 辅助审查，保存当时的 Claim 时间�
 18. AI Audit 的覆盖度、证据平衡、Evidence ID 和边界提示必须经服务端确定性校验。
 19. Evidence 编辑必须使用乐观版本号并保留旧版本；已审核或不在调查中的 Evidence 不可编辑。
 20. 图片必须同时通过声明 MIME、文件头、数量和大小检查；文件读取不得接受用户提供的路径。
+21. 来源权威性评估只对绑定的 Evidence 版本有效，读取时不得沿用旧版本评估。
+22. 结论作者不得作为该结论版本的独立复核批准者；认证关闭时不得满足职责分离门槛。
+23. 发布至少需要两个独立来源、一个强来源、全部当前证据快照和无修改要求的独立批准。
+24. KnowledgeRelease 只追加且快照哈希唯一；永久删除来源 Capture 时按用户删除语义级联清理。
 
 ## 11. 后续边界
 
-后续可信验证使用独立模型：
+当前可信发布使用独立模型：
 
 ```text
-Capture → Candidate Claim → Evidence → ready_for_review
+Capture → Candidate Claim → Evidence → ClaimReview
                                       ↓
-                         独立审核角色与 Claim Version（后续）
+                  SourceAuthority + IndependentReview
+                                      ↓
+                           KnowledgeRelease vN
 ```
 
-当前已实现个人可信环境中的网页来源检查、无链接图片附件人工核验、证据化人工结论和非裁决 AI 审查，但没有身份化的独立审核角色与可靠知识发布。后续如果加入多人审核或发布能力，必须增加身份、职责分离和发布版本，不能给 Capture、Evidence 或 Claim 简单增加 `verified=true`。
+当前已实现单实例中的网页来源检查、无链接图片附件人工核验、证据化人工结论、非裁决 AI 审查、身份化独立复核和不可变发布版本。尚未实现 Workspace 隔离、角色权限策略和跨组织审核队列；因此它仍不能被描述为面向公网或大型团队的可信发布平台。

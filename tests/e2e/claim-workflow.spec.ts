@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.describe.configure({ timeout: 60_000 });
+
 test("AI candidate claim → evidence review → ready for review", async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on("console", (message) => {
