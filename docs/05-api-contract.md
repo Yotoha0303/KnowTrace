@@ -162,7 +162,7 @@ type AuditClaimInput = {
 
 ### addClaimEvidence
 
-输入 Claim ID、HTTP(S) 来源 URL、来源标题、原文摘录、立场和可选备注。只允许在 `investigating` 状态新增，初始审核状态固定为 `unreviewed`。
+输入 Claim ID、可选来源 URL、来源标题、原文摘录、立场和可选备注。URL 留空时保存为空字符串；非空时必须是 HTTP(S) URL。只允许在 `investigating` 状态新增，初始审核状态固定为 `unreviewed`。无链接 Evidence 可以继续编辑、上传图片或排除，但当前不能自动检查或采纳。
 
 ### updateClaimEvidence
 
@@ -170,7 +170,7 @@ type AuditClaimInput = {
 
 ### uploadEvidenceImage
 
-通过 `FormData` 输入 Evidence ID 与图片。仅允许调查中且未审核的 Evidence；支持 JPEG、PNG、WebP、GIF，校验声明 MIME 与文件头，单张最多 10 MB、每条 Evidence 最多 5 张。文件落在项目上传目录，数据库保存相对路径和 SHA-256；成功后通过 `/api/evidence-images/:id` 读取。
+通过 `FormData` 输入 Evidence ID 与图片。仅允许调查中且未审核的 Evidence；支持 JPEG、PNG、WebP、GIF，校验声明 MIME 与文件头，单张最多 10 MB、每条 Evidence 最多 5 张。文件落在项目上传目录，数据库保存相对路径和 SHA-256；成功后通过 `/api/evidence-images/:id` 读取。上传成功不代表人工核验通过，不改变 Evidence 审核状态，也不替代来源检查。
 
 ### reviewClaimEvidence
 
@@ -178,7 +178,7 @@ type AuditClaimInput = {
 
 ### checkClaimEvidenceSource
 
-输入 Evidence ID。只允许检查调查中且未审核的 Evidence。服务端安全抓取 HTTP(S) 页面、逐跳检查重定向、匹配摘录，并在事务中追加 EvidenceSourceCheck 与更新当前检查投影。失败也保存稳定错误码，便于审计和重试。
+输入 Evidence ID。只允许检查调查中、未审核且已填写来源 URL 的 Evidence；URL 为空时返回稳定的缺少来源错误，不发起网络请求。服务端安全抓取 HTTP(S) 页面、逐跳检查重定向、匹配摘录，并在事务中追加 EvidenceSourceCheck 与更新当前检查投影。网络检查失败也保存稳定错误码，便于审计和重试。
 
 ### concludeClaim
 
