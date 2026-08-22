@@ -67,6 +67,14 @@ import { toPublicError } from "@/shared/errors/app-error";
 import type { ActionResult } from "@/shared/result";
 import { isAuthEnabled } from "@/features/auth/go-user-system";
 import { requireAuthenticatedUser } from "@/features/auth/session";
+import {
+  decideTopicSynthesisSchema,
+  generateTopicSynthesisSchema,
+} from "@/features/topic-synthesis/schema";
+import {
+  decideTopicSynthesis,
+  generateTopicSynthesis,
+} from "@/features/topic-synthesis/service";
 
 function fieldErrors(error: z.ZodError): Record<string, string[]> {
   const output: Record<string, string[]> = {};
@@ -325,5 +333,25 @@ export async function rollbackSuggestionAction(raw: unknown) {
     revalidatePath("/claims");
     revalidatePath("/search");
   }
+  return result;
+}
+
+export async function generateTopicSynthesisAction(raw: unknown) {
+  const result = await runAction(
+    generateTopicSynthesisSchema,
+    raw,
+    generateTopicSynthesis,
+  );
+  if (result.ok) revalidatePath(`/categories/${result.data.categoryId}`);
+  return result;
+}
+
+export async function decideTopicSynthesisAction(raw: unknown) {
+  const result = await runAction(
+    decideTopicSynthesisSchema,
+    raw,
+    decideTopicSynthesis,
+  );
+  if (result.ok) revalidatePath(`/categories/${result.data.categoryId}`);
   return result;
 }

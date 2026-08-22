@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, BookMarked, Inbox, Scale, Search, Settings2 } from "lucide-react";
+import { Archive, BookMarked, ContactRound, Inbox, Scale, Search, Settings2 } from "lucide-react";
 
 import type { CategoryDTO } from "@/features/capture/queries";
 import { CategoryCreator } from "@/components/category-creator";
@@ -37,6 +37,9 @@ export function AppShell({
           </Link>
           <Link href="/search">
             <Search size={17} /> 知识检索
+          </Link>
+          <Link href="/subjects">
+            <ContactRound size={17} /> 对象时间线
           </Link>
         </nav>
 

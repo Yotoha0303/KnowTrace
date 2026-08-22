@@ -52,6 +52,11 @@ export const suggestionStatusEnum = pgEnum("suggestion_status", [
   "rolled_back",
 ]);
 
+export const topicSynthesisDecisionEnum = pgEnum(
+  "topic_synthesis_decision",
+  ["pending", "accepted", "rejected"],
+);
+
 export const claimStatusEnum = pgEnum("claim_status", [
   "candidate",
   "investigating",
@@ -577,6 +582,47 @@ export const claimAiAudits = pgTable(
   ],
 );
 
+export const topicSyntheses = pgTable(
+  "topic_syntheses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "cascade" }),
+    sourceHash: varchar("source_hash", { length: 64 }).notNull(),
+    sourceSnapshot: jsonb("source_snapshot").notNull(),
+    provider: varchar("provider", { length: 40 }).notNull(),
+    model: varchar("model", { length: 80 }).notNull(),
+    promptVersion: varchar("prompt_version", { length: 40 }).notNull(),
+    schemaVersion: varchar("schema_version", { length: 40 }).notNull(),
+    status: aiRunStatusEnum("status").notNull().default("running"),
+    decision: topicSynthesisDecisionEnum("decision")
+      .notNull()
+      .default("pending"),
+    payload: jsonb("payload"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    latencyMs: integer("latency_ms"),
+    errorCode: varchar("error_code", { length: 80 }),
+    requestId: varchar("request_id", { length: 80 }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("topic_syntheses_category_created_idx").on(
+      table.categoryId,
+      table.createdAt,
+    ),
+    index("topic_syntheses_status_created_idx").on(
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
 export type CaptureRow = typeof captures.$inferSelect;
 export type CategoryRow = typeof categories.$inferSelect;
 export type AIRunRow = typeof aiProcessingRuns.$inferSelect;
@@ -588,3 +634,4 @@ export type EvidenceAttachmentRow = typeof evidenceAttachments.$inferSelect;
 export type EvidenceSourceCheckRow = typeof evidenceSourceChecks.$inferSelect;
 export type ClaimReviewRow = typeof claimReviews.$inferSelect;
 export type ClaimAIAuditRow = typeof claimAiAudits.$inferSelect;
+export type TopicSynthesisRow = typeof topicSyntheses.$inferSelect;

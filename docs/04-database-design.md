@@ -298,7 +298,7 @@ WHERE id = $4
 
 首版是请求内同步调用，但 Run 会在调用前写入 running。如果进程崩溃，Run 可能停留在 running。
 
-容器启动时在 Migration 之后执行维护脚本，把超过 `AI_RUNNING_STALE_AFTER_MS`（默认 5 分钟）的 running Run 标记为 failed，并使用 `AI_RUN_INTERRUPTED` 错误码。该脚本也可以通过 `pnpm db:maintenance` 手动执行。
+容器启动时在 Migration 之后执行维护脚本，把超过 `AI_RUNNING_STALE_AFTER_MS`（默认 5 分钟）的 running AI Run 与主题综合任务标记为 failed，并使用 `AI_RUN_INTERRUPTED` 错误码。该脚本也可以通过 `pnpm db:maintenance` 手动执行。
 
 ## 5. 迁移要求
 
@@ -323,3 +323,13 @@ Migration `0010_capture_similarity_search.sql` 在 Capture 的标题、描述对
 - `occurred_at timestamptz not null` 保存事件时点，默认 `now()` 只作为新建请求的数据库后备。
 - `captures_occurred_idx` 支持日期范围筛选。
 - `captures_subject_trgm_idx` 支持描述对象部分匹配；组合全文索引同时包含标题、描述对象和正文。
+
+## 8. AI 主题综合快照
+
+Migration `0011_topic_syntheses.sql` 增加 `topic_syntheses`。每次生成先插入 `running` 行，再调用 Provider；成功保存结构化 payload，失败只记录错误和耗时，不覆盖旧档案。
+
+- `source_snapshot jsonb` 冻结当时最多 100 条活跃 Capture、相关 Claim、最新人工 Review 与有效证据数量。
+- `source_hash` 对稳定序列化后的快照计算 SHA-256，用于读取时判断过期。
+- `status` 表示执行状态，`decision` 独立表示人工接受或驳回；只有 `succeeded + pending + 未过期` 可以决策。
+- `provider/model/prompt_version/schema_version/request_id/token/latency` 保留运行审计。
+- Category 删除时级联删除综合历史；Capture、Claim 或 Review 变化不会修改旧快照，只会使其过期。

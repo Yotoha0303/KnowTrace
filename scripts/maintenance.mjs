@@ -11,7 +11,7 @@ const staleAfterMs = Number.isFinite(configuredThreshold)
 const client = postgres(connectionString, { max: 1 });
 
 try {
-  const recovered = await client`
+  const recoveredRuns = await client`
     UPDATE ai_processing_runs
     SET status = 'failed',
         error_code = 'AI_RUN_INTERRUPTED',
@@ -24,7 +24,22 @@ try {
       AND started_at < now() - ${staleAfterMs} * interval '1 millisecond'
     RETURNING id
   `;
-  console.log(`Recovered ${recovered.length} interrupted AI run(s)`);
+  const recoveredTopics = await client`
+    UPDATE topic_syntheses
+    SET status = 'failed',
+        error_code = 'AI_RUN_INTERRUPTED',
+        completed_at = now(),
+        latency_ms = LEAST(
+          2147483647,
+          GREATEST(0, EXTRACT(EPOCH FROM (now() - created_at)) * 1000)
+        )::integer
+    WHERE status = 'running'
+      AND created_at < now() - ${staleAfterMs} * interval '1 millisecond'
+    RETURNING id
+  `;
+  console.log(
+    `Recovered ${recoveredRuns.length} interrupted AI run(s) and ${recoveredTopics.length} topic synthesis run(s)`,
+  );
 } finally {
   await client.end();
 }

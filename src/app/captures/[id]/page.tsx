@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { ArrowLeft, Clock3 } from "lucide-react";
+import { ArrowLeft, Clock3, ContactRound } from "lucide-react";
 import Link from "next/link";
 
 import { CaptureWorkspace } from "@/components/capture-workspace";
@@ -27,7 +27,10 @@ export default async function CapturePage({
     <div className="page-shell detail-page">
       <header className="detail-header">
         <Link className="back-link" href="/"><ArrowLeft size={16} /> 返回收集箱</Link>
-        <div className="detail-meta"><Clock3 size={15} /> 更新于 {new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(capture.updatedAt))}</div>
+        <div className="detail-meta">
+          {capture.subject ? <Link href={`/subjects/${encodeURIComponent(capture.subject)}`}><ContactRound size={15} /> {capture.subject}</Link> : null}
+          <span><Clock3 size={15} /> 更新于 {new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(capture.updatedAt))}</span>
+        </div>
       </header>
       <CaptureWorkspace
         capture={capture}

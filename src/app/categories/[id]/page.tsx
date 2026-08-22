@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowUpRight, FolderOpen, Search, ShieldCheck } from "lucide
 import { CaptureCard } from "@/components/capture-card";
 import { listCaptures } from "@/features/capture/queries";
 import { getCategoryDossier } from "@/features/classification/queries";
+import { TopicSynthesisPanel } from "@/components/topic-synthesis-panel";
+import { getTopicSynthesisState } from "@/features/topic-synthesis/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +16,10 @@ export default async function CategoryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [dossier, captures] = await Promise.all([
+  const [dossier, captures, synthesis] = await Promise.all([
     getCategoryDossier(id),
     listCaptures({ categoryId: id, limit: 100 }),
+    getTopicSynthesisState(id),
   ]);
   if (!dossier) notFound();
   const { category, metrics, claimStatuses, latestConclusions } = dossier;
@@ -42,6 +45,12 @@ export default async function CategoryPage({
         </div>
         <Link className="button button-dark" href={`/search?category=${category.id}`}><Search size={15} /> 在主题内检索</Link>
       </section>
+
+      <TopicSynthesisPanel
+        categoryId={category.id}
+        currentCaptureCount={synthesis.currentCaptureCount}
+        history={synthesis.history}
+      />
 
       {latestConclusions.length ? (
         <section className="content-section dossier-conclusions">
