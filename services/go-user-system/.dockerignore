@@ -1,0 +1,12 @@
+.git
+.github
+.cache
+.env
+.env.*
+!.env.*.example
+bin
+coverage*
+frontend
+logs
+tmp
+*.log

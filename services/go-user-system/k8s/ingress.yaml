@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: go-user-system-ingress
+  namespace: go-user-system
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - go-user-system.example.com
+      secretName: go-user-system-tls
+  rules:
+    - host: go-user-system.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: go-user-system
+                port:
+                  name: http
+          - path: /swagger
+            pathType: Prefix
+            backend:
+              service:
+                name: go-user-system
+                port:
+                  name: http
+          - path: /ping
+            pathType: Exact
+            backend:
+              service:
+                name: go-user-system
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: go-user-system-frontend
+                port:
+                  name: http
