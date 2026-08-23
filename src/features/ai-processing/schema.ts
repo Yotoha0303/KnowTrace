@@ -69,6 +69,12 @@ export const aiConnectionSchema = z.discriminatedUnion("mode", [
     model: aiModelSchema.optional(),
   }),
   z.object({
+    mode: z.literal("ccswitch_auto"),
+    baseURL: z.string().trim().min(1).max(500),
+    apiKey: z.string().trim().max(1_000).optional(),
+    model: aiModelSchema.optional(),
+  }),
+  z.object({
     mode: z.literal("ccswitch_codex_oauth"),
     baseURL: z.string().trim().min(1).max(500),
     apiKey: z.string().trim().max(1_000).optional(),
@@ -89,6 +95,10 @@ const ccSwitchConnectionBaseSchema = z.object({
 });
 
 export const detectCCSwitchSchema = ccSwitchConnectionBaseSchema;
+
+export const testCCSwitchCurrentProviderSchema = ccSwitchConnectionBaseSchema.extend({
+  model: aiModelSchema,
+});
 
 export const testCCSwitchCodexOAuthSchema = ccSwitchConnectionBaseSchema.extend({
   model: aiModelSchema.refine(
@@ -247,6 +257,7 @@ export const organizeCaptureSchema = z
   .superRefine((input, context) => {
     if (
       (input.connection?.mode === "ccswitch" ||
+        input.connection?.mode === "ccswitch_auto" ||
         input.connection?.mode === "ccswitch_codex_oauth") &&
       input.provider !== "openai"
     ) {
@@ -278,6 +289,7 @@ export const auditClaimSchema = z
   .superRefine((input, context) => {
     if (
       (input.connection?.mode === "ccswitch" ||
+        input.connection?.mode === "ccswitch_auto" ||
         input.connection?.mode === "ccswitch_codex_oauth") &&
       input.provider !== "openai"
     ) {

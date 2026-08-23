@@ -9,10 +9,12 @@ import {
   decideSuggestionSchema,
   organizeCaptureSchema,
   rollbackSuggestionSchema,
+  testCCSwitchCurrentProviderSchema,
   testCCSwitchCodexOAuthSchema,
 } from "@/features/ai-processing/schema";
 import {
   detectCCSwitch,
+  testCCSwitchCurrentProvider,
   testCCSwitchCodexOAuth,
 } from "@/features/ai-processing/connection-check";
 import {
@@ -265,6 +267,14 @@ export async function testCCSwitchCodexOAuthAction(raw: unknown) {
     testCCSwitchCodexOAuthSchema,
     raw,
     testCCSwitchCodexOAuth,
+  );
+}
+
+export async function testCCSwitchCurrentProviderAction(raw: unknown) {
+  return runAction(
+    testCCSwitchCurrentProviderSchema,
+    raw,
+    testCCSwitchCurrentProvider,
   );
 }
 

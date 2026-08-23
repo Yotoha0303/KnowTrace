@@ -15,6 +15,21 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
   const title = `散碎知识整理 ${suffix}`;
 
   await page.goto("/");
+  if (new URL(page.url()).pathname === "/login") {
+    const username = process.env.AUTH_E2E_USERNAME;
+    const password = process.env.AUTH_E2E_PASSWORD;
+    if (!username || !password) {
+      throw new Error(
+        "authentication is enabled; provide AUTH_E2E_USERNAME and AUTH_E2E_PASSWORD",
+      );
+    }
+    await page.getByLabel("用户名").fill(username);
+    await page.getByLabel("密码", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await page.waitForLoadState("networkidle");
+    consoleErrors.length = 0;
+  }
   await expect(page.getByRole("heading", { name: "先留下，再慢慢想清楚。" })).toBeVisible();
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
 
@@ -36,9 +51,9 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
   await page.getByLabel("处理引擎").selectOption("openai");
   await expect(page.getByLabel("OpenAI 连接方式")).toBeVisible();
   await expect(page.getByLabel("OpenAI 连接方式")).toHaveValue(
-    "ccswitch_codex_oauth",
+    "ccswitch_auto",
   );
-  await expect(page.getByRole("button", { name: "测试 AI 连接" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "测试当前供应商" })).toBeVisible();
   await expect(page.locator(".connection-check")).toContainText(
     /正在自动检测|已检测到|未能连接/,
   );
@@ -48,13 +63,19 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
     "http://host.docker.internal:15721/v1",
   );
   await expect(page.getByLabel("CC-Switch 代理令牌")).toBeVisible();
-  await expect(page.getByLabel("CC-Switch Claude 路由模型")).toHaveValue(
+  await expect(page.getByLabel("CC-Switch 模型路由名")).toHaveValue(
     "claude-sonnet-4-5",
   );
   await page.screenshot({
     fullPage: true,
     path: "test-results/ai-connection-ui.png",
   });
+  if (process.env.CC_SWITCH_E2E === "true") {
+    await page.getByRole("button", { name: "测试当前供应商" }).click();
+    await expect(
+      page.getByText("当前供应商可用于 AI 整理", { exact: true }),
+    ).toBeVisible({ timeout: 35_000 });
+  }
   await page.getByLabel("OpenAI 连接方式").selectOption("api_key");
   await page.getByLabel("OpenAI API Key").fill("sk-openai-session-test");
   await page.getByLabel("仅在当前浏览器标签页记住凭据").check();
@@ -66,7 +87,7 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
     "sk-openai-session-test",
   );
   await page.getByLabel("仅在当前浏览器标签页记住凭据").uncheck();
-  await page.getByLabel("OpenAI 连接方式").selectOption("ccswitch_codex_oauth");
+  await page.getByLabel("OpenAI 连接方式").selectOption("ccswitch_auto");
   await page.getByText("高级设置（通常无需修改）").click();
   await page.getByLabel("CC-Switch 地址").fill("https://example.com/v1");
   await expect(

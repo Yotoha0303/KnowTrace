@@ -29,7 +29,7 @@ import {
   detectCCSwitchAction,
   organizeCaptureAction,
   rollbackSuggestionAction,
-  testCCSwitchCodexOAuthAction,
+  testCCSwitchCurrentProviderAction,
 } from "@/app/actions";
 import { DEFAULT_CC_SWITCH_BASE_URL } from "@/features/ai-processing/connection";
 import { applySelectedContentSuggestions } from "@/features/ai-processing/content-edits";
@@ -86,6 +86,7 @@ type AIProvider = "mock" | "openai" | "deepseek";
 type OpenAIConnectionMode =
   | "api_key"
   | "ccswitch"
+  | "ccswitch_auto"
   | "ccswitch_codex_oauth";
 
 type CCSwitchConnectionStatus = {
@@ -106,7 +107,7 @@ type SessionCredentials = {
 };
 
 const DEFAULT_SESSION_CREDENTIALS: SessionCredentials = {
-  openAIConnectionMode: "ccswitch_codex_oauth",
+  openAIConnectionMode: "ccswitch_auto",
   openAIKey: "",
   openAIModel: "",
   ccSwitchCodexModel: "claude-sonnet-4-5",
@@ -138,11 +139,13 @@ function parseCredentials(raw: string | null): SessionCredentials | null {
     return {
       openAIConnectionMode:
         value.openAIConnectionMode === "ccswitch" ||
-        value.openAIConnectionMode === "ccswitch_codex_oauth"
+        value.openAIConnectionMode === "ccswitch_auto"
           ? value.openAIConnectionMode
+          : value.openAIConnectionMode === "ccswitch_codex_oauth"
+            ? "ccswitch_auto"
           : value.openAIConnectionMode === "api_key"
             ? "api_key"
-            : "ccswitch_codex_oauth",
+            : "ccswitch_auto",
       openAIKey: typeof value.openAIKey === "string" ? value.openAIKey : "",
       openAIModel: typeof value.openAIModel === "string" ? value.openAIModel : "",
       ccSwitchCodexModel:
@@ -165,6 +168,7 @@ function parseCredentials(raw: string | null): SessionCredentials | null {
 }
 
 function historyProviderLabel(provider: string): string {
+  if (provider === "ccswitch-current-provider") return "CC-Switch · 当前供应商";
   if (provider === "openai-ccswitch") return "OpenAI · CC-Switch";
   if (provider === "ccswitch-codex-oauth") return "CC-Switch · Codex OAuth";
   if (provider === "openai") return "OpenAI";
@@ -268,15 +272,17 @@ export function AIReviewPanel({
         : capture.content,
     [capture.content, contentSuggestionIndexes, payload],
   );
-  const usesCodexOAuthRoute =
+  const usesCCSwitchCurrentProvider =
     provider === "openai" &&
-    openAIConnectionMode === "ccswitch_codex_oauth";
+    openAIConnectionMode === "ccswitch_auto";
   const ccSwitchReady =
     ccSwitchStatus.phase === "reachable" || ccSwitchStatus.phase === "ready";
   const providerDisplayName =
     provider === "openai"
       ? openAIConnectionMode === "ccswitch_codex_oauth"
         ? "CC-Switch · Codex OAuth"
+        : openAIConnectionMode === "ccswitch_auto"
+          ? "CC-Switch · 当前供应商"
         : openAIConnectionMode === "ccswitch"
           ? "OpenAI · CC-Switch"
           : "OpenAI · 官方 API"
@@ -309,7 +315,7 @@ export function AIReviewPanel({
   }, [auditingClaimId]);
 
   useEffect(() => {
-    if (!usesCodexOAuthRoute) {
+    if (!usesCCSwitchCurrentProvider) {
       return;
     }
 
@@ -329,7 +335,7 @@ export function AIReviewPanel({
           setCCSwitchStatus({
             phase: "reachable",
             title: "已检测到 CC-Switch",
-            message: `本地代理响应正常（${result.data.latencyMs}ms），可以直接整理或继续测试 AI 登录。`,
+            message: `本地代理响应正常（${result.data.latencyMs}ms）。请测试当前供应商，确认它能返回整理所需的结构。`,
           });
         } else {
           setCCSwitchStatus({
@@ -345,7 +351,7 @@ export function AIReviewPanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [ccSwitchBaseURL, usesCodexOAuthRoute]);
+  }, [ccSwitchBaseURL, usesCCSwitchCurrentProvider]);
 
   function updateCredentials(patch: Partial<SessionCredentials>) {
     const next = { ...credentials, ...patch };
@@ -375,6 +381,14 @@ export function AIReviewPanel({
   function connectionForRequest() {
     if (provider === "openai") {
       const model = openAIModel.trim() || undefined;
+      if (openAIConnectionMode === "ccswitch_auto") {
+        return {
+          mode: "ccswitch_auto" as const,
+          baseURL: ccSwitchBaseURL.trim() || DEFAULT_CC_SWITCH_BASE_URL,
+          apiKey: ccSwitchToken.trim() || undefined,
+          model: ccSwitchCodexModel.trim() || "claude-sonnet-4-5",
+        };
+      }
       if (openAIConnectionMode === "ccswitch_codex_oauth") {
         return {
           mode: "ccswitch_codex_oauth" as const,
@@ -419,11 +433,11 @@ export function AIReviewPanel({
   function testCCSwitchConnection() {
     setCCSwitchStatus({
       phase: "testing",
-      title: "正在测试 AI 登录与模型映射",
-      message: "正在发送一个极小请求，通常几秒内完成。",
+      title: "正在测试当前供应商",
+      message: "正在发送一个极小的结构化请求，通常几秒内完成。",
     });
     startConnectionTransition(async () => {
-      const result = await testCCSwitchCodexOAuthAction({
+      const result = await testCCSwitchCurrentProviderAction({
         baseURL: ccSwitchBaseURL.trim() || DEFAULT_CC_SWITCH_BASE_URL,
         apiKey: ccSwitchToken.trim() || undefined,
         model: ccSwitchCodexModel.trim() || "claude-sonnet-4-5",
@@ -431,13 +445,13 @@ export function AIReviewPanel({
       if (result.ok) {
         setCCSwitchStatus({
           phase: "ready",
-          title: "AI 连接测试成功",
+          title: "当前供应商可用于 AI 整理",
           message: `${result.data.requestedModel} → ${result.data.actualModel}（${result.data.latencyMs}ms）`,
         });
       } else {
         setCCSwitchStatus({
           phase: "error",
-          title: "AI 连接测试失败",
+          title: "当前供应商暂不可用于 AI 整理",
           message: result.error.message,
         });
       }
@@ -643,7 +657,7 @@ export function AIReviewPanel({
             <span>处理引擎</span>
             <select disabled={!editorReady || isBusy} value={provider} onChange={(event) => setProvider(event.target.value as typeof provider)}>
               <option value="mock">本地规则（无需密钥）</option>
-              <option value="openai">Codex / OpenAI</option>
+              <option value="openai">CC-Switch / OpenAI</option>
               <option value="deepseek">DeepSeek</option>
             </select>
           </label>
@@ -661,7 +675,7 @@ export function AIReviewPanel({
                     })
                   }
                 >
-                  <option value="ccswitch_codex_oauth">CC-Switch（Codex 登录，推荐）</option>
+                  <option value="ccswitch_auto">CC-Switch（跟随当前供应商，推荐）</option>
                   <option value="api_key">官方 API Key</option>
                   <option value="ccswitch">高级：CC-Switch OpenAI Responses</option>
                 </select>
@@ -693,7 +707,7 @@ export function AIReviewPanel({
                     />
                   </label>
                 </>
-              ) : openAIConnectionMode === "ccswitch_codex_oauth" ? (
+              ) : openAIConnectionMode === "ccswitch_auto" ? (
                 <>
                   <div
                     aria-live="polite"
@@ -727,10 +741,10 @@ export function AIReviewPanel({
                     )}
                     {ccSwitchStatus.phase === "testing"
                       ? "正在测试"
-                      : "测试 AI 连接"}
+                      : "测试当前供应商"}
                   </button>
                   <p className="connection-test-note">
-                    自动检测不消耗模型额度；按钮测试会发送一个极小请求。
+                    自动检测只确认代理进程；按钮测试会发送一个极小的结构化请求，验证切换后的供应商确实可用于整理。
                   </p>
                   <details className="connection-advanced">
                     <summary>高级设置（通常无需修改）</summary>
@@ -748,9 +762,9 @@ export function AIReviewPanel({
                         />
                       </label>
                       <label className="credential-field">
-                        <span>Claude 路由模型</span>
+                        <span>模型路由名</span>
                         <input
-                          aria-label="CC-Switch Claude 路由模型"
+                          aria-label="CC-Switch 模型路由名"
                           onChange={(event) =>
                             updateCredentials({ ccSwitchCodexModel: event.target.value })
                           }
@@ -766,7 +780,7 @@ export function AIReviewPanel({
                           onChange={(event) =>
                             updateCredentials({ ccSwitchToken: event.target.value })
                           }
-                          placeholder="不要填写 Codex OAuth token"
+                          placeholder="不要填写供应商的 OAuth token"
                           type="password"
                           value={ccSwitchToken}
                         />
@@ -834,7 +848,7 @@ export function AIReviewPanel({
               </label>
             </div>
           ) : null}
-          {provider !== "mock" && !usesCodexOAuthRoute ? (
+          {provider !== "mock" ? (
             <label className="credential-memory">
               <input
                 checked={rememberCredentials}
@@ -859,7 +873,7 @@ export function AIReviewPanel({
           ) : null}
           <button
             className="button button-dark"
-            disabled={!editorReady || isBusy || (usesCodexOAuthRoute && !ccSwitchReady)}
+            disabled={!editorReady || isBusy || (usesCCSwitchCurrentProvider && !ccSwitchReady)}
             onClick={runAI}
             type="button"
           >
@@ -1065,7 +1079,7 @@ export function AIReviewPanel({
                         className="button button-quiet"
                         disabled={
                           isBusy ||
-                          (usesCodexOAuthRoute && !ccSwitchReady)
+                          (usesCCSwitchCurrentProvider && !ccSwitchReady)
                         }
                         onClick={() => runClaimAudit(claim.id)}
                         type="button"

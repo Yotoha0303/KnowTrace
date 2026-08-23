@@ -145,7 +145,7 @@ AI_REQUEST_TIMEOUT_MS
 AI_MAX_INPUT_CHARS
 ```
 
-Provider Base URL 使用代码内受控默认值或服务端白名单。浏览器只可为 OpenAI 的 CC-Switch 模式传入 `localhost`、回环地址或 `host.docker.internal`，服务端规范化为 `/v1`；其他任意 URL 均拒绝。
+Provider Base URL 使用代码内受控默认值或服务端白名单。浏览器只可为 CC-Switch 模式传入 `localhost`、回环地址或 `host.docker.internal`，服务端规范化为 `/v1`；其他任意 URL 均拒绝。默认跟随模式经 `/v1/messages` 进入 CC-Switch，由它把请求转发给当前供应商；KnowTrace 对返回的 JSON 再做应用 Schema 校验。
 
 UI 提供的 API Key 通过 Server Action 仅传入本次 Provider 调用，不参与输入哈希，不写入数据库、Run、Suggestion 或日志。用户可选择把凭据保存在当前标签页的 `sessionStorage`，默认不保存。
 

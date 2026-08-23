@@ -6,6 +6,7 @@ import {
   aiSuggestionPayloadSchema,
   organizeCaptureSchema,
   rollbackSuggestionSchema,
+  testCCSwitchCurrentProviderSchema,
   testCCSwitchCodexOAuthSchema,
 } from "./schema";
 
@@ -136,6 +137,21 @@ describe("aiSuggestionPayloadSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts a provider-neutral CC-Switch route for DeepSeek switching", () => {
+    const result = organizeCaptureSchema.safeParse({
+      captureId: "d92f5b20-52d0-4b3e-b9ad-3b1fd759bd6a",
+      expectedCaptureVersion: 1,
+      provider: "openai",
+      connection: {
+        mode: "ccswitch_auto",
+        baseURL: "http://host.docker.internal:15721/v1",
+        model: "deepseek-v4-pro",
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("rejects a GPT model ID on the Claude to Codex OAuth route", () => {
     const result = organizeCaptureSchema.safeParse({
       captureId: "d92f5b20-52d0-4b3e-b9ad-3b1fd759bd6a",
@@ -152,6 +168,12 @@ describe("aiSuggestionPayloadSchema", () => {
   });
 
   it("validates the lightweight CC-Switch connection test", () => {
+    expect(
+      testCCSwitchCurrentProviderSchema.safeParse({
+        baseURL: "http://host.docker.internal:15721/v1",
+        model: "deepseek-v4-pro",
+      }).success,
+    ).toBe(true);
     expect(
       testCCSwitchCodexOAuthSchema.safeParse({
         baseURL: "http://host.docker.internal:15721/v1",

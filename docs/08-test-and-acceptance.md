@@ -219,6 +219,7 @@ AI 基于 v1 生成建议，随后 Capture 更新为 v2。
 - 浏览器无法读取服务端环境变量中的 AI API Key；UI 输入的 Key 不会被服务端持久化或记录到日志。
 - UI 凭据默认不保存；选择记住时只进入当前标签页的 `sessionStorage`。
 - 客户端只能提交白名单内的本地 CC-Switch 地址，不能提交任意远程 Provider URL 或非 `/v1` 路径。
+- CC-Switch 健康检查只表示代理可达；“测试当前供应商”必须验证一次小型结构化输出。Codex 与 DeepSeek 切换后都不依赖供应商工具调用，错误响应或不合格 JSON 不得写入 Suggestion。
 - Capture 中的 Prompt 注入文本不会触发工具调用或配置变更。
 - 日志不包含完整正文、完整 Prompt、API Key 和模型隐藏推理。
 - 页面明确显示无应用内鉴权的部署限制。

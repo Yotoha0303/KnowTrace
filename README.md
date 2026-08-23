@@ -113,9 +113,11 @@ KnowTrace 业务数据按创建者隔离：拥有 `admin` 角色的管理员可�
 
 如需调用真实模型，可以在记录详情的“AI 整理台”直接输入 OpenAI/DeepSeek API Key，也可以继续在 `.env` 中配置 `OPENAI_API_KEY` 或 `DEEPSEEK_API_KEY` 作为服务端后备值。UI 输入的 Key 只随本次整理请求发送，不写入数据库、AI Run、日志或服务端环境变量；勾选“仅在当前浏览器标签页记住凭据”后，才会写入该标签页的 `sessionStorage`，关闭标签页后失效。
 
-OpenAI/Codex 还支持通过 CC-Switch 本地路由调用。选择 `Codex / OpenAI` 后，默认使用 `CC-Switch（Codex 登录，推荐）`：页面会自动进行不消耗模型额度的健康检查，并提供“测试 AI 连接”按钮，用一个极小请求验证 Codex 登录与模型映射。地址、模型别名和代理令牌收在“高级设置”中，正常使用不需要填写。Docker 默认地址为 `http://host.docker.internal:15721/v1`；该模式使用 `/v1/messages`，由 CC-Switch 管理 OAuth 并把 `claude-` 模型别名映射为 GPT 模型。OAuth token 不应复制到 KnowTrace。
+KnowTrace 还支持通过 CC-Switch 本地路由调用当前供应商。选择 `CC-Switch / OpenAI` 后，默认使用 `CC-Switch（跟随当前供应商，推荐）`：页面先进行不消耗模型额度的健康检查，再可用“测试当前供应商”发送一个极小的结构化请求。地址、模型路由名和可选代理令牌收在“高级设置”中，正常使用不需要填写；默认路由名 `claude-sonnet-4-5` 由 CC-Switch 映射到当前启用的 Codex、DeepSeek 或其他 Claude 侧供应商。Docker 默认地址为 `http://host.docker.internal:15721/v1`，该模式使用 `/v1/messages`。供应商 API Key 与 OAuth token 均继续由 CC-Switch 管理，不应复制到 KnowTrace。
 
-高级的 `CC-Switch OpenAI Responses` 模式使用 `/v1/responses`，要求 CC-Switch 的 Codex Provider 已配置 `base_url`。CC-Switch 地址只允许 `localhost`、回环地址或 `host.docker.internal`，不能借此请求任意远程 URL。若把 CC-Switch 监听地址改成 `0.0.0.0`，应使用系统防火墙限制端口访问范围。
+CC-Switch 各供应商对工具调用和原生结构化输出的支持并不一致。跟随模式只要求模型返回 JSON 文本，再由 KnowTrace 执行严格 Schema 校验，因此切换到 DeepSeek 后不再依赖 Codex 专用工具调用；若当前模型返回的结构不合格，连接测试和整理任务都会明确失败，不会保存不符合结构的建议。
+
+高级的 `CC-Switch OpenAI Responses` 模式使用 `/v1/responses`，要求 CC-Switch 对应 Provider 已配置 `base_url`。CC-Switch 地址只允许 `localhost`、回环地址或 `host.docker.internal`，不能借此请求任意远程 URL。若把 CC-Switch 监听地址改成 `0.0.0.0`，应使用系统防火墙限制端口访问范围。
 
 Compose 会把容器内 `/app/data/uploads` 映射到项目的 `data/uploads`。图片文件不会提交到 Git；备份或迁移 KnowTrace 时，需要同时保存 PostgreSQL、go-user-system MySQL 和该上传目录。
 

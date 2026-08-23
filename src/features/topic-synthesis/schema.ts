@@ -53,6 +53,7 @@ export const generateTopicSynthesisSchema = z
   .superRefine((input, context) => {
     if (
       (input.connection?.mode === "ccswitch" ||
+        input.connection?.mode === "ccswitch_auto" ||
         input.connection?.mode === "ccswitch_codex_oauth") &&
       input.provider !== "openai"
     ) {

@@ -21,7 +21,7 @@ import {
   decideTopicSynthesisAction,
   detectCCSwitchAction,
   generateTopicSynthesisAction,
-  testCCSwitchCodexOAuthAction,
+  testCCSwitchCurrentProviderAction,
 } from "@/app/actions";
 import { DEFAULT_CC_SWITCH_BASE_URL } from "@/features/ai-processing/connection";
 import type {
@@ -31,7 +31,7 @@ import type {
 const AI_CREDENTIAL_SESSION_KEY = "knowtrace.ai-credentials.v1";
 
 type Provider = "mock" | "openai" | "deepseek";
-type OpenAIMode = "api_key" | "ccswitch" | "ccswitch_codex_oauth";
+type OpenAIMode = "api_key" | "ccswitch" | "ccswitch_auto" | "ccswitch_codex_oauth";
 type Credentials = {
   openAIConnectionMode: OpenAIMode;
   openAIKey: string;
@@ -44,7 +44,7 @@ type Credentials = {
 };
 
 const DEFAULT_CREDENTIALS: Credentials = {
-  openAIConnectionMode: "ccswitch_codex_oauth",
+  openAIConnectionMode: "ccswitch_auto",
   openAIKey: "",
   openAIModel: "",
   ccSwitchCodexModel: "claude-sonnet-4-5",
@@ -61,6 +61,7 @@ const supportLabels = {
 } as const;
 
 function providerLabel(provider: string) {
+  if (provider === "ccswitch-current-provider") return "CC-Switch · 当前供应商";
   if (provider === "ccswitch-codex-oauth") return "CC-Switch · Codex OAuth";
   if (provider === "openai-ccswitch") return "OpenAI · CC-Switch";
   if (provider === "deepseek") return "DeepSeek";
@@ -71,7 +72,15 @@ function providerLabel(provider: string) {
 function parseCredentials(raw: string | null): Credentials {
   if (!raw) return DEFAULT_CREDENTIALS;
   try {
-    return { ...DEFAULT_CREDENTIALS, ...(JSON.parse(raw) as Partial<Credentials>) };
+    const value = JSON.parse(raw) as Partial<Credentials>;
+    return {
+      ...DEFAULT_CREDENTIALS,
+      ...value,
+      openAIConnectionMode:
+        value.openAIConnectionMode === "ccswitch_codex_oauth"
+          ? "ccswitch_auto"
+          : value.openAIConnectionMode ?? DEFAULT_CREDENTIALS.openAIConnectionMode,
+    };
   } catch {
     return DEFAULT_CREDENTIALS;
   }
@@ -200,6 +209,14 @@ export function TopicSynthesisPanel({
 
   function connectionForRequest() {
     if (provider === "openai") {
+      if (credentials.openAIConnectionMode === "ccswitch_auto") {
+        return {
+          mode: "ccswitch_auto" as const,
+          baseURL: credentials.ccSwitchBaseURL.trim() || DEFAULT_CC_SWITCH_BASE_URL,
+          apiKey: credentials.ccSwitchToken.trim() || undefined,
+          model: credentials.ccSwitchCodexModel.trim() || "claude-sonnet-4-5",
+        };
+      }
       if (credentials.openAIConnectionMode === "ccswitch_codex_oauth") {
         return {
           mode: "ccswitch_codex_oauth" as const,
@@ -276,7 +293,7 @@ export function TopicSynthesisPanel({
   function testConnection() {
     setConnectionMessage("正在发送最小模型请求…");
     startConnectionTransition(async () => {
-      const result = await testCCSwitchCodexOAuthAction({
+      const result = await testCCSwitchCurrentProviderAction({
         baseURL: credentials.ccSwitchBaseURL.trim() || DEFAULT_CC_SWITCH_BASE_URL,
         apiKey: credentials.ccSwitchToken.trim() || undefined,
         model: credentials.ccSwitchCodexModel.trim() || "claude-sonnet-4-5",
@@ -309,7 +326,7 @@ export function TopicSynthesisPanel({
           <span>处理方式</span>
           <select disabled={busy} onChange={(event) => changeProvider(event.target.value as Provider)} value={provider}>
             <option value="mock">本地规则（不调用外部 AI）</option>
-            <option value="openai">OpenAI / CC-Switch</option>
+            <option value="openai">CC-Switch / OpenAI</option>
             <option value="deepseek">DeepSeek</option>
           </select>
         </label>
@@ -322,7 +339,7 @@ export function TopicSynthesisPanel({
                 onChange={(event) => changeOpenAIMode(event.target.value as OpenAIMode)}
                 value={credentials.openAIConnectionMode}
               >
-                <option value="ccswitch_codex_oauth">CC-Switch · Codex OAuth</option>
+                <option value="ccswitch_auto">CC-Switch · 跟随当前供应商</option>
                 <option value="api_key">OpenAI API Key</option>
                 <option value="ccswitch">CC-Switch · OpenAI Responses</option>
               </select>
@@ -335,13 +352,13 @@ export function TopicSynthesisPanel({
             ) : (
               <>
                 <label><span>CC-Switch 地址</span><input onChange={(event) => changeCCSwitchBaseURL(event.target.value)} value={credentials.ccSwitchBaseURL} /></label>
-                <label><span>{credentials.openAIConnectionMode === "ccswitch_codex_oauth" ? "Claude 模型别名" : "模型 ID（可选）"}</span><input onChange={(event) => updateCredentials(credentials.openAIConnectionMode === "ccswitch_codex_oauth" ? { ccSwitchCodexModel: event.target.value } : { openAIModel: event.target.value })} value={credentials.openAIConnectionMode === "ccswitch_codex_oauth" ? credentials.ccSwitchCodexModel : credentials.openAIModel} /></label>
+                <label><span>{credentials.openAIConnectionMode === "ccswitch_auto" ? "模型路由名" : "模型 ID（可选）"}</span><input onChange={(event) => updateCredentials(credentials.openAIConnectionMode === "ccswitch_auto" ? { ccSwitchCodexModel: event.target.value } : { openAIModel: event.target.value })} value={credentials.openAIConnectionMode === "ccswitch_auto" ? credentials.ccSwitchCodexModel : credentials.openAIModel} /></label>
               </>
             )}
             {usesCCSwitch ? (
               <div className={`topic-connection-status${connectionReady ? " is-ready" : ""}`} role="status">
                 <PlugZap size={14} /><span>{connectionMessage || "等待检测"}</span>
-                {credentials.openAIConnectionMode === "ccswitch_codex_oauth" ? <button className="button button-quiet" disabled={busy} onClick={testConnection} type="button">测试 AI 登录</button> : null}
+                {credentials.openAIConnectionMode === "ccswitch_auto" ? <button className="button button-quiet" disabled={busy} onClick={testConnection} type="button">测试当前供应商</button> : null}
               </div>
             ) : null}
           </div>
