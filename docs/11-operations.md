@@ -2,28 +2,23 @@
 
 ## 1. 部署边界
 
-KnowTrace 默认不启用登录，只能部署在个人电脑、可信局域网，或由反向代理/VPN 提供访问控制的环境。可以通过 `AUTH_ENABLED=true` 接入独立 go-user-system；这会建立身份门槛，并为结论作者、独立复核者和发布者提供服务端身份。账户中心复用上游的资料、密码和 RBAC 管理，但这些角色暂不提供 KnowTrace Workspace 隔离或业务数据细粒度授权。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
+KnowTrace 的统一容器栈默认启用仓库内 `services/go-user-system` 认证后端，并默认把 Web 与认证端口绑定到 `127.0.0.1`。账户中心复用 Go 后端的资料、密码和 RBAC 管理，但这些角色暂不提供 KnowTrace Workspace 隔离或业务数据细粒度授权。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
 
-启用认证前先确认：
+统一启动：
 
 ```powershell
-Invoke-WebRequest http://localhost:8082/readyz
-$env:AUTH_ENABLED="true"
-$env:AUTH_SERVICE_URL="http://localhost:8082"
-$env:AUTH_REGISTRATION_ENABLED="false" # 确认上游开放注册后才启用
-$env:AUTH_COOKIE_SECURE="false" # 仅本地 HTTP
+make up
+# 或
+.\scripts\start-all.ps1
 ```
 
-go-user-system 的密码、JWT 密钥、MySQL 和 Redis 备份不属于 KnowTrace 备份，必须按其仓库运维文档单独管理。需要独立复核时至少准备两个不同账号；结论作者与复核者不能共享账号。修改密码会使该账号的全部会话失效；当前上游不提供设备会话列表和单设备撤销接口。管理员角色分配依赖数字用户 ID，因为上游尚无用户列表接口。
+首次启动会在 `.env` 生成 MySQL/JWT/管理员随机密钥，并在尚无管理员时创建用户名 `KnowTrace` 的管理员；密码只保存在 `KNOWTRACE_ADMIN_PASSWORD`，不会输出到日志。重复启动只检查管理员是否已存在，不会覆盖账号或密码。需要独立复核时仍须准备另一个不同账号；结论作者与复核者不能共享账号。修改密码会使该账号的全部会话失效；当前认证后端不提供设备会话列表和单设备撤销接口。管理员角色分配依赖数字用户 ID，因为后端尚无用户列表接口。
 
 ## 2. 容器运行
 
-```powershell
-docker compose up -d --build
-docker compose ps
-```
+根级 `Makefile` 是统一入口；`make up`、`make down`、`make restart`、`make ps` 和 `make logs` 分别管理完整栈。直接调用 Compose 前必须先运行 `make init` 生成本机密钥。
 
-应用容器启动顺序：执行所有未应用 SQL Migration → 恢复中断 AI Run → 启动 Next.js。任一步失败，应用进程不会以“看似可用”的状态继续启动。
+启动顺序：MySQL → go-user-system Migration → 幂等管理员初始化 → Redis 与认证后端 → PostgreSQL → KnowTrace Migration → 中断 AI Run 恢复 → Next.js。任一步失败，依赖服务不会以“看似可用”的状态继续启动。
 
 健康检查：
 
@@ -31,6 +26,7 @@ docker compose ps
 GET /api/health/live   进程存活，不依赖数据库
 GET /api/health/ready  应用与 PostgreSQL 均可用
 GET /api/health        兼容旧检查，语义等同 ready
+GET :8082/readyz       go-user-system、MySQL 与 Redis 就绪
 ```
 
 Compose 使用 ready 端点判断应用健康。
@@ -57,12 +53,12 @@ pnpm db:maintenance
 页面中的 Excel 导出属于可移植数据交换，只覆盖记录、对象、时间、状态、分类和分类关联。它不能恢复 AI 处理历史、主张证据链、审核发布快照或图片，因此不得替代下述 PostgreSQL 与 `data/uploads` 备份。Excel 导入必须先预检；预检结果会保存为 `data_import_runs`，人工确认后才以单个数据库事务写入。
 
 ```powershell
-.\scripts\backup.ps1
+make backup
 ```
 
-脚本在 PostgreSQL 容器中使用 `pg_dump --format=custom --create`，先用 `pg_restore --list` 校验，再复制到项目的 `backups/`。文件名包含时间与随机后缀，已有备份不会被覆盖。`backups/` 已加入 `.gitignore`。
+统一备份分别生成 PostgreSQL custom-format 归档、带 SHA-256 manifest 的 go-user-system MySQL SQL 归档，以及 `data/uploads` 图片 ZIP。已有备份不会被覆盖，`backups/` 已加入 `.gitignore`。Excel 导入导出不能替代其中任何一项。
 
-备份包含全部 Capture、Revision、Category、AI Run、Suggestion、Claim、Evidence、来源检查、来源权威性评估、人工/独立复核和可靠发布快照，应视为敏感文件。至少保留一份不与运行机器共盘的加密副本。
+这些备份包含全部知识内容、账号资料、密码哈希、会话元数据和证据图片，应视为敏感文件。至少保留一份不与运行机器共盘的加密副本。
 
 ## 5. 恢复
 
@@ -85,8 +81,8 @@ docker compose logs --tail=100 app
 
 ## 6. 升级步骤
 
-1. 执行 `backup.ps1` 并保存输出路径。
-2. 运行 `pnpm typecheck`、`pnpm lint`、`pnpm test` 和 `pnpm build`。
-3. 执行 `docker compose up -d --build app`。
-4. 检查 ready 健康端点、Migration 日志和关键 Playwright 流程。
+1. 执行 `make backup` 并保存三类输出路径。
+2. 运行 `make check`。
+3. 执行 `make up`。
+4. 检查两个 ready 健康端点、两套 Migration 日志和关键 Playwright 流程。
 5. 出现不可兼容问题时，停止应用并从升级前备份恢复。

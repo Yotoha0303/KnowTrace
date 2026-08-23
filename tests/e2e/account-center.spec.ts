@@ -18,6 +18,8 @@ test("authenticated user can inspect the go-user-system account center", async (
   await expect(page.getByRole("heading", { name: "个人资料" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "修改密码" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "我的角色与权限" })).toBeVisible();
-  await expect(page.getByText("profile:read", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".account-authorization").getByText("profile:read", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText(/设备会话列表或按设备撤销接口/)).toBeVisible();
 });

@@ -6,7 +6,7 @@ KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系�
 
 ## 当前范围
 
-当前版本聚焦八件事：
+当前版本聚焦九件事：
 
 1. 快速记录原始内容。
 2. 手动或 AI 辅助完成内容分类。
@@ -22,7 +22,7 @@ KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系�
 
 当前明确不做：
 
-- KnowTrace 自建的密码存储、账号数据库和 Workspace 多租户；注册、资料、密码与角色权限统一复用独立的 go-user-system。
+- KnowTrace 自建另一套密码存储和账号数据库；认证统一由仓库内 `services/go-user-system` 的独立服务负责。Workspace 多租户仍未实现。
 - AI 自动联网补证、最终真实性判定和向公网自动分发知识。
 - RAG、向量检索和知识图谱。
 - 面向大规模团队的复杂分析看板。
@@ -30,7 +30,7 @@ KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系�
 
 移动 App 尚未开发，但记录、分类、对象时间线、主张和可靠发布已有版本化 JSON API；契约见 [移动端 API](docs/12-mobile-api.md)。
 
-默认关闭认证，只适合个人电脑或可信网络。启用 go-user-system 登录后可建立访问门槛，但在完成 HTTPS、网络隔离和部署加固前仍不应直接暴露到公网。
+统一容器栈默认启用 go-user-system 登录。默认只监听本机；在完成 HTTPS、网络隔离和部署加固前仍不应直接暴露到公网。
 
 ## 技术方案
 
@@ -40,7 +40,8 @@ KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系�
 - 数据访问：Drizzle ORM 与 SQL Migration
 - 数据校验：Zod
 - AI：Provider Adapter，首批兼容 OpenAI/DeepSeek
-- 部署：单实例 Docker Compose
+- 认证后端：仓库内置 go-user-system（Go、MySQL、Redis）
+- 部署：根级 Docker Compose 与 Makefile 统一编排
 - 测试：Vitest、Testing Library、Playwright
 
 初始化代码时使用当时最新的稳定/LTS 补丁版本，不使用 Preview 或 Canary 作为默认生产基线。
@@ -75,32 +76,36 @@ KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系�
 
 ## 本地启动
 
-要求：Node.js 24、pnpm 11、Docker Desktop。
+推荐要求：Docker Desktop、GNU Make 和 Windows PowerShell。首次启动执行：
 
 ```bash
-docker compose up -d postgres
-pnpm install
-pnpm db:migrate
-pnpm dev
+make up
+```
+
+`make up` 会生成仅保存在 `.env` 的数据库/JWT/管理员随机密钥，构建并启动 PostgreSQL、MySQL、Redis、go-user-system 和 KnowTrace，执行两套 Migration，并在数据库尚无管理员时创建默认管理员 `KnowTrace`。管理员密码位于 `.env` 的 `KNOWTRACE_ADMIN_PASSWORD`，启动日志不会打印密码。重复启动不会覆盖既有管理员或密码。
+
+如果没有 GNU Make，也可运行：
+
+```powershell
+.\scripts\start-all.ps1
 ```
 
 Migration 会启用 PostgreSQL `pg_trgm` 扩展以支持中文片段检索；受限托管数据库需要管理员预先启用该扩展。
 
 打开 `http://localhost:3000`。默认使用本地规则引擎模拟 AI 整理，不需要 API Key；它用于验证完整审阅流程，不代表事实核验。
 
-### 可选登录保护
+### 统一认证后端
 
-KnowTrace 可以复用独立的 [go-user-system](https://github.com/Yotoha0303/go-user-system) 管理账号和会话。KnowTrace 不保存密码；账户中心可修改昵称、修改密码、查看自身角色权限，并向有权限的管理员提供角色分配界面。先启动 go-user-system，然后配置：
+go-user-system 源码已迁入 `services/go-user-system`，但继续作为边界独立的 Go 服务运行；KnowTrace 不保存密码。根级 Compose 直接通过内部网络访问 `http://auth:8082`，无需另外克隆或启动认证仓库。账户中心可修改昵称、修改密码、查看自身角色权限，并向有权限的管理员提供角色分配界面。
 
 ```dotenv
 AUTH_ENABLED=true
 AUTH_SERVICE_URL=http://localhost:8082
-AUTH_DOCKER_SERVICE_URL=http://host.docker.internal:8082
 AUTH_REGISTRATION_ENABLED=false
 AUTH_COOKIE_SECURE=false
 ```
 
-`AUTH_SERVICE_URL` 供宿主机直接运行 Next.js 时使用，`AUTH_DOCKER_SERVICE_URL` 供应用容器访问宿主机认证服务，避免把容器内的 `localhost` 错当成 Windows 主机。只有 go-user-system 自身开放注册路由时，才把 `AUTH_REGISTRATION_ENABLED` 改为 `true`；默认关闭可避免误开放账号创建。本地 HTTP 保持 `AUTH_COOKIE_SECURE=false`；通过 HTTPS 部署时必须改为 `true`。认证启用后，页面、服务端写操作和证据图片都会验证会话；认证服务异常时拒绝访问，不会匿名降级。
+`AUTH_SERVICE_URL` 只供宿主机直接运行 Next.js 开发服务器时使用；统一容器栈固定使用内部服务名。只有确实允许自助注册时才把 `AUTH_REGISTRATION_ENABLED` 改为 `true`。本地 HTTP 保持 `AUTH_COOKIE_SECURE=false`；通过 HTTPS 部署时必须改为 `true`。认证服务异常时请求会被拒绝，不会匿名降级。
 
 当前 go-user-system 已接入的实际能力包括注册（可选）、登录、刷新轮换、退出、个人资料、修改密码、查看角色权限、读取角色/权限目录和管理员分配角色。修改密码会使该账号的全部已有会话失效。上游当前没有用户列表、设备会话列表或按设备撤销接口，因此 KnowTrace 管理员分配角色时需要填写数字用户 ID，也不会展示不存在的单设备会话管理。
 
@@ -110,38 +115,29 @@ OpenAI/Codex 还支持通过 CC-Switch 本地路由调用。选择 `Codex / Open
 
 高级的 `CC-Switch OpenAI Responses` 模式使用 `/v1/responses`，要求 CC-Switch 的 Codex Provider 已配置 `base_url`。CC-Switch 地址只允许 `localhost`、回环地址或 `host.docker.internal`，不能借此请求任意远程 URL。若把 CC-Switch 监听地址改成 `0.0.0.0`，应使用系统防火墙限制端口访问范围。
 
-也可以一次启动完整容器环境：
-
-```bash
-docker compose up --build
-```
-
-Compose 会把容器内 `/app/data/uploads` 映射到项目的 `data/uploads`。图片文件不会提交到 Git；备份或迁移 KnowTrace 时，需要同时保存 PostgreSQL 备份和该上传目录。
+Compose 会把容器内 `/app/data/uploads` 映射到项目的 `data/uploads`。图片文件不会提交到 Git；备份或迁移 KnowTrace 时，需要同时保存 PostgreSQL、go-user-system MySQL 和该上传目录。
 
 “数据迁移”页面生成的 Excel 适合在 KnowTrace 实例间搬运 Capture 与 Category，也便于人工检查。它不是完整备份：不会包含 AI Run、Suggestion、Claim、Evidence、审核/发布快照或图片。重复导入相同记录会跳过；同一稳定标识对应不同内容时会阻止整批导入，不会静默覆盖现有记录。
 
 常用质量检查：
 
 ```bash
-pnpm typecheck
-pnpm lint
-pnpm test
-pnpm build
+make check
 ```
 
 健康检查：`/api/health/live` 只检查进程存活，`/api/health/ready` 同时检查 PostgreSQL；兼容入口 `/api/health` 保留。容器启动时会把超过 5 分钟仍为 running 的 AI Run 或主题综合任务标记为 `AI_RUN_INTERRUPTED`。
 
-备份与恢复（PowerShell）：
+统一备份（PowerShell）：
 
 ```powershell
-# 生成并校验 PostgreSQL custom-format 备份，保存在项目 backups/ 下
-.\scripts\backup.ps1
+# 同时备份 PostgreSQL、go-user-system MySQL 和证据图片
+make backup
 
 # 恢复会覆盖当前数据库，必须显式确认
 .\scripts\restore.ps1 -BackupPath .\backups\knowtrace-日期.dump -ConfirmDatabaseReset
 ```
 
-恢复前会停止应用容器，完成后重新启动。备份文件可能包含全部记录和 AI 结果，应按敏感数据保存。
+恢复前会停止应用容器，完成后重新启动。认证数据库需要使用 `scripts/backup-auth.ps1` 生成的校验备份另行恢复；所有备份都可能包含敏感信息。
 
 ## 文档导航
 
@@ -180,11 +176,11 @@ pnpm build
 - 用户可以在采纳前查看整篇文本前后对比；采纳后若尚未产生后续修改或主张处理，可以整体回退本次 AI 整理。
 - 编辑记录时保留历史版本，并阻止并发静默覆盖。
 - AI Provider 不可用时，记录、编辑、分类仍然正常。
-- Docker Compose 可以在新环境启动应用和数据库。
+- 根级 Makefile/Compose 可以在新环境一次启动应用、认证后端和三项数据服务。
 - 未来 App 可以通过 `/api/v1` 幂等创建、分页读取、乐观锁更新和有前置版本保护的永久删除 Capture，并读取分类、对象时间线、主张与可靠发布版本。
 
 ## 当前实现状态
 
-第一版 Web 应用已实现：快速录入、记录编辑与删除、乐观版本控制、修改历史、多分类、分类管理、归档恢复、AI 结构化整理、处理状态反馈、分类数量约束、可选局部原文建议、来源片段约束、人工接受/修改/驳回，以及 AI 处理历史。P1.1–P1.4 已形成“候选主张—来源检查—证据审核—人工结论—AI 非裁决审查”闭环；P2 已加入统一知识检索、Category 主题档案、对象/时间筛选和可解释的相似记录；P2.6 已完整接入 go-user-system 当前已有的账号与 RBAC 接口；P2.7 已加入对象时间线及可追溯的 AI 主题综合档案；P2.8 已加入来源权威性评估、身份化独立复核和不可变可靠知识发布版本；P2.9 已交付未来 App 可复用的 `/api/v1` 读取与 Capture 生命周期接口。尚未实现自动联网补证、Workspace 数据隔离、KnowTrace 业务数据的细粒度角色授权、移动 App 和公网发布通道，界面仍不存在含糊的“已验证”入口。
+第一版 Web 应用已实现：快速录入、记录编辑与删除、乐观版本控制、修改历史、多分类、分类管理、归档恢复、AI 结构化整理、处理状态反馈、分类数量约束、可选局部原文建议、来源片段约束、人工接受/修改/驳回，以及 AI 处理历史。P1.1–P1.4 已形成“候选主张—来源检查—证据审核—人工结论—AI 非裁决审查”闭环；P2 已加入统一知识检索、Category 主题档案、对象/时间筛选和可解释的相似记录；P2.6 已完整接入并内置 go-user-system 账号与 RBAC 后端；P2.7 已加入对象时间线及可追溯的 AI 主题综合档案；P2.8 已加入来源权威性评估、身份化独立复核和不可变可靠知识发布版本；P2.9 已交付未来 App 可复用的 `/api/v1` 读取与 Capture 生命周期接口。尚未实现自动联网补证、Workspace 数据隔离、KnowTrace 业务数据的细粒度角色授权、移动 App 和公网发布通道，界面仍不存在含糊的“已验证”入口。
 
 GitHub 仓库：[Yotoha0303/KnowTrace](https://github.com/Yotoha0303/KnowTrace)。

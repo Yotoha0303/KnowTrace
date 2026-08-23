@@ -168,7 +168,7 @@ postgres
 
 首版单实例，不引入 Redis、消息队列和共享 ISR Cache。页面以动态数据读取为主，避免为简单内部工具增加复杂缓存一致性问题。
 
-可选认证采用独立 go-user-system（Go、MySQL、Redis）。浏览器只访问 KnowTrace 同源 BFF，access/refresh token 都保存在 HttpOnly Cookie；Proxy 执行页面前置门禁，Server Action 和私有图片 Route Handler再独立授权。详细边界见 ADR-0013。
+认证采用仓库内 `services/go-user-system` 的独立运行服务（Go、MySQL、Redis），由根级 Compose/Makefile 统一编排。浏览器只访问 KnowTrace 同源 BFF，access/refresh token 都保存在 HttpOnly Cookie；Proxy 执行页面前置门禁，Server Action 和私有图片 Route Handler再独立授权。详细边界见 ADR-0013 与 ADR-0014。
 
 ## 9. GitHub 项目复用策略
 

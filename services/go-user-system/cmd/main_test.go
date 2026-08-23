@@ -9,6 +9,7 @@ import (
 	"go-user-system/internal/auth"
 	"go-user-system/internal/authstate"
 	"go-user-system/internal/request"
+	"go-user-system/internal/service"
 	"go-user-system/router"
 	"log/slog"
 	"net/http"
@@ -242,6 +243,43 @@ func TestRunBootstrapAdminCreatesAdministrator(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("expected bootstrap service to be called")
+	}
+}
+
+func TestRunBootstrapAdminIfNeededSkipsExistingAdministrator(t *testing.T) {
+	deps := baseRunDeps(t)
+	deps.getenv = func(key string) string {
+		values := map[string]string{
+			"BOOTSTRAP_ADMIN_USERNAME": "KnowTrace",
+			"BOOTSTRAP_ADMIN_PASSWORD": "strong-password",
+		}
+		return values[key]
+	}
+	deps.bootstrapAdmin = func(context.Context, *gorm.DB, request.RegisterRequest) error {
+		return service.ErrAdminAlreadyBootstrapped
+	}
+
+	if err := runBootstrapAdminIfNeeded(deps); err != nil {
+		t.Fatalf("expected existing administrator to be an idempotent success, got %v", err)
+	}
+}
+
+func TestRunBootstrapAdminIfNeededReturnsUnexpectedError(t *testing.T) {
+	deps := baseRunDeps(t)
+	deps.getenv = func(key string) string {
+		values := map[string]string{
+			"BOOTSTRAP_ADMIN_USERNAME": "KnowTrace",
+			"BOOTSTRAP_ADMIN_PASSWORD": "strong-password",
+		}
+		return values[key]
+	}
+	expectedErr := errors.New("database unavailable")
+	deps.bootstrapAdmin = func(context.Context, *gorm.DB, request.RegisterRequest) error {
+		return expectedErr
+	}
+
+	if err := runBootstrapAdminIfNeeded(deps); !errors.Is(err, expectedErr) {
+		t.Fatalf("expected bootstrap error, got %v", err)
 	}
 }
 

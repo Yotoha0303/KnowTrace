@@ -116,6 +116,8 @@ func main() {
 	switch {
 	case len(os.Args) > 1 && os.Args[1] == "bootstrap-admin":
 		err = runBootstrapAdmin(deps)
+	case len(os.Args) > 1 && os.Args[1] == "bootstrap-admin-if-needed":
+		err = runBootstrapAdminIfNeeded(deps)
 	case len(os.Args) > 1 && os.Args[1] == "migrate":
 		if len(os.Args) != 3 || os.Args[2] != "up" {
 			err = errors.New("usage: go-user-system migrate up")
@@ -188,6 +190,15 @@ func runBootstrapAdmin(deps appDeps) error {
 	}
 	log.Printf("administrator %q bootstrapped", username)
 	return nil
+}
+
+func runBootstrapAdminIfNeeded(deps appDeps) error {
+	err := runBootstrapAdmin(deps)
+	if errors.Is(err, service.ErrAdminAlreadyBootstrapped) {
+		log.Printf("administrator already exists; bootstrap skipped")
+		return nil
+	}
+	return err
 }
 
 func run(deps appDeps) error {
