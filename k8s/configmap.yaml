@@ -1,0 +1,64 @@
+# configmap.config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: go-user-system-config
+  namespace: go-user-system
+data:
+  config.yml: |
+    environment: production
+    server:
+      port: 8082
+    mysql:
+      host: go-user-system-mysql
+      port: "3306"
+      user: go_user_system
+      database: go_user_system
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifeTime: 30m
+      connMaxIdleTime: 5m
+      pingTimeout: 3s
+    redis:
+      enabled: true
+      address: go-user-system-redis:6379
+      db: 0
+      dialTimeout: 3s
+      readTimeout: 2s
+      writeTimeout: 2s
+      pingTimeout: 3s
+    jwt:
+      expireHours: 24
+      accessTokenExpireMinutes: 15
+      refreshTokenExpireHours: 168
+    auth:
+      refreshCookie:
+        secure: true
+      registration:
+        enabled: true
+      loginRateLimit:
+        accountLimit: 5
+        ipLimit: 20
+        window: 15m
+    http:
+      trustedProxies:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+      server:
+        readTimeout: 5s
+        writeTimeout: 10s
+        idleTimeout: 60s
+        readHeaderTimeout: 2s
+        maxHeaderBytesKib: 128
+        timeout: 5s
+  DB_HOST: "go-user-system-mysql"
+  DB_PORT: "3306"
+  DB_USER: "go_user_system"
+  DB_NAME: "go_user_system"
+  REGISTRATION_ENABLED: "true"
+  REDIS_ENABLED: "true"
+  REDIS_ADDR: "go-user-system-redis:6379"
+  APP_ENV: "production"
+  COOKIE_SECURE: "true"
+  TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
