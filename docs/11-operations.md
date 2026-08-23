@@ -2,7 +2,7 @@
 
 ## 1. 部署边界
 
-KnowTrace 的统一容器栈默认启用仓库内 `services/go-user-system` 认证后端，并默认把 Web 与认证端口绑定到 `127.0.0.1`。账户中心复用 Go 后端的资料、密码和 RBAC 管理，但这些角色暂不提供 KnowTrace Workspace 隔离或业务数据细粒度授权。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
+KnowTrace 的统一容器栈默认启用仓库内 `services/go-user-system` 认证后端，并默认把 Web 与认证端口绑定到 `127.0.0.1`。账户中心复用 Go 后端的资料、密码和 RBAC 管理；`admin` 角色拥有实例级全部业务数据范围，普通成员只拥有本人创建内容的数据范围。Workspace/组织分组和更细粒度业务角色尚未实现。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
 
 统一启动：
 

@@ -34,6 +34,7 @@ import {
   claimAIAuditPayloadSchema,
 } from "@/features/ai-processing/schema";
 import { claimAuditEvidenceFingerprint } from "@/features/ai-processing/claim-audit";
+import { currentDataAccessScope } from "@/features/auth/access";
 
 export type CategoryDTO = {
   id: string;
@@ -42,6 +43,8 @@ export type CategoryDTO = {
   status: "active" | "archived";
   captureCount: number;
   activeCaptureCount: number;
+  createdById: string;
+  createdByName: string;
 };
 
 export type CaptureListItemDTO = {
@@ -61,6 +64,8 @@ export type CaptureListItemDTO = {
     | "unknown";
   status: "active" | "archived";
   version: number;
+  createdById: string;
+  createdByName: string;
   categories: Pick<CategoryDTO, "id" | "name">[];
   createdAt: string;
   updatedAt: string;
@@ -257,12 +262,15 @@ async function categoriesByCaptureIds(captureIds: string[]) {
 }
 
 export async function listCategories(includeArchived = false): Promise<CategoryDTO[]> {
+  const scope = await currentDataAccessScope();
   const rows = await db
     .select({
       id: categories.id,
       name: categories.name,
       description: categories.description,
       status: categories.status,
+      createdById: categories.createdById,
+      createdByName: categories.createdByName,
       captureCount: countDistinct(captureCategories.captureId),
       activeCaptureCount: countDistinct(captures.id),
     })
@@ -275,7 +283,12 @@ export async function listCategories(includeArchived = false): Promise<CategoryD
         eq(captures.status, "active"),
       ),
     )
-    .where(includeArchived ? undefined : eq(categories.status, "active"))
+    .where(
+      and(
+        includeArchived ? undefined : eq(categories.status, "active"),
+        scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+      ),
+    )
     .groupBy(categories.id)
     .orderBy(categories.name);
 
@@ -292,6 +305,7 @@ export async function listCaptures(options?: {
   limit?: number;
   offset?: number;
 }): Promise<CaptureListItemDTO[]> {
+  const scope = await currentDataAccessScope();
   const status = options?.status ?? "active";
   const limit = Math.min(Math.max(options?.limit ?? 50, 1), 100);
   const offset = Math.min(Math.max(options?.offset ?? 0, 0), 25_000);
@@ -306,9 +320,11 @@ export async function listCaptures(options?: {
     .select()
     .from(captures)
     .where(
-      categoryFilter
-        ? and(eq(captures.status, status), inArray(captures.id, categoryFilter))
-        : eq(captures.status, status),
+      and(
+        eq(captures.status, status),
+        categoryFilter ? inArray(captures.id, categoryFilter) : undefined,
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+      ),
     )
     .orderBy(desc(captures.createdAt), desc(captures.id))
     .limit(limit)
@@ -324,6 +340,8 @@ export async function listCaptures(options?: {
     contentType: row.contentType,
     status: row.status,
     version: row.version,
+    createdById: row.createdById,
+    createdByName: row.createdByName,
     categories: groupedCategories.get(row.id) ?? [],
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
@@ -336,6 +354,7 @@ export async function listClaims(options?: {
   limit?: number;
   offset?: number;
 }): Promise<ClaimListItemDTO[]> {
+  const scope = await currentDataAccessScope();
   const query = options?.query?.trim().slice(0, 100) ?? "";
   const limit = Math.min(Math.max(options?.limit ?? 50, 1), 100);
   const offset = Math.min(Math.max(options?.offset ?? 0, 0), 25_000);
@@ -349,6 +368,7 @@ export async function listClaims(options?: {
     .where(
       and(
         options?.status ? eq(claims.status, options.status) : undefined,
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
         query
           ? or(
               ilike(claims.statement, `%${query}%`),
@@ -428,7 +448,17 @@ export async function listClaims(options?: {
 }
 
 export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | null> {
-  const [row] = await db.select().from(captures).where(eq(captures.id, id)).limit(1);
+  const scope = await currentDataAccessScope();
+  const [row] = await db
+    .select()
+    .from(captures)
+    .where(
+      and(
+        eq(captures.id, id),
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+      ),
+    )
+    .limit(1);
   if (!row) return null;
 
   const [groupedCategories, revisions, historyRows, claimRows] = await Promise.all([
@@ -573,6 +603,8 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
     contentType: row.contentType,
     status: row.status,
     version: row.version,
+    createdById: row.createdById,
+    createdByName: row.createdByName,
     categories: groupedCategories.get(row.id) ?? [],
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),

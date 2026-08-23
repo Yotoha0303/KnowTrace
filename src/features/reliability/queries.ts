@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import type { ActionActor } from "@/features/auth/actor";
 import { db } from "@/server/db/client";
@@ -17,6 +17,7 @@ import {
 import { sha256, stableStringify } from "@/shared/hash";
 
 import { evaluateReleaseReadiness, sourceIdentity } from "./readiness";
+import { currentDataAccessScope } from "@/features/auth/access";
 
 export type ReliabilityDossierDTO = {
   claim: {
@@ -95,17 +96,25 @@ export async function listKnowledgeReleases(options?: {
   limit?: number;
   offset?: number;
 }): Promise<KnowledgeReleaseDTO[]> {
+  const scope = await currentDataAccessScope();
   const limit = Math.min(Math.max(options?.limit ?? 50, 1), 100);
   const offset = Math.min(Math.max(options?.offset ?? 0, 0), 25_000);
   const rows = await db
-    .select()
+    .select({ release: knowledgeReleases })
     .from(knowledgeReleases)
-    .where(options?.claimId ? eq(knowledgeReleases.claimId, options.claimId) : undefined)
+    .innerJoin(claims, eq(knowledgeReleases.claimId, claims.id))
+    .innerJoin(captures, eq(claims.captureId, captures.id))
+    .where(
+      and(
+        options?.claimId ? eq(knowledgeReleases.claimId, options.claimId) : undefined,
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+      ),
+    )
     .orderBy(desc(knowledgeReleases.createdAt), desc(knowledgeReleases.id))
     .limit(limit)
     .offset(offset);
 
-  return rows.map((row) => ({
+  return rows.map(({ release: row }) => ({
     id: row.id,
     claimId: row.claimId,
     claimReviewId: row.claimReviewId,
@@ -121,11 +130,17 @@ export async function getReliabilityDossier(
   claimId: string,
   actor: ActionActor,
 ): Promise<ReliabilityDossierDTO | null> {
+  const scope = await currentDataAccessScope();
   const [claimRow] = await db
     .select({ claim: claims, captureTitle: captures.title })
     .from(claims)
     .innerJoin(captures, eq(claims.captureId, captures.id))
-    .where(eq(claims.id, claimId))
+    .where(
+      and(
+        eq(claims.id, claimId),
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+      ),
+    )
     .limit(1);
   if (!claimRow) return null;
 

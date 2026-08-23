@@ -26,6 +26,10 @@ import {
   writeEvidenceImage,
 } from "./image-storage";
 import { MAX_EVIDENCE_IMAGES, prepareEvidenceImage } from "./image-validation";
+import {
+  requireClaimAccess,
+  requireEvidenceAccess,
+} from "@/features/auth/access";
 
 const MANUAL_ATTACHMENT_CONTENT_TYPE =
   "application/vnd.knowtrace.evidence-attachments+json";
@@ -43,6 +47,7 @@ export async function transitionClaim(input: {
   expectedStatus: ClaimStatus;
   targetStatus: ClaimStatus;
 }) {
+  await requireClaimAccess(input.claimId);
   if (!canTransitionClaim(input.expectedStatus, input.targetStatus)) {
     throw new AppError(
       "CLAIM_TRANSITION_INVALID",
@@ -110,6 +115,7 @@ export async function addClaimEvidence(input: {
   stance: "supports" | "contradicts" | "context";
   note?: string;
 }) {
+  await requireClaimAccess(input.claimId);
   const [claim] = await db
     .select({ id: claims.id, captureId: claims.captureId, status: claims.status })
     .from(claims)
@@ -146,6 +152,7 @@ export async function updateClaimEvidence(input: {
   stance: "supports" | "contradicts" | "context";
   note?: string;
 }) {
+  await requireEvidenceAccess(input.evidenceId);
   return db.transaction(async (transaction) => {
     const [current] = await transaction
       .select({
@@ -233,6 +240,7 @@ export async function uploadEvidenceImage(input: {
   evidenceId: string;
   file: File;
 }) {
+  await requireEvidenceAccess(input.evidenceId);
   const prepared = await prepareEvidenceImage(input.file);
   let stored = false;
   try {
@@ -317,6 +325,7 @@ export async function checkClaimEvidenceSource(input: {
   evidenceId: string;
   manualConfirmation?: boolean;
 }) {
+  await requireEvidenceAccess(input.evidenceId);
   const [row] = await db
     .select({
       evidenceId: claimEvidence.id,
@@ -545,6 +554,7 @@ export async function reviewClaimEvidence(input: {
   evidenceId: string;
   decision: "accepted" | "rejected";
 }) {
+  await requireEvidenceAccess(input.evidenceId);
   const [row] = await db
     .select({
       evidenceId: claimEvidence.id,
@@ -619,6 +629,7 @@ export async function concludeClaim(input: {
   limitations?: string;
   reviewer: { id: string; name: string };
 }) {
+  await requireClaimAccess(input.claimId);
   return db.transaction(async (transaction) => {
     const [claim] = await transaction
       .update(claims)

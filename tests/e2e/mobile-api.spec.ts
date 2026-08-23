@@ -1,8 +1,22 @@
 import { expect, test } from "@playwright/test";
 
+const authUsername = process.env.AUTH_E2E_USERNAME;
+const authPassword = process.env.AUTH_E2E_PASSWORD;
+
 test("versioned API supports a conflict-safe mobile capture lifecycle", async ({
-  request,
+  page,
 }) => {
+  if (authUsername && authPassword) {
+    await page.goto("/login");
+    await page.getByLabel("用户名").fill(authUsername);
+    await page.getByLabel("密码", { exact: true }).fill(authPassword);
+    await page.getByRole("button", { name: "登录", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
+  } else {
+    const session = await page.request.get("/api/v1/auth/session");
+    test.skip(session.status() === 401, "authentication is enabled; provide AUTH_E2E_USERNAME and AUTH_E2E_PASSWORD");
+  }
+  const request = page.request;
   const suffix = Date.now().toString().slice(-8);
   const title = `移动 API 记录 ${suffix}`;
   const subject = `移动 API 对象 ${suffix}`;
@@ -142,7 +156,7 @@ test("versioned API supports a conflict-safe mobile capture lifecycle", async ({
       if (detail.ok()) {
         const version = (await detail.json()).data.version;
         await request.delete(`/api/v1/captures/${captureId}`, {
-          headers: { "If-Match": String(version) },
+          headers: { "If-Match": `"${version}"` },
         });
       }
     }

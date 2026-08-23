@@ -11,6 +11,7 @@ import {
 } from "@/server/db/schema";
 
 import { rankSimilarCapture } from "./ranking";
+import { currentDataAccessScope } from "@/features/auth/access";
 
 const TEXT_CANDIDATE_LIMIT = 24;
 const CONTEXT_CANDIDATE_LIMIT = 24;
@@ -39,6 +40,7 @@ export async function findSimilarCaptures(
   captureId: string,
   requestedLimit = 5,
 ): Promise<SimilarCaptureDTO[]> {
+  const scope = await currentDataAccessScope();
   const limit = Math.min(Math.max(Math.trunc(requestedLimit), 1), 8);
   const [[source], sourceCategoryRows] = await Promise.all([
     db
@@ -49,7 +51,12 @@ export async function findSimilarCaptures(
         content: captures.content,
       })
       .from(captures)
-      .where(eq(captures.id, captureId))
+      .where(
+        and(
+          eq(captures.id, captureId),
+          scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        ),
+      )
       .limit(1),
     db
       .select({ id: categories.id, name: categories.name })
@@ -75,6 +82,8 @@ export async function findSimilarCaptures(
     contentType: captures.contentType,
     status: captures.status,
     version: captures.version,
+    createdById: captures.createdById,
+    createdByName: captures.createdByName,
     createdAt: captures.createdAt,
     updatedAt: captures.updatedAt,
     textSimilarity: textSimilarity.as("text_similarity"),
@@ -105,14 +114,25 @@ export async function findSimilarCaptures(
     db
       .select(selection)
       .from(captures)
-      .where(ne(captures.id, captureId))
+      .where(
+        and(
+          ne(captures.id, captureId),
+          scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        ),
+      )
       .orderBy(textDistance, desc(captures.updatedAt), desc(captures.id))
       .limit(TEXT_CANDIDATE_LIMIT),
     contextCondition
       ? db
           .select(selection)
           .from(captures)
-          .where(and(ne(captures.id, captureId), contextCondition))
+          .where(
+            and(
+              ne(captures.id, captureId),
+              contextCondition,
+              scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+            ),
+          )
           .orderBy(desc(textSimilarity), desc(captures.updatedAt), desc(captures.id))
           .limit(CONTEXT_CANDIDATE_LIMIT)
       : Promise.resolve([]),
@@ -186,6 +206,8 @@ export async function findSimilarCaptures(
         contentType: candidate.contentType,
         status: candidate.status,
         version: candidate.version,
+        createdById: candidate.createdById,
+        createdByName: candidate.createdByName,
         categories: candidateCategories,
         createdAt: candidate.createdAt.toISOString(),
         updatedAt: candidate.updatedAt.toISOString(),

@@ -5,6 +5,7 @@ import { isAuthEnabled } from "@/features/auth/go-user-system";
 import { requireAuthenticatedUser } from "@/features/auth/session";
 import { db } from "@/server/db/client";
 import { evidenceAttachments } from "@/server/db/schema";
+import { requireAttachmentAccess } from "@/features/auth/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,11 @@ export async function GET(
   }
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    return new Response("Not found", { status: 404 });
+  }
+  try {
+    await requireAttachmentAccess(id);
+  } catch {
     return new Response("Not found", { status: 404 });
   }
   const [attachment] = await db

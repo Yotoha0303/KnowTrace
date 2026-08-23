@@ -224,6 +224,8 @@ GET                /api/v1/knowledge-releases
 
 这些 Route Handler 复用同一 Application Service，不重新实现业务规则。统一响应、分页、幂等键、`If-Match` 删除前置条件和示例见 [移动端 API](12-mobile-api.md)。AI 整理和审核写操作暂不开放给 App，避免在认证与权限边界尚未稳定时扩大高影响接口。
 
+所有业务端点都从 go-user-system 会话解析数据范围：`admin` 可访问全部创建者的资源，普通成员仅可访问 `created_by_id` 与本人匹配的资源。跨成员详情与写操作按不存在处理，列表、搜索、统计、导出和图片读取必须应用同一过滤条件。
+
 ## 9. 主要错误码
 
 ```text

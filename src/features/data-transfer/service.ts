@@ -24,7 +24,7 @@ import {
   type PortablePayload,
   portablePayloadSchema,
 } from "./contracts";
-import type { TransferActor } from "./auth";
+import { currentTransferActor, type TransferActor } from "./auth";
 import { createPortableWorkbook, parsePortableWorkbook } from "./workbook";
 
 type ExistingCapture = typeof captures.$inferSelect;
@@ -54,7 +54,7 @@ function sameCapture(existing: ExistingCapture, record: PortablePayload["records
     existing.status === record.status;
 }
 
-async function analyzeImport(payload: PortablePayload): Promise<{
+async function analyzeImport(payload: PortablePayload, actor: TransferActor): Promise<{
   summary: ImportPreviewSummary;
   skippedKeys: Set<string>;
 }> {
@@ -62,9 +62,12 @@ async function analyzeImport(payload: PortablePayload): Promise<{
   const categoryNormalizedNames = payload.categories.map((category) => normalizeCategoryName(category.name));
   const categoryUuids = payload.categories.map((category) => category.key).filter((key) => z.uuid().safeParse(key).success);
   const existingCategories = payload.categories.length
-    ? await db.select().from(categories).where(or(
-        categoryNormalizedNames.length ? inArray(categories.normalizedName, categoryNormalizedNames) : undefined,
-        categoryUuids.length ? inArray(categories.id, categoryUuids) : undefined,
+    ? await db.select().from(categories).where(and(
+        eq(categories.createdById, actor.id),
+        or(
+          categoryNormalizedNames.length ? inArray(categories.normalizedName, categoryNormalizedNames) : undefined,
+          categoryUuids.length ? inArray(categories.id, categoryUuids) : undefined,
+        ),
       ))
     : [];
   const existingCategoryByName = new Map(existingCategories.map((category) => [category.normalizedName, category]));
@@ -83,9 +86,12 @@ async function analyzeImport(payload: PortablePayload): Promise<{
   const keys = payload.records.map((record) => importKey(record.key));
   const recordUuids = payload.records.map((record) => record.key).filter((key) => z.uuid().safeParse(key).success);
   const existingCaptures = payload.records.length
-    ? await db.select().from(captures).where(or(
-        keys.length ? inArray(captures.idempotencyKey, keys) : undefined,
-        recordUuids.length ? inArray(captures.id, recordUuids) : undefined,
+    ? await db.select().from(captures).where(and(
+        eq(captures.createdById, actor.id),
+        or(
+          keys.length ? inArray(captures.idempotencyKey, keys) : undefined,
+          recordUuids.length ? inArray(captures.id, recordUuids) : undefined,
+        ),
       ))
     : [];
   const byImportKey = new Map(existingCaptures.map((capture) => [capture.idempotencyKey, capture]));
@@ -136,11 +142,20 @@ async function analyzeImport(payload: PortablePayload): Promise<{
 }
 
 export async function exportPortableData(): Promise<Buffer> {
-  const [captureRows, categoryRows, relationshipRows] = await Promise.all([
-    db.select().from(captures).orderBy(asc(captures.createdAt), asc(captures.id)),
-    db.select().from(categories).orderBy(asc(categories.createdAt), asc(categories.id)),
-    db.select().from(captureCategories).orderBy(asc(captureCategories.captureId), asc(captureCategories.categoryId)),
+  const actor = await currentTransferActor();
+  if (!actor) throw new AppError("AUTH_REQUIRED", "请先登录。");
+  const captureFilter = actor.isAdmin ? undefined : eq(captures.createdById, actor.id);
+  const categoryFilter = actor.isAdmin ? undefined : eq(categories.createdById, actor.id);
+  const [captureRows, categoryRows] = await Promise.all([
+    db.select().from(captures).where(captureFilter).orderBy(asc(captures.createdAt), asc(captures.id)),
+    db.select().from(categories).where(categoryFilter).orderBy(asc(categories.createdAt), asc(categories.id)),
   ]);
+  const captureIds = captureRows.map((capture) => capture.id);
+  const relationshipRows = captureIds.length
+    ? await db.select().from(captureCategories)
+        .where(inArray(captureCategories.captureId, captureIds))
+        .orderBy(asc(captureCategories.captureId), asc(captureCategories.categoryId))
+    : [];
   const categoryKeysByCapture = new Map<string, string[]>();
   for (const relationship of relationshipRows) {
     const values = categoryKeysByCapture.get(relationship.captureId) ?? [];
@@ -180,7 +195,7 @@ export async function previewPortableImport(input: {
   } catch {
     throw new AppError("INVALID_WORKBOOK", "无法读取该 Excel 文件，请使用 KnowTrace 导出的 .xlsx 文件。");
   }
-  const analysis = await analyzeImport(parsed.payload);
+  const analysis = await analyzeImport(parsed.payload, input.actor);
   const issues = [...parsed.issues, ...analysis.summary.issues].slice(0, 100);
   const summary: ImportPreviewSummary = { ...analysis.summary, valid: issues.length === 0, issues };
   const [run] = await db.insert(dataImportRuns).values({
@@ -199,11 +214,16 @@ export async function previewPortableImport(input: {
   return { runId: run.id, status: run.status, summary };
 }
 
-async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, runId: string): Promise<ImportResultSummary> {
+async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, runId: string, actor: TransferActor): Promise<ImportResultSummary> {
   return db.transaction(async (transaction) => {
     const normalizedNames = payload.categories.map((category) => normalizeCategoryName(category.name));
     const existing = normalizedNames.length
-      ? await transaction.select().from(categories).where(inArray(categories.normalizedName, normalizedNames))
+      ? await transaction.select().from(categories).where(
+          and(
+            eq(categories.createdById, actor.id),
+            inArray(categories.normalizedName, normalizedNames),
+          ),
+        )
       : [];
     const categoryIdByKey = new Map<string, string>();
     const byName = new Map(existing.map((category) => [category.normalizedName, category]));
@@ -216,13 +236,13 @@ async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, r
         categoriesReused += 1;
         continue;
       }
-      const id = z.uuid().safeParse(category.key).success ? category.key : undefined;
       const [created] = await transaction.insert(categories).values({
-        ...(id ? { id } : {}),
         name: category.name,
         normalizedName: normalizeCategoryName(category.name),
         description: category.description,
         status: "active",
+        createdById: actor.id,
+        createdByName: actor.name,
       }).returning();
       categoryIdByKey.set(category.key, created.id);
       byName.set(created.normalizedName, created);
@@ -233,9 +253,7 @@ async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, r
     let relationshipsCreated = 0;
     for (const record of payload.records) {
       if (skippedKeys.has(record.key)) continue;
-      const id = z.uuid().safeParse(record.key).success ? record.key : undefined;
       const [created] = await transaction.insert(captures).values({
-        ...(id ? { id } : {}),
         title: record.title,
         subject: record.subject,
         content: record.content,
@@ -244,6 +262,8 @@ async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, r
         status: "active",
         idempotencyKey: importKey(record.key),
         idempotencyHash: recordHash(record),
+        createdById: actor.id,
+        createdByName: actor.name,
       }).returning();
       await transaction.insert(captureRevisions).values({
         captureId: created.id,
@@ -292,7 +312,7 @@ export async function confirmPortableImport(runId: string, actor: TransferActor)
   if (!run) throw new AppError("IMPORT_RUN_NOT_FOUND", "找不到这次导入预检记录。");
   if (run.status !== "previewed") throw new AppError("IMPORT_RUN_NOT_READY", "只有预检通过且尚未导入的文件才能确认导入。");
   const payload = portablePayloadSchema.parse(run.stagedPayload);
-  const analysis = await analyzeImport(payload);
+  const analysis = await analyzeImport(payload, actor);
   if (!analysis.summary.valid) {
     await db.update(dataImportRuns).set({ status: "failed", errorCode: "IMPORT_STATE_CHANGED", errorMessage: "数据库内容已变化，请重新上传文件预检。", completedAt: new Date() }).where(eq(dataImportRuns.id, run.id));
     throw new AppError("IMPORT_STATE_CHANGED", "数据库内容已变化，请重新上传文件预检。");
@@ -303,7 +323,7 @@ export async function confirmPortableImport(runId: string, actor: TransferActor)
     .returning({ id: dataImportRuns.id });
   if (!claimedRun) throw new AppError("IMPORT_RUN_NOT_READY", "这次导入已经被处理，请重新上传文件预检。");
   try {
-    const result = await applyImport(payload, analysis.skippedKeys, run.id);
+    const result = await applyImport(payload, analysis.skippedKeys, run.id, actor);
     return { runId: run.id, status: "completed" as const, result };
   } catch (error) {
     await db.update(dataImportRuns).set({ status: "failed", errorCode: "IMPORT_TRANSACTION_FAILED", errorMessage: "导入事务失败，未写入部分数据。", completedAt: new Date() }).where(eq(dataImportRuns.id, run.id));

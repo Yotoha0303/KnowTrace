@@ -12,6 +12,7 @@ import {
 } from "@/server/db/schema";
 
 import { normalizeSubjectPath } from "./utils";
+import { currentDataAccessScope } from "@/features/auth/access";
 
 export type SubjectSummaryDTO = {
   name: string;
@@ -51,6 +52,7 @@ export type SubjectTimelineDTO = {
 const normalizedSubject = sql<string>`lower(btrim(${captures.subject}))`;
 
 export async function listSubjectSummaries(): Promise<SubjectSummaryDTO[]> {
+  const scope = await currentDataAccessScope();
   const rows = await db
     .select({
       name: sql<string>`min(btrim(${captures.subject}))`,
@@ -64,6 +66,7 @@ export async function listSubjectSummaries(): Promise<SubjectSummaryDTO[]> {
     .where(
       and(
         eq(captures.status, "active"),
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
         sql`${captures.subject} is not null`,
         sql`btrim(${captures.subject}) <> ''`,
       ),
@@ -81,6 +84,7 @@ export async function listSubjectSummaries(): Promise<SubjectSummaryDTO[]> {
 }
 
 export async function getSubjectTimeline(rawSubject: string): Promise<SubjectTimelineDTO | null> {
+  const scope = await currentDataAccessScope();
   const subject = normalizeSubjectPath(rawSubject);
   if (!subject) return null;
 
@@ -90,6 +94,7 @@ export async function getSubjectTimeline(rawSubject: string): Promise<SubjectTim
     .where(
       and(
         eq(captures.status, "active"),
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
         sql`${normalizedSubject} = lower(btrim(${subject}))`,
       ),
     )

@@ -13,6 +13,10 @@ import {
   sourceAuthorityAssessments,
 } from "@/server/db/schema";
 import { AppError } from "@/shared/errors/app-error";
+import {
+  requireClaimAccess,
+  requireEvidenceAccess,
+} from "@/features/auth/access";
 import { sha256, stableStringify } from "@/shared/hash";
 
 import { getReliabilityDossier } from "./queries";
@@ -34,6 +38,7 @@ export async function assessSourceAuthority(input: {
   rationale: string;
   actor: ActionActor;
 }) {
+  await requireEvidenceAccess(input.evidenceId);
   const [row] = await db
     .select({ evidence: claimEvidence, captureId: claims.captureId })
     .from(claimEvidence)
@@ -70,6 +75,7 @@ export async function submitIndependentReview(input: {
     .where(eq(claimReviews.id, input.claimReviewId))
     .limit(1);
   if (!review) throw new AppError("CLAIM_REVIEW_NOT_FOUND", "人工结论不存在。");
+  await requireClaimAccess(review.claim.id);
   if (review.review.reviewerId === input.actor.id) {
     throw new AppError(
       "INDEPENDENT_REVIEWER_REQUIRED",
@@ -164,6 +170,7 @@ export async function publishReliableKnowledge(input: {
   actor: ActionActor;
 }) {
   requireAuthenticatedActor(input.actor);
+  await requireClaimAccess(input.claimId);
   const dossier = await getReliabilityDossier(input.claimId, input.actor);
   if (!dossier) throw new AppError("CLAIM_NOT_FOUND", "主张不存在。");
   if (!dossier.readyToPublish || !dossier.review) {

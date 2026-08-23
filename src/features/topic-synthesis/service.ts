@@ -20,6 +20,10 @@ import {
 } from "@/server/db/schema";
 import { AppError } from "@/shared/errors/app-error";
 import {
+  requireCategoryAccess,
+  requireTopicSynthesisAccess,
+} from "@/features/auth/access";
+import {
   sanitizeTopicSynthesisPayload,
   topicSourceHash,
   type TopicSourceSnapshot,
@@ -42,6 +46,7 @@ function topicErrorCode(error: unknown): string {
 export async function buildTopicSourceSnapshot(
   categoryId: string,
 ): Promise<TopicSourceSnapshot> {
+  await requireCategoryAccess(categoryId);
   const captureRows = await db
     .select({ capture: captures })
     .from(captureCategories)
@@ -147,6 +152,7 @@ export async function generateTopicSynthesis(input: {
   provider?: AIProviderName;
   connection?: AIConnectionInput;
 }) {
+  await requireCategoryAccess(input.categoryId);
   const [category] = await db
     .select()
     .from(categories)
@@ -216,6 +222,7 @@ export async function decideTopicSynthesis(input: {
   synthesisId: string;
   decision: "accepted" | "rejected";
 }) {
+  await requireTopicSynthesisAccess(input.synthesisId);
   const [target] = await db
     .select({ categoryId: topicSyntheses.categoryId, sourceHash: topicSyntheses.sourceHash })
     .from(topicSyntheses)

@@ -142,6 +142,12 @@ export const captures = pgTable(
     version: integer("version").notNull().default(1),
     idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
     idempotencyHash: varchar("idempotency_hash", { length: 64 }).notNull(),
+    createdById: varchar("created_by_id", { length: 100 })
+      .notNull()
+      .default("legacy-local"),
+    createdByName: varchar("created_by_name", { length: 255 })
+      .notNull()
+      .default("本地历史数据"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -151,7 +157,16 @@ export const captures = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("captures_idempotency_key_uq").on(table.idempotencyKey),
+    uniqueIndex("captures_creator_idempotency_key_uq").on(
+      table.createdById,
+      table.idempotencyKey,
+    ),
+    index("captures_creator_status_created_idx").on(
+      table.createdById,
+      table.status,
+      table.createdAt,
+      table.id,
+    ),
     index("captures_status_created_idx").on(
       table.status,
       table.createdAt,
@@ -203,6 +218,12 @@ export const categories = pgTable(
     normalizedName: varchar("normalized_name", { length: 80 }).notNull(),
     description: varchar("description", { length: 500 }),
     status: recordStatusEnum("status").notNull().default("active"),
+    createdById: varchar("created_by_id", { length: 100 })
+      .notNull()
+      .default("legacy-local"),
+    createdByName: varchar("created_by_name", { length: 255 })
+      .notNull()
+      .default("本地历史数据"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -211,7 +232,15 @@ export const categories = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("categories_normalized_name_uq").on(table.normalizedName),
+    uniqueIndex("categories_creator_normalized_name_uq").on(
+      table.createdById,
+      table.normalizedName,
+    ),
+    index("categories_creator_status_name_idx").on(
+      table.createdById,
+      table.status,
+      table.name,
+    ),
     index("categories_status_name_idx").on(table.status, table.name),
   ],
 );

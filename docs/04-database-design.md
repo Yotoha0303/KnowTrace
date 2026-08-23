@@ -7,7 +7,7 @@
 - 时间字段使用 `timestamptz` 并保存 UTC。
 - 业务枚举使用数据库约束或受控文本值，避免任意字符串。
 - 核心关系使用关系表；AI 可演进输出使用带版本的 JSONB。
-- 不创建用户、会话、Workspace、成员和 Refresh Token 表。
+- 不复制用户、会话、Workspace、成员和 Refresh Token 表；业务表只保存 go-user-system 用户的稳定创建者标识和当时显示名。
 
 ## 2. 表结构
 
@@ -22,13 +22,16 @@
 | status | varchar(20) | active/archived |
 | version | integer | 初始为 1 |
 | idempotency_key | varchar(128) | 创建幂等键 |
+| created_by_id | varchar(100) | `go-user:<id>`；历史数据为 `legacy-local` |
+| created_by_name | varchar(255) | 创建时显示名快照 |
 | archived_at | timestamptz | 可空 |
 | created_at | timestamptz | 创建时间 |
 | updated_at | timestamptz | 更新时间 |
 
 约束与索引：
 
-- `unique(idempotency_key)`
+- `unique(created_by_id, idempotency_key)`
+- `(created_by_id, status, created_at desc, id desc)`
 - `(status, created_at desc, id desc)`
 - `char_length(content) between 1 and 20000`
 - `version > 0`
@@ -59,12 +62,14 @@
 | normalized_name | varchar(80) | 唯一比较值 |
 | description | varchar(500) | 可空 |
 | status | varchar(20) | active/archived |
+| created_by_id | varchar(100) | Category 创建者 |
+| created_by_name | varchar(255) | 创建时显示名快照 |
 | created_at | timestamptz | 创建时间 |
 | updated_at | timestamptz | 更新时间 |
 
 约束：
 
-- `unique(normalized_name)`
+- `unique(created_by_id, normalized_name)`
 - 规范化至少包含 Unicode 空白整理和大小写处理；具体算法必须有测试。
 
 ### capture_categories

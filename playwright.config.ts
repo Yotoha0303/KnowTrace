@@ -10,9 +10,8 @@ export default defineConfig({
   // strict while allowing the complete scenario enough time to finish.
   timeout: 90_000,
   fullyParallel: false,
-  // The product currently has one shared knowledge domain even when optional
-  // authentication is enabled. Serial browser tests prevent global
-  // revalidation and cleanup from one scenario racing another scenario.
+  // Tests mutate persistent knowledge records. Serial execution prevents
+  // global revalidation and cleanup from one scenario racing another scenario.
   workers: 1,
   retries: 0,
   reporter: "html",

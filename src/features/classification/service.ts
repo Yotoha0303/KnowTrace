@@ -5,6 +5,7 @@ import { db } from "@/server/db/client";
 import { AppError } from "@/shared/errors/app-error";
 
 import { normalizeCategoryName } from "./schema";
+import { currentDataAccessScope } from "@/features/auth/access";
 
 function isUniqueViolation(error: unknown): boolean {
   return (
@@ -19,6 +20,7 @@ export async function createCategory(input: {
   name: string;
   description?: string | null;
 }) {
+  const scope = await currentDataAccessScope();
   const name = input.name.normalize("NFKC").trim().replace(/\s+/g, " ");
   try {
     const [created] = await db
@@ -27,6 +29,8 @@ export async function createCategory(input: {
         name,
         normalizedName: normalizeCategoryName(name),
         description: input.description?.trim() || null,
+        createdById: scope.actorId,
+        createdByName: scope.actorName,
       })
       .returning();
     return created;
@@ -39,6 +43,7 @@ export async function createCategory(input: {
 }
 
 export async function renameCategory(id: string, newName: string) {
+  const scope = await currentDataAccessScope();
   const name = newName.normalize("NFKC").trim().replace(/\s+/g, " ");
   try {
     const [updated] = await db
@@ -48,7 +53,12 @@ export async function renameCategory(id: string, newName: string) {
         normalizedName: normalizeCategoryName(name),
         updatedAt: new Date(),
       })
-      .where(eq(categories.id, id))
+      .where(
+        and(
+          eq(categories.id, id),
+          scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+        ),
+      )
       .returning();
     if (!updated) {
       throw new AppError("CATEGORY_NOT_FOUND", "分类不存在。");
@@ -66,10 +76,16 @@ export async function setCategoryStatus(
   id: string,
   status: "active" | "archived",
 ) {
+  const scope = await currentDataAccessScope();
   const [updated] = await db
     .update(categories)
     .set({ status, updatedAt: new Date() })
-    .where(eq(categories.id, id))
+    .where(
+      and(
+        eq(categories.id, id),
+        scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+      ),
+    )
     .returning();
   if (!updated) {
     throw new AppError("CATEGORY_NOT_FOUND", "分类不存在。");
@@ -78,11 +94,17 @@ export async function setCategoryStatus(
 }
 
 export async function deleteCategory(id: string) {
+  const scope = await currentDataAccessScope();
   return db.transaction(async (transaction) => {
     const [category] = await transaction
       .select({ id: categories.id, name: categories.name })
       .from(categories)
-      .where(eq(categories.id, id))
+      .where(
+        and(
+          eq(categories.id, id),
+          scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+        ),
+      )
       .limit(1)
       .for("update");
     if (!category) {
@@ -117,13 +139,19 @@ export async function addCategoriesToCapture(
   categoryIds: string[],
   assignedBy: "manual" | "ai_accepted",
 ) {
+  const scope = await currentDataAccessScope();
   const uniqueIds = [...new Set(categoryIds)];
   if (uniqueIds.length === 0) return;
 
   const [capture] = await transaction
     .select({ id: captures.id })
     .from(captures)
-    .where(eq(captures.id, captureId))
+    .where(
+      and(
+        eq(captures.id, captureId),
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+      ),
+    )
     .limit(1);
   if (!capture) throw new AppError("CAPTURE_NOT_FOUND", "记录不存在。");
 
@@ -131,7 +159,11 @@ export async function addCategoriesToCapture(
     .select({ id: categories.id })
     .from(categories)
     .where(
-      and(inArray(categories.id, uniqueIds), eq(categories.status, "active")),
+      and(
+        inArray(categories.id, uniqueIds),
+        eq(categories.status, "active"),
+        scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+      ),
     );
   if (active.length !== uniqueIds.length) {
     throw new AppError("CATEGORY_NOT_FOUND", "部分分类不存在或已经归档。");

@@ -20,7 +20,7 @@ export function CaptureCard({ capture }: { capture: CaptureListItemDTO }) {
   return (
     <Link className="capture-card" href={`/captures/${capture.id}`}>
       <div className="capture-card-meta">
-        <span>{CONTENT_TYPE_LABELS[capture.contentType]}</span>
+        <span>{CONTENT_TYPE_LABELS[capture.contentType]} · 创建者 {capture.createdByName}</span>
         <time dateTime={capture.occurredAt}>{dateFormatter.format(new Date(capture.occurredAt))}</time>
       </div>
       <h3>{capture.title || "未命名记录"}</h3>

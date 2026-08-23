@@ -14,6 +14,15 @@ const validUserEnvelope = {
   },
 };
 
+const validAuthorizationEnvelope = {
+  code: 0,
+  msg: "ok",
+  data: {
+    role_codes: ["user"],
+    permission_codes: ["profile:read"],
+  },
+};
+
 describe("authentication proxy", () => {
   beforeEach(() => {
     vi.stubEnv("AUTH_ENABLED", "true");
@@ -65,14 +74,24 @@ describe("authentication proxy", () => {
   });
 
   it("validates the access token and replaces spoofed identity headers", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(validUserEnvelope), { status: 200 }),
+    const fetchMock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.endsWith("/authorization")
+              ? validAuthorizationEnvelope
+              : validUserEnvelope,
+          ),
+          { status: 200 },
+        ),
+      ),
     );
     vi.stubGlobal("fetch", fetchMock);
     const request = new NextRequest("http://localhost/", {
       headers: {
         cookie: "knowtrace_access_token=access.jwt",
         "x-knowtrace-username": "attacker",
+        "x-knowtrace-role-codes": "admin",
       },
     });
 
@@ -81,6 +100,7 @@ describe("authentication proxy", () => {
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(response.headers.get("x-middleware-request-x-knowtrace-user-id")).toBe("7");
     expect(response.headers.get("x-middleware-request-x-knowtrace-username")).toBe("yotoha");
+    expect(response.headers.get("x-middleware-request-x-knowtrace-role-codes")).toBe("user");
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8082/api/v1/users/me",
       expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer access.jwt" }) }),

@@ -18,6 +18,7 @@ ADR 用于记录重要技术决策及其背景，避免以后只知道“用了�
 - [ADR-0012：先用可解释的本地信号发现相似记录](0012-explainable-similar-captures.md)
 - [ADR-0013：通过 go-user-system 提供可选身份认证](0013-go-user-system-authentication.md)
 - [ADR-0014：内置 go-user-system 源码并统一编排](0014-embedded-go-user-system.md)
+- [ADR-0015：按创建者隔离业务数据](0015-creator-scoped-data-access.md)
 
 状态说明：
 

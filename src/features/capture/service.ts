@@ -15,6 +15,10 @@ import { sha256, stableStringify } from "@/shared/hash";
 
 import type { CreateCaptureInput, UpdateCaptureInput } from "./schema";
 import { removeEvidenceImage } from "@/features/claims/image-storage";
+import {
+  currentDataAccessScope,
+  type DataAccessScope,
+} from "@/features/auth/access";
 
 function isUniqueViolation(error: unknown): boolean {
   return (
@@ -41,6 +45,7 @@ function createRequestHash(input: CreateCaptureInput): string {
 async function validateActiveCategories(
   transaction: Parameters<Parameters<typeof db.transaction>[0]>[0],
   categoryIds: string[],
+  scope: DataAccessScope,
 ) {
   if (categoryIds.length === 0) return;
 
@@ -49,7 +54,11 @@ async function validateActiveCategories(
     .select({ id: categories.id })
     .from(categories)
     .where(
-      and(inArray(categories.id, uniqueIds), eq(categories.status, "active")),
+      and(
+        inArray(categories.id, uniqueIds),
+        eq(categories.status, "active"),
+        scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+      ),
     );
 
   if (rows.length !== uniqueIds.length) {
@@ -61,11 +70,17 @@ async function validateActiveCategories(
 }
 
 export async function createCapture(input: CreateCaptureInput) {
+  const scope = await currentDataAccessScope();
   const requestHash = createRequestHash(input);
   const [existing] = await db
     .select()
     .from(captures)
-    .where(eq(captures.idempotencyKey, input.idempotencyKey))
+    .where(
+      and(
+        eq(captures.createdById, scope.actorId),
+        eq(captures.idempotencyKey, input.idempotencyKey),
+      ),
+    )
     .limit(1);
 
   if (existing) {
@@ -80,7 +95,7 @@ export async function createCapture(input: CreateCaptureInput) {
 
   try {
     return await db.transaction(async (transaction) => {
-      await validateActiveCategories(transaction, input.categoryIds);
+      await validateActiveCategories(transaction, input.categoryIds, scope);
       const [created] = await transaction
         .insert(captures)
         .values({
@@ -91,6 +106,8 @@ export async function createCapture(input: CreateCaptureInput) {
           contentType: input.contentType,
           idempotencyKey: input.idempotencyKey,
           idempotencyHash: requestHash,
+          createdById: scope.actorId,
+          createdByName: scope.actorName,
         })
         .returning();
 
@@ -112,7 +129,12 @@ export async function createCapture(input: CreateCaptureInput) {
     const [concurrent] = await db
       .select()
       .from(captures)
-      .where(eq(captures.idempotencyKey, input.idempotencyKey))
+      .where(
+        and(
+          eq(captures.createdById, scope.actorId),
+          eq(captures.idempotencyKey, input.idempotencyKey),
+        ),
+      )
       .limit(1);
 
     if (concurrent?.idempotencyHash === requestHash) return concurrent;
@@ -124,11 +146,17 @@ export async function createCapture(input: CreateCaptureInput) {
 }
 
 export async function updateCapture(input: UpdateCaptureInput) {
+  const scope = await currentDataAccessScope();
   return db.transaction(async (transaction) => {
     const [current] = await transaction
       .select()
       .from(captures)
-      .where(eq(captures.id, input.id))
+      .where(
+        and(
+          eq(captures.id, input.id),
+          scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        ),
+      )
       .for("update")
       .limit(1);
 
@@ -188,6 +216,7 @@ export async function setCaptureStatus(
   id: string,
   status: "active" | "archived",
 ) {
+  const scope = await currentDataAccessScope();
   const [updated] = await db
     .update(captures)
     .set({
@@ -195,7 +224,12 @@ export async function setCaptureStatus(
       archivedAt: status === "archived" ? new Date() : null,
       updatedAt: new Date(),
     })
-    .where(eq(captures.id, id))
+    .where(
+      and(
+        eq(captures.id, id),
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+      ),
+    )
     .returning();
 
   if (!updated) {
@@ -205,18 +239,27 @@ export async function setCaptureStatus(
 }
 
 export async function deleteCapture(id: string, expectedVersion?: number) {
+  const scope = await currentDataAccessScope();
+  const ownerCondition = scope.isAdmin
+    ? undefined
+    : eq(captures.createdById, scope.actorId);
   const attachmentRows = await db
     .select({ storagePath: evidenceAttachments.storagePath })
     .from(evidenceAttachments)
     .innerJoin(claimEvidence, eq(evidenceAttachments.evidenceId, claimEvidence.id))
     .innerJoin(claims, eq(claimEvidence.claimId, claims.id))
-    .where(eq(claims.captureId, id));
+    .innerJoin(captures, eq(claims.captureId, captures.id))
+    .where(and(eq(claims.captureId, id), ownerCondition));
   const [deleted] = await db
     .delete(captures)
     .where(
       expectedVersion === undefined
-        ? eq(captures.id, id)
-        : and(eq(captures.id, id), eq(captures.version, expectedVersion)),
+        ? and(eq(captures.id, id), ownerCondition)
+        : and(
+            eq(captures.id, id),
+            eq(captures.version, expectedVersion),
+            ownerCondition,
+          ),
     )
     .returning({ id: captures.id });
   if (!deleted) {
@@ -224,7 +267,7 @@ export async function deleteCapture(id: string, expectedVersion?: number) {
       const [current] = await db
         .select({ version: captures.version })
         .from(captures)
-        .where(eq(captures.id, id))
+        .where(and(eq(captures.id, id), ownerCondition))
         .limit(1);
       if (current) {
         throw new AppError(
@@ -246,11 +289,17 @@ export async function setCaptureCategories(
   captureId: string,
   categoryIds: string[],
 ) {
+  const scope = await currentDataAccessScope();
   return db.transaction(async (transaction) => {
     const [capture] = await transaction
       .select({ id: captures.id })
       .from(captures)
-      .where(eq(captures.id, captureId))
+      .where(
+        and(
+          eq(captures.id, captureId),
+          scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        ),
+      )
       .limit(1);
 
     if (!capture) {
@@ -258,7 +307,7 @@ export async function setCaptureCategories(
     }
 
     const uniqueIds = [...new Set(categoryIds)];
-    await validateActiveCategories(transaction, uniqueIds);
+    await validateActiveCategories(transaction, uniqueIds, scope);
     await transaction
       .delete(captureCategories)
       .where(eq(captureCategories.captureId, captureId));
@@ -281,10 +330,16 @@ export async function setCaptureCategories(
 }
 
 export async function getCaptureRow(id: string) {
+  const scope = await currentDataAccessScope();
   const [capture] = await db
     .select()
     .from(captures)
-    .where(eq(captures.id, id))
+    .where(
+      and(
+        eq(captures.id, id),
+        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+      ),
+    )
     .limit(1);
   if (!capture) {
     throw new AppError("CAPTURE_NOT_FOUND", "记录不存在。");
@@ -293,14 +348,21 @@ export async function getCaptureRow(id: string) {
 }
 
 export async function getActiveCategoryRows() {
+  const scope = await currentDataAccessScope();
   return db
     .select()
     .from(categories)
-    .where(eq(categories.status, "active"))
+    .where(
+      and(
+        eq(categories.status, "active"),
+        scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+      ),
+    )
     .orderBy(categories.name);
 }
 
 export async function getCaptureCategoryIds(captureId: string) {
+  await getCaptureRow(captureId);
   const rows = await db
     .select({ categoryId: captureCategories.categoryId })
     .from(captureCategories)
@@ -309,6 +371,7 @@ export async function getCaptureCategoryIds(captureId: string) {
 }
 
 export async function getRecentRevisionRows(captureId: string) {
+  await getCaptureRow(captureId);
   return db
     .select()
     .from(captureRevisions)

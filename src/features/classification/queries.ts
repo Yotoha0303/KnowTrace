@@ -11,6 +11,7 @@ import {
   claimReviews,
   claims,
 } from "@/server/db/schema";
+import { currentDataAccessScope } from "@/features/auth/access";
 
 export type CategoryDossierDTO = {
   category: {
@@ -46,7 +47,17 @@ export type CategoryDossierDTO = {
 };
 
 export async function getCategoryDossier(id: string): Promise<CategoryDossierDTO | null> {
-  const [category] = await db.select().from(categories).where(eq(categories.id, id)).limit(1);
+  const scope = await currentDataAccessScope();
+  const [category] = await db
+    .select()
+    .from(categories)
+    .where(
+      and(
+        eq(categories.id, id),
+        scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+      ),
+    )
+    .limit(1);
   if (!category) return null;
 
   const categoryCaptures = db

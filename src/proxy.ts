@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   ACCESS_TOKEN_COOKIE,
+  getGoAuthorization,
   getGoUser,
   isAuthEnabled,
   isRegistrationEnabled,
@@ -36,10 +37,15 @@ export async function proxy(request: NextRequest) {
   }
 
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
-  const user = accessToken ? await getGoUser(accessToken) : null;
+  const [user, authorization] = accessToken
+    ? await Promise.all([
+        getGoUser(accessToken),
+        getGoAuthorization(accessToken),
+      ])
+    : [null, null];
 
   if (authPage) {
-    if (user?.ok) return NextResponse.redirect(new URL("/", request.url));
+    if (user?.ok && authorization?.ok) return NextResponse.redirect(new URL("/", request.url));
     const requestHeaders = new Headers(request.headers);
     requestHeaders.delete("x-knowtrace-user-id");
     requestHeaders.delete("x-knowtrace-username");
@@ -50,7 +56,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  if (!user?.ok) {
+  if (!user?.ok || !authorization?.ok) {
     if (pathname.startsWith("/api/")) {
       const response = NextResponse.json(
         { ok: false, error: { code: "AUTH_REQUIRED", message: "请先登录。" } },
@@ -68,6 +74,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-knowtrace-user-id", String(user.data.id));
   requestHeaders.set("x-knowtrace-username", encodeURIComponent(user.data.username));
   requestHeaders.set("x-knowtrace-nickname", encodeURIComponent(user.data.nickname));
+  requestHeaders.set("x-knowtrace-role-codes", authorization.data.role_codes.join(","));
   requestHeaders.delete("x-knowtrace-auth-page");
   return NextResponse.next({ request: { headers: requestHeaders } });
 }

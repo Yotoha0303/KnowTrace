@@ -63,6 +63,8 @@ function CategoryRow({ category }: { category: CategoryDTO }) {
           使用中 {category.activeCaptureCount} 条 · 已归档 {archivedCaptureCount} 条 · 共 {category.captureCount} 条
           <br />
           分类状态：{category.status === "active" ? "使用中" : "已归档"}
+          <br />
+          创建者：{category.createdByName}
         </p>
       </div>
       <span className={message === "已保存" || message === "状态已更新" ? "form-success" : "form-error"}>{message}</span>

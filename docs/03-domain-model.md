@@ -10,7 +10,7 @@ ClaimReview    候选主张、证据及人工审核状态
 KnowledgeRead  统一检索和主题档案只读投影
 ```
 
-身份、成员和 Workspace 已从当前模型移除。整个部署实例只有一个共享数据域。
+身份由 go-user-system 提供，Capture 与 Category 保存服务端确认的创建者标识。管理员拥有实例级数据范围，普通成员只有本人数据范围；Workspace/组织分组仍未进入当前模型。
 
 `KnowledgeRead` 不拥有事实表，也没有独立状态机。它从上述聚合根读取有界结果，保留实体类型、当前状态、Category 和 Capture 回链；任何检索命中都不能提升内容的可靠性等级。
 
@@ -26,6 +26,7 @@ Capture 表示用户写入系统的原始内容及当前版本。
 - 编辑正文前创建 Revision。
 - 控制 active/archived 状态。
 - 作为所有 AI Run 的稳定来源。
+- 保存创建者标识；其 Revision、AI Run、Claim、Evidence 和发布版本继承同一访问边界。
 
 Capture 不负责：
 
@@ -223,4 +224,4 @@ Capture → Candidate Claim → Evidence → ClaimReview
                            KnowledgeRelease vN
 ```
 
-当前已实现单实例中的网页来源检查、无链接图片附件人工核验、证据化人工结论、非裁决 AI 审查、身份化独立复核和不可变发布版本。尚未实现 Workspace 隔离、角色权限策略和跨组织审核队列；因此它仍不能被描述为面向公网或大型团队的可信发布平台。
+当前已实现单实例中的创建者资源隔离、网页来源检查、无链接图片附件人工核验、证据化人工结论、非裁决 AI 审查、身份化独立复核和不可变发布版本。尚未实现 Workspace/组织分组、更细粒度角色策略和跨组织审核队列；因此它仍不能被描述为面向公网或大型团队的可信发布平台。

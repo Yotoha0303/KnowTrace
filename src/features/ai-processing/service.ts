@@ -23,6 +23,11 @@ import {
   type AIProviderName,
 } from "@/server/ai/provider";
 import { AppError } from "@/shared/errors/app-error";
+import {
+  requireCaptureAccess,
+  requireClaimAccess,
+  requireSuggestionAccess,
+} from "@/features/auth/access";
 import { sha256, stableStringify } from "@/shared/hash";
 
 import {
@@ -200,6 +205,7 @@ export async function organizeCapture(input: {
   provider?: AIProviderName;
   connection?: AIConnectionInput;
 }) {
+  await requireCaptureAccess(input.captureId);
   const [capture] = await db
     .select()
     .from(captures)
@@ -214,7 +220,12 @@ export async function organizeCapture(input: {
     db
       .select()
       .from(categories)
-      .where(eq(categories.status, "active"))
+      .where(
+        and(
+          eq(categories.status, "active"),
+          eq(categories.createdById, capture.createdById),
+        ),
+      )
       .orderBy(categories.name),
     db
       .select({ categoryId: captureCategories.categoryId })
@@ -317,6 +328,7 @@ export async function auditClaim(input: {
   provider?: AIProviderName;
   connection?: AIConnectionInput;
 }) {
+  await requireClaimAccess(input.claimId);
   const [claimContext] = await db
     .select({ claim: claims, captureVersion: captures.version })
     .from(claims)
@@ -488,6 +500,7 @@ export async function decideSuggestion(input: {
     claimCandidateIndexes?: number[];
   };
 }) {
+  await requireSuggestionAccess(input.suggestionId);
   return db.transaction(async (transaction) => {
     const [suggestion] = await transaction
       .select()
@@ -589,8 +602,15 @@ export async function decideSuggestion(input: {
       )!;
       const [created] = await transaction
         .insert(categories)
-        .values({ name: sourceName.trim(), normalizedName })
-        .onConflictDoNothing({ target: categories.normalizedName })
+        .values({
+          name: sourceName.trim(),
+          normalizedName,
+          createdById: capture.createdById,
+          createdByName: capture.createdByName,
+        })
+        .onConflictDoNothing({
+          target: [categories.createdById, categories.normalizedName],
+        })
         .returning({ id: categories.id });
       if (created) {
         newCategoryIds.push(created.id);
@@ -598,7 +618,13 @@ export async function decideSuggestion(input: {
         const [existing] = await transaction
           .select({ id: categories.id })
           .from(categories)
-          .where(and(eq(categories.normalizedName, normalizedName), eq(categories.status, "active")))
+          .where(
+            and(
+              eq(categories.createdById, capture.createdById),
+              eq(categories.normalizedName, normalizedName),
+              eq(categories.status, "active"),
+            ),
+          )
           .limit(1);
         if (existing) newCategoryIds.push(existing.id);
       }
@@ -724,6 +750,7 @@ export async function rollbackSuggestion(input: {
   suggestionId: string;
   expectedCaptureVersion: number;
 }) {
+  await requireSuggestionAccess(input.suggestionId);
   return db.transaction(async (transaction) => {
     const [suggestion] = await transaction
       .select()

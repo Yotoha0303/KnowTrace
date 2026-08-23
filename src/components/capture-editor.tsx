@@ -135,7 +135,7 @@ export function CaptureEditor({
     <form className="editor-card" onSubmit={save}>
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Source record · v{capture.version}</p>
+          <p className="eyebrow">Source record · v{capture.version} · 创建者 {capture.createdByName}</p>
           <h2>原始记录</h2>
         </div>
         <span className={`record-status ${capture.status}`}>{capture.status === "active" ? "使用中" : "已归档"}</span>
