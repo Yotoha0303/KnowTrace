@@ -77,9 +77,13 @@ function parseCredentials(raw: string | null): Credentials {
       ...DEFAULT_CREDENTIALS,
       ...value,
       openAIConnectionMode:
+        value.openAIConnectionMode === "ccswitch" ||
         value.openAIConnectionMode === "ccswitch_codex_oauth"
           ? "ccswitch_auto"
-          : value.openAIConnectionMode ?? DEFAULT_CREDENTIALS.openAIConnectionMode,
+          : value.openAIConnectionMode === "ccswitch_auto" ||
+              value.openAIConnectionMode === "api_key"
+            ? value.openAIConnectionMode
+            : DEFAULT_CREDENTIALS.openAIConnectionMode,
     };
   } catch {
     return DEFAULT_CREDENTIALS;
@@ -157,8 +161,10 @@ export function TopicSynthesisPanel({
       }).then((result) => {
         if (cancelled) return;
         if (result.ok) {
-          setConnectionReady(true);
-          setConnectionMessage(`已连接 CC-Switch（${result.data.latencyMs}ms）`);
+          setConnectionReady(false);
+          setConnectionMessage(
+            `已检测到 CC-Switch（${result.data.latencyMs}ms），请测试当前供应商。`,
+          );
         } else {
           setConnectionMessage(result.error.message);
         }
@@ -168,7 +174,12 @@ export function TopicSynthesisPanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [credentials.ccSwitchBaseURL, usesCCSwitch]);
+  }, [
+    credentials.ccSwitchBaseURL,
+    credentials.ccSwitchCodexModel,
+    credentials.ccSwitchToken,
+    usesCCSwitch,
+  ]);
 
   function updateCredentials(patch: Partial<Credentials>) {
     const next = { ...credentials, ...patch };
@@ -341,7 +352,6 @@ export function TopicSynthesisPanel({
               >
                 <option value="ccswitch_auto">CC-Switch · 跟随当前供应商</option>
                 <option value="api_key">OpenAI API Key</option>
-                <option value="ccswitch">CC-Switch · OpenAI Responses</option>
               </select>
             </label>
             {credentials.openAIConnectionMode === "api_key" ? (
@@ -374,7 +384,7 @@ export function TopicSynthesisPanel({
         ) : null}
         <button className="button button-dark" disabled={busy || currentCaptureCount === 0 || (usesCCSwitch && !connectionReady)} onClick={generate} type="button">
           {processing ? <LoaderCircle className="processing-spinner" size={16} /> : <Sparkles size={16} />}
-          {processing ? `正在综合 ${elapsedSeconds}s` : displayed ? "基于当前输入重新生成" : "生成主题综合档案"}
+          {processing ? `正在综合 ${elapsedSeconds}s` : usesCCSwitch && !connectionReady ? "先测试当前供应商，再生成" : displayed ? "基于当前输入重新生成" : "生成主题综合档案"}
         </button>
         {processing ? <p className="topic-processing-note" role="status">正在读取保存的记录、主张与人工结论，随后校验结构化引用…</p> : null}
       </div>

@@ -48,12 +48,28 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
 
   await expect(page).toHaveURL(/\/captures\/[0-9a-f-]+$/);
   await expect(page.getByRole("heading", { name: "AI 整理台" })).toBeVisible();
+  await page.evaluate(() => {
+    window.sessionStorage.setItem(
+      "knowtrace.ai-credentials.v1",
+      JSON.stringify({ openAIConnectionMode: "ccswitch" }),
+    );
+  });
+  await page.reload();
+  await page.waitForLoadState("networkidle");
   await page.getByLabel("处理引擎").selectOption("openai");
   await expect(page.getByLabel("OpenAI 连接方式")).toBeVisible();
   await expect(page.getByLabel("OpenAI 连接方式")).toHaveValue(
     "ccswitch_auto",
   );
-  await expect(page.getByRole("button", { name: "测试当前供应商" })).toBeVisible();
+  await expect(
+    page.getByLabel("OpenAI 连接方式").locator('option[value="ccswitch"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "测试当前供应商", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "先测试当前供应商，再开始 AI 整理" }),
+  ).toBeDisabled();
   await expect(page.locator(".connection-check")).toContainText(
     /正在自动检测|已检测到|未能连接/,
   );
@@ -71,10 +87,15 @@ test("capture → AI review → accepted knowledge structure", async ({ page }) 
     path: "test-results/ai-connection-ui.png",
   });
   if (process.env.CC_SWITCH_E2E === "true") {
-    await page.getByRole("button", { name: "测试当前供应商" }).click();
+    await page
+      .getByRole("button", { name: "测试当前供应商", exact: true })
+      .click();
     await expect(
       page.getByText("当前供应商可用于 AI 整理", { exact: true }),
     ).toBeVisible({ timeout: 35_000 });
+    await expect(
+      page.getByRole("button", { name: /开始分析版本/ }),
+    ).toBeEnabled();
   }
   await page.getByLabel("OpenAI 连接方式").selectOption("api_key");
   await page.getByLabel("OpenAI API Key").fill("sk-openai-session-test");

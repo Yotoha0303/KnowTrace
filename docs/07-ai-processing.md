@@ -50,8 +50,7 @@ OpenAI 和 DeepSeek 分别实现 Adapter。不能假设两者在超时、错误�
 - `server`：使用服务端环境变量中的 Key 和默认模型。
 - `api_key`：使用 AI 整理台为本次请求提供的 Key，可选覆盖模型 ID。
 - `ccswitch_auto`：通过受限的本机 `/v1/messages` 路由跟随 CC-Switch 当前供应商；模型只输出 JSON 文本，KnowTrace 负责严格 Schema 校验，不依赖供应商工具调用。
-- `ccswitch`：仅用于 OpenAI，通过受限的本机 `/v1` 地址调用 CC-Switch Responses 路由。
-- `ccswitch_codex_oauth`：保留给旧客户端的兼容模式；新 UI 会迁移到 `ccswitch_auto`。
+- `ccswitch`、`ccswitch_codex_oauth`：只保留服务端兼容；前者曾调用 `/v1/responses`，新 UI 会把两种旧浏览器会话迁移到 `ccswitch_auto`，避免供应商切换后误走固定协议。
 
 请求级 Key 只存在于 Server Action 入参和 Provider 调用内存中，不进入 `input_hash`、AI Run、Suggestion 或日志。跟随当前供应商的运行记录使用 `ccswitch-current-provider`，Responses 路由使用 `openai-ccswitch`，以便审计时与官方直连区分。
 

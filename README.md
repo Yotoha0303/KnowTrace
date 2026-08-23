@@ -117,7 +117,7 @@ KnowTrace 还支持通过 CC-Switch 本地路由调用当前供应商。选择 `
 
 CC-Switch 各供应商对工具调用和原生结构化输出的支持并不一致。跟随模式只要求模型返回 JSON 文本，再由 KnowTrace 执行严格 Schema 校验，因此切换到 DeepSeek 后不再依赖 Codex 专用工具调用；若当前模型返回的结构不合格，连接测试和整理任务都会明确失败，不会保存不符合结构的建议。
 
-高级的 `CC-Switch OpenAI Responses` 模式使用 `/v1/responses`，要求 CC-Switch 对应 Provider 已配置 `base_url`。CC-Switch 地址只允许 `localhost`、回环地址或 `host.docker.internal`，不能借此请求任意远程 URL。若把 CC-Switch 监听地址改成 `0.0.0.0`，应使用系统防火墙限制端口访问范围。
+旧版本浏览器中保存的 `CC-Switch OpenAI Responses` / Codex OAuth 连接方式会自动迁移为“跟随当前供应商”，避免切换到 DeepSeek 后仍误走 `/v1/responses`。CC-Switch 地址只允许 `localhost`、回环地址或 `host.docker.internal`，不能借此请求任意远程 URL。若把 CC-Switch 监听地址改成 `0.0.0.0`，应使用系统防火墙限制端口访问范围。
 
 Compose 会把容器内 `/app/data/uploads` 映射到项目的 `data/uploads`。图片文件不会提交到 Git；备份或迁移 KnowTrace 时，需要同时保存 PostgreSQL、go-user-system MySQL 和该上传目录。
 

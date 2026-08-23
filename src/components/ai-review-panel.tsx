@@ -139,10 +139,10 @@ function parseCredentials(raw: string | null): SessionCredentials | null {
     return {
       openAIConnectionMode:
         value.openAIConnectionMode === "ccswitch" ||
-        value.openAIConnectionMode === "ccswitch_auto"
-          ? value.openAIConnectionMode
-          : value.openAIConnectionMode === "ccswitch_codex_oauth"
+        value.openAIConnectionMode === "ccswitch_codex_oauth"
             ? "ccswitch_auto"
+          : value.openAIConnectionMode === "ccswitch_auto"
+            ? value.openAIConnectionMode
           : value.openAIConnectionMode === "api_key"
             ? "api_key"
             : "ccswitch_auto",
@@ -275,8 +275,7 @@ export function AIReviewPanel({
   const usesCCSwitchCurrentProvider =
     provider === "openai" &&
     openAIConnectionMode === "ccswitch_auto";
-  const ccSwitchReady =
-    ccSwitchStatus.phase === "reachable" || ccSwitchStatus.phase === "ready";
+  const ccSwitchReady = ccSwitchStatus.phase === "ready";
   const providerDisplayName =
     provider === "openai"
       ? openAIConnectionMode === "ccswitch_codex_oauth"
@@ -351,7 +350,12 @@ export function AIReviewPanel({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [ccSwitchBaseURL, usesCCSwitchCurrentProvider]);
+  }, [
+    ccSwitchBaseURL,
+    ccSwitchCodexModel,
+    ccSwitchToken,
+    usesCCSwitchCurrentProvider,
+  ]);
 
   function updateCredentials(patch: Partial<SessionCredentials>) {
     const next = { ...credentials, ...patch };
@@ -677,7 +681,6 @@ export function AIReviewPanel({
                 >
                   <option value="ccswitch_auto">CC-Switch（跟随当前供应商，推荐）</option>
                   <option value="api_key">官方 API Key</option>
-                  <option value="ccswitch">高级：CC-Switch OpenAI Responses</option>
                 </select>
               </label>
               {openAIConnectionMode === "api_key" ? (
@@ -877,7 +880,7 @@ export function AIReviewPanel({
             onClick={runAI}
             type="button"
           >
-            <Sparkles size={16} /> {processing ? "处理中，请稍候" : !editorReady ? "正在确认保存状态…" : hasUnsavedChanges ? "先保存，再开始 AI 整理" : `开始分析版本 v${capture.version}`}
+            <Sparkles size={16} /> {processing ? "处理中，请稍候" : !editorReady ? "正在确认保存状态…" : hasUnsavedChanges ? "先保存，再开始 AI 整理" : usesCCSwitchCurrentProvider && !ccSwitchReady ? "先测试当前供应商，再开始 AI 整理" : `开始分析版本 v${capture.version}`}
           </button>
           {rollbackableSuggestion ? (
             <div className="ai-rollback-card">
