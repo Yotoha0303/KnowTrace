@@ -81,7 +81,7 @@ services:
     environment:
       <<: *auth-database-environment
       BOOTSTRAP_ADMIN_USERNAME: ${KNOWTRACE_ADMIN_USERNAME:-KnowTrace}
-      BOOTSTRAP_ADMIN_PASSWORD: ${KNOWTRACE_ADMIN_PASSWORD:?Run make init or scripts/start-all.ps1 first}
+      BOOTSTRAP_ADMIN_PASSWORD: ${KNOWTRACE_ADMIN_PASSWORD:-KnowTrace@123}
       JWT_SECRET: ${AUTH_JWT_SECRET:?Run make init or scripts/start-all.ps1 first}
     depends_on:
       auth-migrate:

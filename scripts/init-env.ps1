@@ -1,5 +1,6 @@
 param(
-  [string]$EnvironmentFile = ".env"
+  [string]$EnvironmentFile = ".env",
+  [switch]$UseFixedAdminCredential
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,6 +60,9 @@ function Ensure-Secret([string]$Name, [int]$ByteCount) {
 if ([string]::IsNullOrWhiteSpace((Get-EnvValue "KNOWTRACE_ADMIN_USERNAME"))) {
   Set-EnvValue "KNOWTRACE_ADMIN_USERNAME" "KnowTrace"
 }
+if ($UseFixedAdminCredential -or [string]::IsNullOrWhiteSpace((Get-EnvValue "KNOWTRACE_ADMIN_PASSWORD"))) {
+  Set-EnvValue "KNOWTRACE_ADMIN_PASSWORD" "KnowTrace@123"
+}
 if ([string]::IsNullOrWhiteSpace((Get-EnvValue "AUTH_ENABLED"))) {
   Set-EnvValue "AUTH_ENABLED" "true"
 }
@@ -69,7 +73,6 @@ if ([string]::IsNullOrWhiteSpace((Get-EnvValue "KNOWTRACE_HOST"))) {
 Ensure-Secret "AUTH_DB_ROOT_PASSWORD" 32
 Ensure-Secret "AUTH_DB_PASSWORD" 32
 Ensure-Secret "AUTH_JWT_SECRET" 48
-Ensure-Secret "KNOWTRACE_ADMIN_PASSWORD" 24
 
 [System.IO.File]::WriteAllLines(
   $environmentPath,
@@ -82,4 +85,4 @@ if ($generated.Count -gt 0) {
 } else {
   Write-Output ".env 已包含统一启动所需密钥。"
 }
-Write-Output "默认管理员用户名：$(Get-EnvValue 'KNOWTRACE_ADMIN_USERNAME')；密码保存在 .env 的 KNOWTRACE_ADMIN_PASSWORD。"
+Write-Output "默认管理员凭据：KnowTrace / KnowTrace@123（只用于首次初始化，不会在启动时覆盖已修改密码）。"

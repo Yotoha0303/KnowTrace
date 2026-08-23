@@ -43,7 +43,7 @@ try {
 
   docker compose ps
   Write-Output "KnowTrace 统一栈已就绪：http://127.0.0.1:3000"
-  Write-Output "默认管理员用户名为 KnowTrace；密码只保存在项目 .env 的 KNOWTRACE_ADMIN_PASSWORD。"
+  Write-Output "默认管理员凭据：KnowTrace / KnowTrace@123（已修改过密码时以数据库中的当前密码为准）。"
 } finally {
   Pop-Location
 }

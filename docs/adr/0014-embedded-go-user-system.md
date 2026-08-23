@@ -10,7 +10,7 @@
 - 根级 Compose 同时编排 KnowTrace、PostgreSQL、go-user-system、MySQL、Redis、两套 Migration 和一次性管理员初始化。
 - 根级 `Makefile` 与 `scripts/start-all.ps1` 是统一启动入口。
 - MySQL、Redis、PostgreSQL 仍保持独立数据卷；KnowTrace 不直接读取认证数据库。
-- 新环境在首次启动时生成本机随机密钥，并在尚无管理员时创建用户名 `KnowTrace` 的管理员。密码只写入被 Git 忽略的 `.env`。
+- 新环境在首次启动时生成数据库/JWT随机密钥，并在尚无管理员时创建固定默认管理员 `KnowTrace / KnowTrace@123`。默认凭据只用于首次初始化，启动过程不会覆盖后来修改的密码。
 - 管理员初始化命令使用 `bootstrap-admin-if-needed`：只把“已存在任意管理员”视为幂等成功，其他错误继续阻止认证服务启动。
 - 从旧独立部署迁移时复用 `go-user-system_mysql_data` 与 `go-user-system_redis_data`，并一次性导入旧数据库/JWT密钥；不重置账号数据。
 
