@@ -7,6 +7,8 @@ import { createPortableWorkbook } from "../../src/features/data-transfer/workboo
 
 const adminUsername = process.env.AUTH_E2E_ADMIN_USERNAME;
 const adminPassword = process.env.AUTH_E2E_ADMIN_PASSWORD;
+const ccSwitchBaseURL =
+  process.env.AI_E2E_CCSWITCH_BASE_URL ?? "http://127.0.0.1:15721/v1";
 
 async function login(page: Page) {
   await page.goto("/login");
@@ -64,7 +66,7 @@ test("manual claim, no-op save and logical import deduplication", async ({ page 
     await page.goto(`/captures/${created.id}`);
     await page.getByLabel("处理引擎").selectOption("openai");
     await page.getByText("高级设置（通常无需修改）").click();
-    await page.getByLabel("CC-Switch 地址").fill("http://127.0.0.1:15721/v1");
+    await page.getByLabel("CC-Switch 地址").fill(ccSwitchBaseURL);
     await expect(page.getByRole("button", { name: "模型测试（可选）" })).toBeVisible();
     await expect(page.getByRole("button", { name: /开始分析版本/ })).toBeEnabled({
       timeout: 20_000,
