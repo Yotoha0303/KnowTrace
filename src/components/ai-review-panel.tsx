@@ -275,7 +275,8 @@ export function AIReviewPanel({
   const usesCCSwitchCurrentProvider =
     provider === "openai" &&
     openAIConnectionMode === "ccswitch_auto";
-  const ccSwitchReady = ccSwitchStatus.phase === "ready";
+  const ccSwitchReady =
+    ccSwitchStatus.phase === "reachable" || ccSwitchStatus.phase === "ready";
   const providerDisplayName =
     provider === "openai"
       ? openAIConnectionMode === "ccswitch_codex_oauth"
@@ -331,10 +332,22 @@ export function AIReviewPanel({
         });
         if (cancelled) return;
         if (result.ok) {
+          const routeUsable =
+            result.data.directMessagesCompatible || result.data.routeActive;
           setCCSwitchStatus({
-            phase: "reachable",
-            title: "已检测到 CC-Switch",
-            message: `本地代理响应正常（${result.data.latencyMs}ms）。请测试当前供应商，确认它能返回整理所需的结构。`,
+            phase: routeUsable ? "reachable" : "error",
+            title: result.data.activeProvider
+              ? `已识别当前供应商：${result.data.activeProvider}`
+              : "已检测到 CC-Switch",
+            message: result.data.activeProvider
+              ? result.data.directMessagesCompatible
+                ? `已确认 ${result.data.activeProvider} 可通过 CC-Switch Messages 兼容入口工作（${result.data.latencyMs}ms），现在可以直接开始整理。`
+                : result.data.routeActive
+                  ? `CC-Switch ${result.data.activeAppType ?? "当前"} 路由目标已就绪（${result.data.latencyMs}ms），现在可以直接开始整理。`
+                  : `已读取 CC-Switch 当前供应商（${result.data.latencyMs}ms），但尚未发现可安全使用的代理协议。可运行模型测试查看具体错误。`
+              : routeUsable
+                ? `本地代理和模型路由已就绪（${result.data.latencyMs}ms）；供应商名称未识别，但可以直接开始整理。`
+                : `本地代理响应正常（${result.data.latencyMs}ms），但未发现可用模型路由。请运行模型测试查看具体错误。`,
           });
         } else {
           setCCSwitchStatus({
@@ -449,8 +462,10 @@ export function AIReviewPanel({
       if (result.ok) {
         setCCSwitchStatus({
           phase: "ready",
-          title: "当前供应商可用于 AI 整理",
-          message: `${result.data.requestedModel} → ${result.data.actualModel}（${result.data.latencyMs}ms）`,
+          title: result.data.providerName
+            ? `${result.data.providerName} 可用于 AI 整理`
+            : "当前供应商可用于 AI 整理",
+          message: `${result.data.appType ?? "当前"} · ${result.data.protocol} · ${result.data.routedModel} → ${result.data.actualModel}（${result.data.latencyMs}ms）`,
         });
       } else {
         setCCSwitchStatus({
@@ -744,10 +759,10 @@ export function AIReviewPanel({
                     )}
                     {ccSwitchStatus.phase === "testing"
                       ? "正在测试"
-                      : "测试当前供应商"}
+                      : "模型测试（可选）"}
                   </button>
                   <p className="connection-test-note">
-                    自动检测只确认代理进程；按钮测试会发送一个极小的结构化请求，验证切换后的供应商确实可用于整理。
+                    自动检测到可用路由后即可直接整理；仅在排查模型或供应商切换问题时需要运行模型测试。
                   </p>
                   <details className="connection-advanced">
                     <summary>高级设置（通常无需修改）</summary>
@@ -880,7 +895,7 @@ export function AIReviewPanel({
             onClick={runAI}
             type="button"
           >
-            <Sparkles size={16} /> {processing ? "处理中，请稍候" : !editorReady ? "正在确认保存状态…" : hasUnsavedChanges ? "先保存，再开始 AI 整理" : usesCCSwitchCurrentProvider && !ccSwitchReady ? "先测试当前供应商，再开始 AI 整理" : `开始分析版本 v${capture.version}`}
+            <Sparkles size={16} /> {processing ? "处理中，请稍候" : !editorReady ? "正在确认保存状态…" : hasUnsavedChanges ? "先保存，再开始 AI 整理" : usesCCSwitchCurrentProvider && !ccSwitchReady ? "正在确认 CC-Switch 可用性" : `开始分析版本 v${capture.version}`}
           </button>
           {rollbackableSuggestion ? (
             <div className="ai-rollback-card">

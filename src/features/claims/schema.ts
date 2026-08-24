@@ -54,6 +54,26 @@ export const transitionClaimSchema = z.object({
   targetStatus: claimStatusSchema,
 });
 
+export const createManualClaimSchema = z.object({
+  captureId: z.uuid(),
+  expectedCaptureVersion: z.number().int().positive(),
+  statement: z
+    .string()
+    .trim()
+    .min(5, "主张至少需要 5 个字符。")
+    .max(1_000, "主张不能超过 1,000 个字符。"),
+  sourceExcerpt: z
+    .string()
+    .trim()
+    .min(1, "请填写能够在原文中定位的来源摘录。")
+    .max(1_000, "来源摘录不能超过 1,000 个字符。"),
+  falsificationCriteria: z
+    .string()
+    .trim()
+    .min(10, "证伪条件至少需要 10 个字符。")
+    .max(1_000, "证伪条件不能超过 1,000 个字符。"),
+});
+
 export const addClaimEvidenceSchema = z.object({
   claimId: z.uuid(),
   sourceUrl: optionalEvidenceSourceUrlSchema,

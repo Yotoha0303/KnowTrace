@@ -41,5 +41,9 @@ test("register, update profile and invalidate all sessions after password change
   await page.getByLabel("密码", { exact: true }).fill(newPassword!);
   await page.getByRole("button", { name: "登录", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText(`@${username}`)).toBeVisible();
+  await expect(
+    page.getByRole("link", {
+      name: new RegExp(`@${username}.*账户中心`),
+    }).last(),
+  ).toBeVisible();
 });

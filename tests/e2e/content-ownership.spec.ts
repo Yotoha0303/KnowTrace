@@ -29,7 +29,7 @@ async function createCapture(context: BrowserContext, marker: string) {
   return (await response.json()).data as { id: string; version: number };
 }
 
-test("administrator sees all content while members only see their own", async ({ browser }) => {
+test("administrator content is shared read-only while member content stays private", async ({ browser }) => {
   test.skip(
     !adminUsername || !adminPassword || !memberUsername || !memberPassword,
     "requires separate administrator and member credentials",
@@ -55,10 +55,26 @@ test("administrator sees all content while members only see their own", async ({
     const memberList = await memberContext.request.get("/api/v1/captures?limit=50");
     const memberItems = (await memberList.json()).data as Array<{ id: string }>;
     expect(memberItems.map(({ id }) => id)).toContain(memberCapture.id);
-    expect(memberItems.map(({ id }) => id)).not.toContain(adminCapture.id);
+    expect(memberItems.map(({ id }) => id)).toContain(adminCapture.id);
 
     const memberReadsAdmin = await memberContext.request.get(`/api/v1/captures/${adminCapture.id}`);
-    expect(memberReadsAdmin.status()).toBe(404);
+    expect(memberReadsAdmin.status()).toBe(200);
+    expect((await memberReadsAdmin.json()).data.visibility).toBe("shared");
+
+    const memberWritesAdmin = await memberContext.request.patch(
+      `/api/v1/captures/${adminCapture.id}`,
+      {
+        data: {
+          title: "member must not edit shared admin content",
+          subject: "权限隔离端到端测试",
+          content: "unauthorized change",
+          occurredAt: new Date().toISOString(),
+          contentType: "observation",
+          expectedVersion: adminCapture.version,
+        },
+      },
+    );
+    expect(memberWritesAdmin.status()).toBe(404);
 
     const adminReadsMember = await adminContext.request.get(`/api/v1/captures/${memberCapture.id}`);
     expect(adminReadsMember.status()).toBe(200);

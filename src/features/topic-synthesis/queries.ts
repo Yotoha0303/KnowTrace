@@ -8,6 +8,7 @@ import { topicSyntheses } from "@/server/db/schema";
 import { topicSynthesisPayloadSchema, type TopicSynthesisPayload } from "./schema";
 import { topicSourceHash } from "./invariants";
 import { buildTopicSourceSnapshot } from "./service";
+import { currentDataAccessScope } from "@/features/auth/access";
 
 export type TopicSynthesisDTO = {
   id: string;
@@ -33,7 +34,8 @@ export async function getTopicSynthesisState(categoryId: string): Promise<{
   currentCaptureCount: number;
   history: TopicSynthesisDTO[];
 }> {
-  const [snapshot, rows] = await Promise.all([
+  const scope = await currentDataAccessScope();
+  const [snapshot, allRows] = await Promise.all([
     buildTopicSourceSnapshot(categoryId),
     db
       .select()
@@ -42,6 +44,18 @@ export async function getTopicSynthesisState(categoryId: string): Promise<{
       .orderBy(desc(topicSyntheses.createdAt))
       .limit(10),
   ]);
+  const readableCaptureIds = new Set(snapshot.captures.map(({ id }) => id));
+  const rows = scope.isAdmin
+    ? allRows
+    : allRows.filter((row) => {
+        const source = row.sourceSnapshot as Partial<{
+          captures: Array<{ id: string }>;
+        }>;
+        return (
+          Array.isArray(source.captures) &&
+          source.captures.every(({ id }) => readableCaptureIds.has(id))
+        );
+      });
   const currentSourceHash = topicSourceHash(snapshot);
   return {
     currentSourceHash,

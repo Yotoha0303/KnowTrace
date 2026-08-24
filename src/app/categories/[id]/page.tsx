@@ -50,6 +50,7 @@ export default async function CategoryPage({
         categoryId={category.id}
         currentCaptureCount={synthesis.currentCaptureCount}
         history={synthesis.history}
+        readOnly={!category.canManage}
       />
 
       {latestConclusions.length ? (

@@ -21,8 +21,10 @@ import {
 import { AppError } from "@/shared/errors/app-error";
 import {
   requireCategoryAccess,
+  requireCategoryReadAccess,
   requireTopicSynthesisAccess,
 } from "@/features/auth/access";
+import { captureReadCondition } from "@/features/auth/resource-scope";
 import {
   sanitizeTopicSynthesisPayload,
   topicSourceHash,
@@ -46,7 +48,7 @@ function topicErrorCode(error: unknown): string {
 export async function buildTopicSourceSnapshot(
   categoryId: string,
 ): Promise<TopicSourceSnapshot> {
-  await requireCategoryAccess(categoryId);
+  const scope = await requireCategoryReadAccess(categoryId);
   const captureRows = await db
     .select({ capture: captures })
     .from(captureCategories)
@@ -55,6 +57,7 @@ export async function buildTopicSourceSnapshot(
       and(
         eq(captureCategories.categoryId, categoryId),
         eq(captures.status, "active"),
+        captureReadCondition(scope),
       ),
     )
     .orderBy(asc(captures.occurredAt), asc(captures.createdAt), asc(captures.id))

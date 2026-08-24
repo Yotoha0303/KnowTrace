@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, countDistinct, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, countDistinct, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { db } from "@/server/db/client";
 import {
@@ -12,6 +12,10 @@ import {
   claims,
 } from "@/server/db/schema";
 import { currentDataAccessScope } from "@/features/auth/access";
+import {
+  canManageCapture,
+  captureReadCondition,
+} from "@/features/auth/resource-scope";
 
 export type CategoryDossierDTO = {
   category: {
@@ -19,6 +23,7 @@ export type CategoryDossierDTO = {
     name: string;
     description: string | null;
     status: "active" | "archived";
+    canManage: boolean;
   };
   metrics: {
     activeCaptures: number;
@@ -48,13 +53,23 @@ export type CategoryDossierDTO = {
 
 export async function getCategoryDossier(id: string): Promise<CategoryDossierDTO | null> {
   const scope = await currentDataAccessScope();
+  const readableCategoryIds = db
+    .select({ categoryId: captureCategories.categoryId })
+    .from(captureCategories)
+    .innerJoin(captures, eq(captureCategories.captureId, captures.id))
+    .where(captureReadCondition(scope));
   const [category] = await db
     .select()
     .from(categories)
     .where(
       and(
         eq(categories.id, id),
-        scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+        scope.isAdmin
+          ? undefined
+          : or(
+              eq(categories.createdById, scope.actorId),
+              inArray(categories.id, readableCategoryIds),
+            ),
       ),
     )
     .limit(1);
@@ -63,7 +78,13 @@ export async function getCategoryDossier(id: string): Promise<CategoryDossierDTO
   const categoryCaptures = db
     .select({ captureId: captureCategories.captureId })
     .from(captureCategories)
-    .where(eq(captureCategories.categoryId, id));
+    .innerJoin(captures, eq(captureCategories.captureId, captures.id))
+    .where(
+      and(
+        eq(captureCategories.categoryId, id),
+        captureReadCondition(scope),
+      ),
+    );
 
   const [captureStatusRows, claimStatusRows, evidenceRows, conclusionCountRows, reviewRows] =
     await Promise.all([
@@ -139,6 +160,7 @@ export async function getCategoryDossier(id: string): Promise<CategoryDossierDTO
       name: category.name,
       description: category.description,
       status: category.status,
+      canManage: canManageCapture(scope, category.createdById),
     },
     metrics: {
       activeCaptures: captureCounts.get("active") ?? 0,

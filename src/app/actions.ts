@@ -51,6 +51,7 @@ import {
   addClaimEvidenceSchema,
   checkClaimEvidenceSourceSchema,
   concludeClaimSchema,
+  createManualClaimSchema,
   reviewClaimEvidenceSchema,
   transitionClaimSchema,
   updateClaimEvidenceSchema,
@@ -60,6 +61,7 @@ import {
   addClaimEvidence,
   checkClaimEvidenceSource,
   concludeClaim,
+  createManualClaim,
   reviewClaimEvidence,
   transitionClaim,
   updateClaimEvidence,
@@ -146,7 +148,7 @@ export async function createCaptureAction(raw: unknown) {
 export async function updateCaptureAction(raw: unknown) {
   const result = await runAction(updateCaptureSchema, raw, async (input) => {
     const row = await updateCapture(input);
-    return { id: row.id, version: row.version };
+    return { id: row.id, version: row.version, changed: row.changed };
   });
   if (result.ok) {
     revalidatePath("/");
@@ -189,8 +191,8 @@ export async function deleteCaptureAction(raw: unknown) {
 
 export async function setCaptureCategoriesAction(raw: unknown) {
   const result = await runAction(setCaptureCategoriesSchema, raw, async (input) => {
-    await setCaptureCategories(input.captureId, input.categoryIds);
-    return { id: input.captureId };
+    const update = await setCaptureCategories(input.captureId, input.categoryIds);
+    return { id: input.captureId, changed: update.changed };
   });
   if (result.ok) {
     revalidatePath("/");
@@ -281,6 +283,19 @@ export async function testCCSwitchCurrentProviderAction(raw: unknown) {
 export async function transitionClaimAction(raw: unknown) {
   const result = await runAction(transitionClaimSchema, raw, transitionClaim);
   if (result.ok) revalidatePath(`/captures/${result.data.captureId}`);
+  return result;
+}
+
+export async function createManualClaimAction(raw: unknown) {
+  const result = await runAction(
+    createManualClaimSchema,
+    raw,
+    createManualClaim,
+  );
+  if (result.ok) {
+    revalidatePath(`/captures/${result.data.captureId}`);
+    revalidatePath("/claims");
+  }
   return result;
 }
 

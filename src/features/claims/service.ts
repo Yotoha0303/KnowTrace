@@ -8,6 +8,7 @@ import {
   hasRequiredEvidenceForReview,
 } from "./state";
 import {
+  captures,
   claimEvidence,
   claimEvidenceRevisions,
   claimReviewEvidence,
@@ -27,6 +28,7 @@ import {
 } from "./image-storage";
 import { MAX_EVIDENCE_IMAGES, prepareEvidenceImage } from "./image-validation";
 import {
+  requireCaptureAccess,
   requireClaimAccess,
   requireEvidenceAccess,
 } from "@/features/auth/access";
@@ -35,6 +37,72 @@ const MANUAL_ATTACHMENT_CONTENT_TYPE =
   "application/vnd.knowtrace.evidence-attachments+json";
 const MANUAL_ATTACHMENT_VERIFICATION_NOTE =
   "本地使用者确认已查看本次冻结的全部图片附件，并确认保存的证据摘录与附件内容一致。";
+
+export async function createManualClaim(input: {
+  captureId: string;
+  expectedCaptureVersion: number;
+  statement: string;
+  sourceExcerpt: string;
+  falsificationCriteria: string;
+}) {
+  await requireCaptureAccess(input.captureId);
+  return db.transaction(async (transaction) => {
+    const [capture] = await transaction
+      .select({
+        id: captures.id,
+        version: captures.version,
+        content: captures.content,
+      })
+      .from(captures)
+      .where(eq(captures.id, input.captureId))
+      .for("update")
+      .limit(1);
+    if (!capture) throw new AppError("CAPTURE_NOT_FOUND", "记录不存在。");
+    if (capture.version !== input.expectedCaptureVersion) {
+      throw new AppError(
+        "CAPTURE_VERSION_CONFLICT",
+        "原始记录已经更新，请刷新后重新选择来源摘录。",
+        { currentVersion: capture.version },
+      );
+    }
+
+    const statement = input.statement.trim();
+    const sourceExcerpt = input.sourceExcerpt.trim();
+    if (!capture.content.includes(sourceExcerpt)) {
+      throw new AppError(
+        "CLAIM_SOURCE_EXCERPT_NOT_FOUND",
+        "来源摘录必须能够在当前版本原文中完整定位。",
+      );
+    }
+    const statementHash = sha256(
+      stableStringify({
+        captureId: capture.id,
+        sourceCaptureVersion: capture.version,
+        statement: statement.toLocaleLowerCase("zh-CN"),
+      }),
+    );
+    const [created] = await transaction
+      .insert(claims)
+      .values({
+        captureId: capture.id,
+        sourceSuggestionId: null,
+        sourceCaptureVersion: capture.version,
+        statement,
+        statementHash,
+        sourceExcerpt,
+        falsificationCriteria: input.falsificationCriteria.trim(),
+      })
+      .onConflictDoNothing({ target: claims.statementHash })
+      .returning({ id: claims.id, captureId: claims.captureId });
+    if (!created) {
+      throw new AppError(
+        "CLAIM_ALREADY_EXISTS",
+        "当前记录版本中已经存在相同主张。",
+      );
+    }
+    return created;
+  });
+}
 
 function buildAttachmentSnapshot(
   rows: EvidenceAttachmentVerificationSnapshot,

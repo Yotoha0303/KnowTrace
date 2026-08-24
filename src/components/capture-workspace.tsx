@@ -32,14 +32,23 @@ export function CaptureWorkspace({
         categories={categories}
         key={`editor-${capture.version}`}
         onDirtyChange={handleDirtyChange}
+        readOnly={!capture.canManage}
       />
-      <AIReviewPanel
-        capture={capture}
-        categories={categories}
-        editorReady={editorState.ready}
-        hasUnsavedChanges={editorState.hasUnsavedChanges}
-        key={`ai-${capture.version}-${capture.aiHistory[0]?.id ?? "none"}`}
-      />
+      {capture.canManage ? (
+        <AIReviewPanel
+          capture={capture}
+          categories={categories.filter((category) => category.canManage)}
+          editorReady={editorState.ready}
+          hasUnsavedChanges={editorState.hasUnsavedChanges}
+          key={`ai-${capture.version}-${capture.aiHistory[0]?.id ?? "none"}`}
+        />
+      ) : (
+        <aside className="ai-panel shared-readonly-panel">
+          <p className="eyebrow">Shared by administrator</p>
+          <h2>管理员共享内容</h2>
+          <p>你可以阅读原始记录及其主张、证据和结论；AI 整理与修改只由内容所有者或管理员执行。</p>
+        </aside>
+      )}
     </div>
   );
 }

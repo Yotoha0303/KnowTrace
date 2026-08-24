@@ -5,7 +5,7 @@ import { isAuthEnabled } from "@/features/auth/go-user-system";
 import { requireAuthenticatedUser } from "@/features/auth/session";
 import { db } from "@/server/db/client";
 import { evidenceAttachments } from "@/server/db/schema";
-import { requireAttachmentAccess } from "@/features/auth/access";
+import { requireAttachmentReadAccess } from "@/features/auth/access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
   try {
-    await requireAttachmentAccess(id);
+    await requireAttachmentReadAccess(id);
   } catch {
     return new Response("Not found", { status: 404 });
   }

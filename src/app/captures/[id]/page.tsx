@@ -38,7 +38,13 @@ export default async function CapturePage({
         key={`workspace-${capture.version}-${capture.aiHistory[0]?.id ?? "none"}`}
       />
       <SimilarCapturePanel items={similarCaptures} />
-      <ClaimWorkflowPanel claims={capture.claims} />
+      <ClaimWorkflowPanel
+        captureContent={capture.content}
+        captureId={capture.id}
+        captureVersion={capture.version}
+        claims={capture.claims}
+        readOnly={!capture.canManage}
+      />
       {capture.revisions.length ? (
         <section className="revision-panel">
           <p className="eyebrow">Revision trail</p>

@@ -107,10 +107,12 @@ export function TopicSynthesisPanel({
   categoryId,
   currentCaptureCount,
   history,
+  readOnly = false,
 }: {
   categoryId: string;
   currentCaptureCount: number;
   history: TopicSynthesisDTO[];
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [provider, setProvider] = useState<Provider>("mock");
@@ -161,9 +163,19 @@ export function TopicSynthesisPanel({
       }).then((result) => {
         if (cancelled) return;
         if (result.ok) {
-          setConnectionReady(false);
+          const routeUsable =
+            result.data.directMessagesCompatible || result.data.routeActive;
+          setConnectionReady(routeUsable);
           setConnectionMessage(
-            `已检测到 CC-Switch（${result.data.latencyMs}ms），请测试当前供应商。`,
+            result.data.activeProvider
+              ? result.data.directMessagesCompatible
+                ? `已识别 ${result.data.activeProvider}，CC-Switch Messages 兼容入口已就绪（${result.data.latencyMs}ms），可直接生成。`
+                : result.data.routeActive
+                  ? `已识别 ${result.data.activeProvider}（${result.data.activeAppType ?? "当前"}，${result.data.latencyMs}ms），可直接生成。`
+                  : `已识别 ${result.data.activeProvider}（${result.data.latencyMs}ms），但尚未发现可用代理协议；可运行模型测试排查。`
+              : routeUsable
+                ? `已检测到可用的 CC-Switch 模型路由（${result.data.latencyMs}ms），可直接生成。`
+                : `已检测到 CC-Switch（${result.data.latencyMs}ms），但未发现可用模型路由。`,
           );
         } else {
           setConnectionMessage(result.error.message);
@@ -312,7 +324,7 @@ export function TopicSynthesisPanel({
       if (result.ok) {
         setConnectionReady(true);
         setConnectionMessage(
-          `AI 测试成功：${result.data.requestedModel} → ${result.data.actualModel}（${result.data.latencyMs}ms）`,
+          `AI 测试成功：${result.data.providerName ?? "当前供应商"} · ${result.data.appType ?? "当前"} · ${result.data.protocol} · ${result.data.routedModel} → ${result.data.actualModel}（${result.data.latencyMs}ms）`,
         );
       } else {
         setConnectionReady(false);
@@ -332,7 +344,12 @@ export function TopicSynthesisPanel({
         <Bot size={24} />
       </header>
 
-      <div className="topic-synthesis-controls">
+      {readOnly ? (
+        <div className="claim-boundary-notice">
+          <strong>管理员共享主题为只读</strong>
+          <p>你可以查看当前主题档案及来源，但不能重新生成、接受或驳回。</p>
+        </div>
+      ) : <div className="topic-synthesis-controls">
         <label>
           <span>处理方式</span>
           <select disabled={busy} onChange={(event) => changeProvider(event.target.value as Provider)} value={provider}>
@@ -368,7 +385,7 @@ export function TopicSynthesisPanel({
             {usesCCSwitch ? (
               <div className={`topic-connection-status${connectionReady ? " is-ready" : ""}`} role="status">
                 <PlugZap size={14} /><span>{connectionMessage || "等待检测"}</span>
-                {credentials.openAIConnectionMode === "ccswitch_auto" ? <button className="button button-quiet" disabled={busy} onClick={testConnection} type="button">测试当前供应商</button> : null}
+                {credentials.openAIConnectionMode === "ccswitch_auto" ? <button className="button button-quiet" disabled={busy} onClick={testConnection} type="button">模型测试（可选）</button> : null}
               </div>
             ) : null}
           </div>
@@ -384,10 +401,10 @@ export function TopicSynthesisPanel({
         ) : null}
         <button className="button button-dark" disabled={busy || currentCaptureCount === 0 || (usesCCSwitch && !connectionReady)} onClick={generate} type="button">
           {processing ? <LoaderCircle className="processing-spinner" size={16} /> : <Sparkles size={16} />}
-          {processing ? `正在综合 ${elapsedSeconds}s` : usesCCSwitch && !connectionReady ? "先测试当前供应商，再生成" : displayed ? "基于当前输入重新生成" : "生成主题综合档案"}
+          {processing ? `正在综合 ${elapsedSeconds}s` : usesCCSwitch && !connectionReady ? "正在确认 CC-Switch 可用性" : displayed ? "基于当前输入重新生成" : "生成主题综合档案"}
         </button>
         {processing ? <p className="topic-processing-note" role="status">正在读取保存的记录、主张与人工结论，随后校验结构化引用…</p> : null}
-      </div>
+      </div>}
 
       {latest?.status === "failed" ? (
         <div className="topic-synthesis-warning"><CircleAlert size={16} /><span>最近一次生成失败：{latest.errorCode || "未知错误"}。已有成功档案仍被保留。</span></div>
@@ -418,7 +435,7 @@ export function TopicSynthesisPanel({
             <section><h3>建议下一步</h3>{payload.next_steps.length ? <ol>{payload.next_steps.map((item) => <li key={item}>{item}</li>)}</ol> : <p>当前没有额外行动建议。</p>}</section>
           </div>
           <footer><ShieldCheck size={14} /><span>{payload.boundary_notice}</span><small>{displayed.sourceCaptureCount} 条记录 · {displayed.sourceClaimCount} 条主张{displayed.sourceTruncated ? " · 输入因长度上限已截断" : ""}</small></footer>
-          {displayed.decision === "pending" ? (
+          {!readOnly && displayed.decision === "pending" ? (
             <div className="topic-synthesis-actions">
               <button className="button button-quiet" disabled={busy || displayed.isStale} onClick={() => decide("rejected")} type="button"><X size={15} /> 驳回</button>
               <button className="button button-primary" disabled={busy || displayed.isStale} onClick={() => decide("accepted")} type="button"><Check size={15} /> 接受为当前档案</button>

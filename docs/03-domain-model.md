@@ -10,7 +10,7 @@ ClaimReview    候选主张、证据及人工审核状态
 KnowledgeRead  统一检索和主题档案只读投影
 ```
 
-身份由 go-user-system 提供，Capture 与 Category 保存服务端确认的创建者标识。管理员拥有实例级数据范围，普通成员只有本人数据范围；Workspace/组织分组仍未进入当前模型。
+身份由 go-user-system 提供，Capture 与 Category 保存服务端确认的创建者标识。管理员拥有实例级数据范围，其 Capture 默认共享；普通成员可管理本人数据并只读访问管理员共享内容，成员之间仍隔离。Workspace/组织分组尚未进入当前模型。
 
 `KnowledgeRead` 不拥有事实表，也没有独立状态机。它从上述聚合根读取有界结果，保留实体类型、当前状态、Category 和 Capture 回链；任何检索命中都不能提升内容的可靠性等级。
 

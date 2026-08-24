@@ -29,6 +29,7 @@ import {
   addClaimEvidenceAction,
   checkClaimEvidenceSourceAction,
   concludeClaimAction,
+  createManualClaimAction,
   reviewClaimEvidenceAction,
   transitionClaimAction,
   updateClaimEvidenceAction,
@@ -64,6 +65,8 @@ const evidenceStatusLabels = {
 
 const REVIEW_RATIONALE_MIN_LENGTH = 10;
 const REVIEW_TEXT_MAX_LENGTH = 2_000;
+const MANUAL_CLAIM_MIN_LENGTH = 5;
+const FALSIFICATION_MIN_LENGTH = 10;
 
 const sourceErrorLabels: Record<string, string> = {
   EVIDENCE_SOURCE_CHARSET_UNSUPPORTED: "来源字符编码暂不支持",
@@ -167,11 +170,96 @@ function firstActionError(result: Awaited<ReturnType<typeof updateClaimEvidenceA
     : result.error.message;
 }
 
+function ManualClaimForm({
+  captureId,
+  captureVersion,
+  captureContent,
+}: {
+  captureId: string;
+  captureVersion: number;
+  captureContent: string;
+}) {
+  const router = useRouter();
+  const [statement, setStatement] = useState("");
+  const [sourceExcerpt, setSourceExcerpt] = useState("");
+  const [falsificationCriteria, setFalsificationCriteria] = useState("");
+  const [message, setMessage] = useState("");
+  const [isPending, startTransition] = useTransition();
+  const excerptMatches = Boolean(
+    sourceExcerpt.trim() && captureContent.includes(sourceExcerpt.trim()),
+  );
+  const canSubmit =
+    statement.trim().length >= MANUAL_CLAIM_MIN_LENGTH &&
+    excerptMatches &&
+    falsificationCriteria.trim().length >= FALSIFICATION_MIN_LENGTH;
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    startTransition(async () => {
+      const result = await createManualClaimAction({
+        captureId,
+        expectedCaptureVersion: captureVersion,
+        statement,
+        sourceExcerpt,
+        falsificationCriteria,
+      });
+      if (!result.ok) {
+        setMessage(
+          result.error.fieldErrors
+            ? Object.values(result.error.fieldErrors).flat()[0] ?? result.error.message
+            : result.error.message,
+        );
+        return;
+      }
+      setStatement("");
+      setSourceExcerpt("");
+      setFalsificationCriteria("");
+      setMessage("主张已保存为候选，可继续开始调查和补充证据。");
+      router.refresh();
+    });
+  }
+
+  return (
+    <form className="manual-claim-form" onSubmit={submit}>
+      <header>
+        <div>
+          <h3><Plus size={16} /> 手动添加主张</h3>
+          <p>基于已保存的原文版本 v{captureVersion} 创建，不需要先运行 AI。</p>
+        </div>
+      </header>
+      <label>
+        <span className="review-field-heading"><b>主张（必填）</b><small>5–1,000 个字符</small></span>
+        <textarea maxLength={1_000} minLength={MANUAL_CLAIM_MIN_LENGTH} onChange={(event) => setStatement(event.target.value)} placeholder="写出一个可以被证据支持或反驳的明确陈述" required rows={3} value={statement} />
+        <small>{statement.trim().length} / 1,000</small>
+      </label>
+      <label>
+        <span className="review-field-heading"><b>原文来源摘录（必填）</b><small>必须能在当前原文中完整找到</small></span>
+        <textarea aria-invalid={sourceExcerpt.length > 0 && !excerptMatches} maxLength={1_000} onChange={(event) => setSourceExcerpt(event.target.value)} placeholder="从上方原文复制一段能够支撑该主张的文字" required rows={3} value={sourceExcerpt} />
+        <small className={excerptMatches ? "is-valid" : sourceExcerpt ? "is-invalid" : ""}>
+          {excerptMatches ? "已在当前原文中定位" : "请原样复制当前版本中的文字"}
+        </small>
+      </label>
+      <label>
+        <span className="review-field-heading"><b>证伪条件（必填）</b><small>10–1,000 个字符</small></span>
+        <textarea maxLength={1_000} minLength={FALSIFICATION_MIN_LENGTH} onChange={(event) => setFalsificationCriteria(event.target.value)} placeholder="说明出现什么证据时，这个主张应被反驳或修正" required rows={3} value={falsificationCriteria} />
+        <small>{falsificationCriteria.trim().length} / 1,000</small>
+      </label>
+      {message ? <p className={message.startsWith("主张已保存") ? "form-success" : "form-error"} role="status">{message}</p> : null}
+      <button className="button button-primary" disabled={isPending || !canSubmit} type="submit">
+        {isPending ? <LoaderCircle className="processing-spinner" size={15} /> : <Save size={15} />}
+        {isPending ? "正在保存…" : "保存为候选主张"}
+      </button>
+    </form>
+  );
+}
+
 function EvidenceItem({
   claimStatus,
   evidence,
   parentPending,
   checking,
+  readOnly,
   onCheck,
   onReview,
 }: {
@@ -179,6 +267,7 @@ function EvidenceItem({
   evidence: EvidenceDTO;
   parentPending: boolean;
   checking: boolean;
+  readOnly: boolean;
   onCheck: (evidence: EvidenceDTO) => void;
   onReview: (evidenceId: string, decision: "accepted" | "rejected") => void;
 }) {
@@ -192,7 +281,10 @@ function EvidenceItem({
   const [stance, setStance] = useState(evidence.stance);
   const [note, setNote] = useState(evidence.note ?? "");
   const [file, setFile] = useState<File | null>(null);
-  const editable = claimStatus === "investigating" && evidence.reviewStatus === "unreviewed";
+  const editable =
+    !readOnly &&
+    claimStatus === "investigating" &&
+    evidence.reviewStatus === "unreviewed";
   const busy = parentPending || isPending;
 
   function cancelEdit() {
@@ -339,7 +431,7 @@ function EvidenceItem({
   );
 }
 
-function ClaimCard({ claim }: { claim: ClaimDTO }) {
+function ClaimCard({ claim, readOnly }: { claim: ClaimDTO; readOnly: boolean }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isConcluding, setIsConcluding] = useState(false);
@@ -514,14 +606,14 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
         <p><strong>证伪条件</strong>{claim.falsificationCriteria}</p>
       </div>
 
-      {claim.status === "candidate" ? (
+      {!readOnly && claim.status === "candidate" ? (
         <div className="claim-actions">
           <button className="button button-primary" disabled={isPending} onClick={() => transition("investigating")} type="button"><FileSearch size={15} /> 开始调查</button>
           <button className="button button-quiet" disabled={isPending} onClick={() => transition("withdrawn")} type="button"><X size={15} /> 撤回</button>
         </div>
       ) : null}
 
-      {claim.status === "investigating" ? (
+      {!readOnly && claim.status === "investigating" ? (
         <>
           <div className="evidence-summary">
             <span>{claim.evidence.length} 条证据</span>
@@ -552,19 +644,20 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
               onCheck={checkEvidenceSource}
               onReview={reviewEvidence}
               parentPending={isPending}
+              readOnly={readOnly}
             />
           ))}
         </div>
       ) : null}
 
-      {claim.status === "investigating" ? (
+      {!readOnly && claim.status === "investigating" ? (
         <div className="claim-actions">
           <button className="button button-primary" disabled={isPending || acceptedEvidenceCount === 0} onClick={() => transition("ready_for_review")} type="button"><Send size={15} /> 提交待审核</button>
           <button className="button button-quiet" disabled={isPending} onClick={() => transition("withdrawn")} type="button"><X size={15} /> 撤回</button>
         </div>
       ) : null}
 
-      {claim.status === "ready_for_review" ? (
+      {!readOnly && claim.status === "ready_for_review" ? (
         <>
           <div className="claim-review-form">
             <h4><Scale size={15} /> 形成人工结论</h4>
@@ -655,7 +748,7 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
         </div>
       ) : null}
 
-      {claim.status === "concluded" ? (
+      {!readOnly && claim.status === "concluded" ? (
         <div className="claim-actions">
           <button className="button button-quiet" disabled={isPending} onClick={() => transition("investigating")} type="button"><ArrowLeftRight size={15} /> 重新调查</button>
           <button className="button button-quiet" disabled={isPending} onClick={() => transition("withdrawn")} type="button"><X size={15} /> 撤回</button>
@@ -666,7 +759,19 @@ function ClaimCard({ claim }: { claim: ClaimDTO }) {
   );
 }
 
-export function ClaimWorkflowPanel({ claims }: { claims: ClaimDTO[] }) {
+export function ClaimWorkflowPanel({
+  claims,
+  captureId,
+  captureVersion,
+  captureContent,
+  readOnly = false,
+}: {
+  claims: ClaimDTO[];
+  captureId: string;
+  captureVersion: number;
+  captureContent: string;
+  readOnly?: boolean;
+}) {
   return (
     <section className="claim-workflow-panel" id="claims">
       <div className="panel-heading">
@@ -680,14 +785,26 @@ export function ClaimWorkflowPanel({ claims }: { claims: ClaimDTO[] }) {
         <strong>这里没有“已验证”按钮</strong>
         <p>AI 只能提出候选主张。当前流程负责收集与人工审核证据，待审核也不等于真实。</p>
       </div>
+      {readOnly ? (
+        <div className="claim-boundary-notice">
+          <strong>共享内容为只读</strong>
+          <p>你可以查看管理员发布的主张、证据和结论，但不能修改其审核流程。</p>
+        </div>
+      ) : (
+        <ManualClaimForm
+          captureContent={captureContent}
+          captureId={captureId}
+          captureVersion={captureVersion}
+        />
+      )}
       {claims.length ? (
         <div className="claim-list">
-          {claims.map((claim) => <ClaimCard claim={claim} key={claim.id} />)}
+          {claims.map((claim) => <ClaimCard claim={claim} key={claim.id} readOnly={readOnly} />)}
         </div>
       ) : (
         <div className="claim-empty">
           <FileSearch size={21} />
-          <p>还没有候选主张。运行 AI 整理后，可以逐条勾选“可证伪主张候选”创建。</p>
+          <p>{readOnly ? "这条共享记录还没有主张。" : "还没有候选主张。可手动添加，也可以运行 AI 整理后逐条选择候选。"}</p>
         </div>
       )}
     </section>

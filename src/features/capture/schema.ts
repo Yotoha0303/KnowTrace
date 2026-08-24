@@ -43,6 +43,7 @@ const subjectSchema = z
   .optional();
 
 const occurredAtSchema = z.iso.datetime({
+  offset: true,
   message: "请选择有效的发生时间",
 });
 

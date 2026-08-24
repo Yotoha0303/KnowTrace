@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { normalizeCategoryName } from "@/features/classification/schema";
 import { addCategoriesToCapture } from "@/features/classification/service";
+import { ensureCaptureRevision } from "@/features/capture/revisions";
 import {
   aiProcessingRuns,
   aiSuggestions,
@@ -10,7 +11,6 @@ import {
   claimReviews,
   claims,
   captureCategories,
-  captureRevisions,
   captures,
   categories,
   evidenceSourceChecks,
@@ -294,6 +294,8 @@ export async function organizeCapture(input: {
       await transaction
         .update(aiProcessingRuns)
         .set({
+          provider: result.provider,
+          model: result.model,
           status: "succeeded",
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
@@ -455,6 +457,8 @@ export async function auditClaim(input: {
       await transaction
         .update(aiProcessingRuns)
         .set({
+          provider: result.provider,
+          model: result.model,
           status: "succeeded",
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
@@ -662,15 +666,7 @@ export async function decideSuggestion(input: {
       content !== capture.content;
     let captureVersion = capture.version;
     if (captureChanged) {
-      await transaction.insert(captureRevisions).values({
-        captureId: capture.id,
-        version: capture.version,
-        title: capture.title,
-        subject: capture.subject,
-        content: capture.content,
-        contentType: capture.contentType,
-        occurredAt: capture.occurredAt,
-      });
+      await ensureCaptureRevision(transaction, capture);
       captureVersion += 1;
       await transaction
         .update(captures)
@@ -863,15 +859,7 @@ export async function rollbackSuggestion(input: {
       capture.contentType !== rollback.beforeContentType;
     let resultingCaptureVersion = capture.version;
     if (coreChanged) {
-      await transaction.insert(captureRevisions).values({
-        captureId: capture.id,
-        version: capture.version,
-        title: capture.title,
-        subject: capture.subject,
-        content: capture.content,
-        contentType: capture.contentType,
-        occurredAt: capture.occurredAt,
-      });
+      await ensureCaptureRevision(transaction, capture);
       resultingCaptureVersion += 1;
       const [restored] = await transaction
         .update(captures)

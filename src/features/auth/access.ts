@@ -6,10 +6,11 @@ import { headers } from "next/headers";
 import { isAuthEnabled } from "./go-user-system";
 import { currentAuthContext } from "./session";
 import { AppError } from "@/shared/errors/app-error";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import {
   aiSuggestions,
+  captureCategories,
   captures,
   categories,
   claimEvidence,
@@ -18,6 +19,10 @@ import {
   topicSyntheses,
 } from "@/server/db/schema";
 import type { DataAccessScope } from "./access-policy";
+import {
+  captureReadCondition,
+  captureWriteCondition,
+} from "./resource-scope";
 
 export { canAccessOwner, type DataAccessScope } from "./access-policy";
 
@@ -34,15 +39,36 @@ function scopeFromIdentity(input: {
   };
 }
 
+async function applyAdminSharingPolicy(
+  scope: DataAccessScope,
+): Promise<DataAccessScope> {
+  if (scope.isAdmin) {
+    await db
+      .update(captures)
+      .set({ visibility: "shared" })
+      .where(
+        and(
+          eq(captures.createdById, scope.actorId),
+          eq(captures.visibility, "private"),
+        ),
+      );
+  }
+  return scope;
+}
+
 export const currentDataAccessScope = cache(async (): Promise<DataAccessScope> => {
   if (!isAuthEnabled()) {
-    return { actorId: "local-owner", actorName: "本地使用者", isAdmin: true };
+    return applyAdminSharingPolicy({
+      actorId: "local-owner",
+      actorName: "本地使用者",
+      isAdmin: true,
+    });
   }
 
   const requestHeaders = await headers();
   const userId = Number(requestHeaders.get("x-knowtrace-user-id"));
   if (Number.isInteger(userId) && userId > 0) {
-    return scopeFromIdentity({
+    return applyAdminSharingPolicy(scopeFromIdentity({
       id: userId,
       username: decodeURIComponent(requestHeaders.get("x-knowtrace-username") ?? ""),
       nickname: decodeURIComponent(requestHeaders.get("x-knowtrace-nickname") ?? ""),
@@ -50,20 +76,33 @@ export const currentDataAccessScope = cache(async (): Promise<DataAccessScope> =
         .split(",")
         .map((code) => code.trim())
         .filter(Boolean),
-    });
+    }));
   }
 
   const context = await currentAuthContext();
   if (!context) {
     throw new AppError("AUTH_REQUIRED", "登录会话已失效，请重新登录。");
   }
-  return scopeFromIdentity({
+  return applyAdminSharingPolicy(scopeFromIdentity({
     id: context.user.id,
     username: context.user.username,
     nickname: context.user.nickname,
     roleCodes: context.authorization.role_codes,
-  });
+  }));
 });
+
+export async function requireCaptureReadAccess(
+  captureId: string,
+): Promise<DataAccessScope> {
+  const scope = await currentDataAccessScope();
+  const [row] = await db
+    .select({ id: captures.id })
+    .from(captures)
+    .where(and(eq(captures.id, captureId), captureReadCondition(scope)))
+    .limit(1);
+  if (!row) throw new AppError("CAPTURE_NOT_FOUND", "记录不存在。");
+  return scope;
+}
 
 export async function requireCaptureAccess(captureId: string): Promise<DataAccessScope> {
   const scope = await currentDataAccessScope();
@@ -73,7 +112,7 @@ export async function requireCaptureAccess(captureId: string): Promise<DataAcces
     .where(
       and(
         eq(captures.id, captureId),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureWriteCondition(scope),
       ),
     )
     .limit(1);
@@ -97,6 +136,34 @@ export async function requireCategoryAccess(categoryId: string): Promise<DataAcc
   return scope;
 }
 
+export async function requireCategoryReadAccess(
+  categoryId: string,
+): Promise<DataAccessScope> {
+  const scope = await currentDataAccessScope();
+  const readableCategoryIds = db
+    .select({ categoryId: captureCategories.categoryId })
+    .from(captureCategories)
+    .innerJoin(captures, eq(captureCategories.captureId, captures.id))
+    .where(captureReadCondition(scope));
+  const [row] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(
+      and(
+        eq(categories.id, categoryId),
+        scope.isAdmin
+          ? undefined
+          : or(
+              eq(categories.createdById, scope.actorId),
+              inArray(categories.id, readableCategoryIds),
+            ),
+      ),
+    )
+    .limit(1);
+  if (!row) throw new AppError("CATEGORY_NOT_FOUND", "分类不存在。");
+  return scope;
+}
+
 export async function requireClaimAccess(claimId: string): Promise<DataAccessScope> {
   const scope = await currentDataAccessScope();
   const [row] = await db
@@ -106,7 +173,7 @@ export async function requireClaimAccess(claimId: string): Promise<DataAccessSco
     .where(
       and(
         eq(claims.id, claimId),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureWriteCondition(scope),
       ),
     )
     .limit(1);
@@ -124,7 +191,7 @@ export async function requireEvidenceAccess(evidenceId: string): Promise<DataAcc
     .where(
       and(
         eq(claimEvidence.id, evidenceId),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureWriteCondition(scope),
       ),
     )
     .limit(1);
@@ -141,7 +208,7 @@ export async function requireSuggestionAccess(suggestionId: string): Promise<Dat
     .where(
       and(
         eq(aiSuggestions.id, suggestionId),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureWriteCondition(scope),
       ),
     )
     .limit(1);
@@ -166,7 +233,7 @@ export async function requireTopicSynthesisAccess(synthesisId: string): Promise<
   return scope;
 }
 
-export async function requireAttachmentAccess(attachmentId: string): Promise<DataAccessScope> {
+export async function requireAttachmentReadAccess(attachmentId: string): Promise<DataAccessScope> {
   const scope = await currentDataAccessScope();
   const [row] = await db
     .select({ id: evidenceAttachments.id })
@@ -177,7 +244,28 @@ export async function requireAttachmentAccess(attachmentId: string): Promise<Dat
     .where(
       and(
         eq(evidenceAttachments.id, attachmentId),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureReadCondition(scope),
+      ),
+    )
+    .limit(1);
+  if (!row) throw new AppError("EVIDENCE_ATTACHMENT_NOT_FOUND", "图片不存在。");
+  return scope;
+}
+
+export async function requireAttachmentAccess(
+  attachmentId: string,
+): Promise<DataAccessScope> {
+  const scope = await currentDataAccessScope();
+  const [row] = await db
+    .select({ id: evidenceAttachments.id })
+    .from(evidenceAttachments)
+    .innerJoin(claimEvidence, eq(evidenceAttachments.evidenceId, claimEvidence.id))
+    .innerJoin(claims, eq(claimEvidence.claimId, claims.id))
+    .innerJoin(captures, eq(claims.captureId, captures.id))
+    .where(
+      and(
+        eq(evidenceAttachments.id, attachmentId),
+        captureWriteCondition(scope),
       ),
     )
     .limit(1);

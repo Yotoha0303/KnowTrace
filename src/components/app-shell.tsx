@@ -4,6 +4,7 @@ import { Archive, ArrowLeftRight, BookMarked, ContactRound, Inbox, Scale, Search
 import type { CategoryDTO } from "@/features/capture/queries";
 import { CategoryCreator } from "@/components/category-creator";
 import { LogoutButton } from "@/components/logout-button";
+import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
 
 export function AppShell({
   categories,
@@ -17,6 +18,8 @@ export function AppShell({
   return (
     <div className="app-frame">
       <aside className="sidebar">
+        <MobileNavDrawer user={user} />
+
         <Link className="brand" href="/" aria-label="KnowTrace 首页">
           <span className="brand-mark">K</span>
           <span>

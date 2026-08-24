@@ -12,6 +12,8 @@ import {
 
 import { rankSimilarCapture } from "./ranking";
 import { currentDataAccessScope } from "@/features/auth/access";
+import { captureReadCondition } from "@/features/auth/resource-scope";
+import { canManageCapture } from "@/features/auth/resource-scope";
 
 const TEXT_CANDIDATE_LIMIT = 24;
 const CONTEXT_CANDIDATE_LIMIT = 24;
@@ -54,7 +56,7 @@ export async function findSimilarCaptures(
       .where(
         and(
           eq(captures.id, captureId),
-          scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+          captureReadCondition(scope),
         ),
       )
       .limit(1),
@@ -81,6 +83,7 @@ export async function findSimilarCaptures(
     occurredAt: captures.occurredAt,
     contentType: captures.contentType,
     status: captures.status,
+    visibility: captures.visibility,
     version: captures.version,
     createdById: captures.createdById,
     createdByName: captures.createdByName,
@@ -117,7 +120,7 @@ export async function findSimilarCaptures(
       .where(
         and(
           ne(captures.id, captureId),
-          scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+          captureReadCondition(scope),
         ),
       )
       .orderBy(textDistance, desc(captures.updatedAt), desc(captures.id))
@@ -130,7 +133,7 @@ export async function findSimilarCaptures(
             and(
               ne(captures.id, captureId),
               contextCondition,
-              scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+              captureReadCondition(scope),
             ),
           )
           .orderBy(desc(textSimilarity), desc(captures.updatedAt), desc(captures.id))
@@ -205,9 +208,11 @@ export async function findSimilarCaptures(
         occurredAt: candidate.occurredAt.toISOString(),
         contentType: candidate.contentType,
         status: candidate.status,
+        visibility: candidate.visibility,
         version: candidate.version,
         createdById: candidate.createdById,
         createdByName: candidate.createdByName,
+        canManage: canManageCapture(scope, candidate.createdById),
         categories: candidateCategories,
         createdAt: candidate.createdAt.toISOString(),
         updatedAt: candidate.updatedAt.toISOString(),

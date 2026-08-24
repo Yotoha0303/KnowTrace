@@ -15,6 +15,8 @@ import { sha256, stableStringify } from "@/shared/hash";
 
 import type { CreateCaptureInput, UpdateCaptureInput } from "./schema";
 import { removeEvidenceImage } from "@/features/claims/image-storage";
+import { ensureCaptureRevision } from "./revisions";
+import { captureHasPersistedChanges } from "./changes";
 import {
   currentDataAccessScope,
   type DataAccessScope,
@@ -106,6 +108,7 @@ export async function createCapture(input: CreateCaptureInput) {
           contentType: input.contentType,
           idempotencyKey: input.idempotencyKey,
           idempotencyHash: requestHash,
+          visibility: scope.isAdmin ? "shared" : "private",
           createdById: scope.actorId,
           createdByName: scope.actorName,
         })
@@ -172,15 +175,12 @@ export async function updateCapture(input: UpdateCaptureInput) {
       );
     }
 
-    await transaction.insert(captureRevisions).values({
-      captureId: current.id,
-      version: current.version,
-      title: current.title,
-      subject: current.subject,
-      content: current.content,
-      contentType: current.contentType,
-      occurredAt: current.occurredAt,
-    });
+
+    if (!captureHasPersistedChanges(current, input)) {
+      return { ...current, changed: false };
+    }
+
+    await ensureCaptureRevision(transaction, current);
 
     const [updated] = await transaction
       .update(captures)
@@ -208,7 +208,7 @@ export async function updateCapture(input: UpdateCaptureInput) {
       );
     }
 
-    return updated;
+    return { ...updated, changed: true };
   });
 }
 
@@ -300,6 +300,7 @@ export async function setCaptureCategories(
           scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
         ),
       )
+      .for("update")
       .limit(1);
 
     if (!capture) {
@@ -308,13 +309,34 @@ export async function setCaptureCategories(
 
     const uniqueIds = [...new Set(categoryIds)];
     await validateActiveCategories(transaction, uniqueIds, scope);
+    const existingRows = await transaction
+      .select({
+        categoryId: captureCategories.categoryId,
+        createdById: categories.createdById,
+      })
+      .from(captureCategories)
+      .innerJoin(categories, eq(captureCategories.categoryId, categories.id))
+      .where(eq(captureCategories.captureId, captureId));
+    const preservedIds = scope.isAdmin
+      ? []
+      : existingRows
+          .filter(({ createdById }) => createdById !== scope.actorId)
+          .map(({ categoryId }) => categoryId);
+    const effectiveIds = [...new Set([...uniqueIds, ...preservedIds])];
+    const existingKey = existingRows
+      .map(({ categoryId }) => categoryId)
+      .sort()
+      .join("|");
+    const requestedKey = [...effectiveIds].sort().join("|");
+    if (existingKey === requestedKey) return { changed: false };
+
     await transaction
       .delete(captureCategories)
       .where(eq(captureCategories.captureId, captureId));
 
-    if (uniqueIds.length > 0) {
+    if (effectiveIds.length > 0) {
       await transaction.insert(captureCategories).values(
-        uniqueIds.map((categoryId) => ({
+        effectiveIds.map((categoryId) => ({
           captureId,
           categoryId,
           assignedBy: "manual" as const,
@@ -326,6 +348,7 @@ export async function setCaptureCategories(
       .update(captures)
       .set({ updatedAt: new Date() })
       .where(eq(captures.id, captureId));
+    return { changed: true };
   });
 }
 

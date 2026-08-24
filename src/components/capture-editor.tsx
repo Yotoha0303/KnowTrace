@@ -22,10 +22,12 @@ export function CaptureEditor({
   capture,
   categories,
   onDirtyChange,
+  readOnly = false,
 }: {
   capture: CaptureDetailDTO;
   categories: CategoryDTO[];
   onDirtyChange: (hasUnsavedChanges: boolean) => void;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [title, setTitle] = useState(capture.title ?? "");
@@ -35,12 +37,20 @@ export function CaptureEditor({
   );
   const [content, setContent] = useState(capture.content);
   const [contentType, setContentType] = useState<ContentType>(capture.contentType);
-  const [categoryIds, setCategoryIds] = useState(capture.categories.map(({ id }) => id));
+  const manageableCategoryIds = new Set(
+    categories.filter((category) => category.canManage).map(({ id }) => id),
+  );
+  const [categoryIds, setCategoryIds] = useState(
+    capture.categories
+      .map(({ id }) => id)
+      .filter((id) => manageableCategoryIds.has(id)),
+  );
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const initialOccurredAt = toDateTimeLocalValue(new Date(capture.occurredAt));
   const initialCategoryKey = capture.categories
     .map(({ id }) => id)
+    .filter((id) => manageableCategoryIds.has(id))
     .sort()
     .join("|");
   const currentCategoryKey = [...categoryIds].sort().join("|");
@@ -53,8 +63,8 @@ export function CaptureEditor({
     currentCategoryKey !== initialCategoryKey;
 
   useEffect(() => {
-    onDirtyChange(hasUnsavedChanges);
-  }, [hasUnsavedChanges, onDirtyChange]);
+    onDirtyChange(readOnly ? false : hasUnsavedChanges);
+  }, [hasUnsavedChanges, onDirtyChange, readOnly]);
 
   function toggleCategory(id: string) {
     setCategoryIds((current) =>
@@ -98,7 +108,13 @@ export function CaptureEditor({
         router.refresh();
         return;
       }
-      setMessage("已保存，并创建了可追溯的版本记录。");
+      if (updateResult.data.changed) {
+        setMessage("已保存，并创建了可追溯的版本记录。");
+      } else if (categoryResult.data.changed) {
+        setMessage("分类已保存；原始记录没有变化，因此未增加版本。 ");
+      } else {
+        setMessage("没有需要保存的修改，版本保持不变。");
+      }
       router.refresh();
     });
   }
@@ -143,13 +159,14 @@ export function CaptureEditor({
 
       <label className="field">
         <span>标题</span>
-        <input maxLength={200} onChange={(event) => setTitle(event.target.value)} value={title} />
+        <input disabled={readOnly} maxLength={200} onChange={(event) => setTitle(event.target.value)} value={title} />
       </label>
       <div className="capture-context-grid">
         <label className="field">
           <span><Contact size={14} /> 描述对象</span>
           <input
             aria-label="描述对象"
+            disabled={readOnly}
             maxLength={200}
             onChange={(event) => setSubject(event.target.value)}
             placeholder="例如：某公司、某个人、某个项目"
@@ -160,6 +177,7 @@ export function CaptureEditor({
           <span><CalendarClock size={14} /> 发生时间</span>
           <input
             aria-label="发生时间"
+            disabled={readOnly}
             onChange={(event) => setOccurredAt(event.target.value)}
             required
             step={60}
@@ -170,23 +188,27 @@ export function CaptureEditor({
       </div>
       <label className="field">
         <span>原文</span>
-        <textarea maxLength={20_000} onChange={(event) => setContent(event.target.value)} rows={12} value={content} />
+        <textarea disabled={readOnly} maxLength={20_000} onChange={(event) => setContent(event.target.value)} rows={12} value={content} />
         <small>{content.length.toLocaleString()} / 20,000</small>
       </label>
       <label className="field compact-field">
         <span>内容类型</span>
-        <select onChange={(event) => setContentType(event.target.value as ContentType)} value={contentType}>
+        <select disabled={readOnly} onChange={(event) => setContentType(event.target.value as ContentType)} value={contentType}>
           {CONTENT_TYPES.map((type) => <option key={type} value={type}>{CONTENT_TYPE_LABELS[type]}</option>)}
         </select>
       </label>
 
       <fieldset className="field category-fieldset">
         <legend>分类</legend>
-        {categories.length === 0 ? (
+        {readOnly ? (
+          <div className="checkbox-grid">
+            {capture.categories.map((category) => <span key={category.id}>{category.name}</span>)}
+          </div>
+        ) : categories.filter((category) => category.canManage).length === 0 ? (
           <p className="muted">请先从左侧新建一个分类。</p>
         ) : (
           <div className="checkbox-grid">
-            {categories.map((category) => (
+            {categories.filter((category) => category.canManage).map((category) => (
               <label key={category.id}>
                 <input
                   checked={categoryIds.includes(category.id)}
@@ -200,7 +222,9 @@ export function CaptureEditor({
         )}
       </fieldset>
 
-      <div className="editor-actions">
+      {readOnly ? (
+        <p className="shared-readonly-note">此记录由管理员共享，你当前拥有只读权限。</p>
+      ) : <div className="editor-actions">
         <button className="button button-danger" disabled={isPending} onClick={removeCapture} type="button">
           <Trash2 size={16} /> 永久删除
         </button>
@@ -208,13 +232,13 @@ export function CaptureEditor({
           {capture.status === "active" ? <Archive size={16} /> : <RotateCcw size={16} />}
           {capture.status === "active" ? "归档" : "恢复"}
         </button>
-        <span className={message.startsWith("已保存") ? "form-success" : message ? "form-error" : hasUnsavedChanges ? "form-unsaved" : "form-saved"}>
+        <span className={message.includes("已保存") || message.startsWith("没有需要") ? "form-success" : message ? "form-error" : hasUnsavedChanges ? "form-unsaved" : "form-saved"}>
           {message || (hasUnsavedChanges ? "有未保存修改，AI 暂时不会分析这些内容。" : `已保存版本 v${capture.version}`)}
         </span>
-        <button className="button button-primary" disabled={isPending || !content.trim()} id="capture-save-button" type="submit">
+        <button className="button button-primary" disabled={isPending || !content.trim() || !hasUnsavedChanges} id="capture-save-button" type="submit">
           <Save size={16} /> {isPending ? "处理中…" : "保存修改"}
         </button>
-      </div>
+      </div>}
     </form>
   );
 }

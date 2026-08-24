@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { canAccessOwner, type DataAccessScope } from "./access-policy";
+import {
+  canAccessOwner,
+  canReadCapture,
+  type DataAccessScope,
+} from "./access-policy";
 
 const member: DataAccessScope = {
   actorId: "go-user:21",
@@ -25,5 +29,14 @@ describe("content ownership access", () => {
     expect(
       canAccessOwner({ ...member, isAdmin: true }, "legacy-local"),
     ).toBe(true);
+  });
+
+  it("lets members read administrator-shared captures without granting ownership", () => {
+    expect(canReadCapture(member, "go-user:1", "shared")).toBe(true);
+    expect(canAccessOwner(member, "go-user:1")).toBe(false);
+  });
+
+  it("keeps another member's private capture invisible", () => {
+    expect(canReadCapture(member, "go-user:22", "private")).toBe(false);
   });
 });

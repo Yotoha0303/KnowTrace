@@ -13,6 +13,7 @@ import {
 
 import { normalizeSubjectPath } from "./utils";
 import { currentDataAccessScope } from "@/features/auth/access";
+import { captureReadCondition } from "@/features/auth/resource-scope";
 
 export type SubjectSummaryDTO = {
   name: string;
@@ -66,7 +67,7 @@ export async function listSubjectSummaries(): Promise<SubjectSummaryDTO[]> {
     .where(
       and(
         eq(captures.status, "active"),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureReadCondition(scope),
         sql`${captures.subject} is not null`,
         sql`btrim(${captures.subject}) <> ''`,
       ),
@@ -94,7 +95,7 @@ export async function getSubjectTimeline(rawSubject: string): Promise<SubjectTim
     .where(
       and(
         eq(captures.status, "active"),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureReadCondition(scope),
         sql`${normalizedSubject} = lower(btrim(${subject}))`,
       ),
     )

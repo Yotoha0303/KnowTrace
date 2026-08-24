@@ -23,6 +23,7 @@ import {
   type ClaimAuditEvidenceInput,
 } from "@/features/ai-processing/claim-audit";
 import { normalizeCCSwitchBaseURL } from "@/features/ai-processing/connection";
+import { resolveCCSwitchRoute } from "@/features/ai-processing/connection-check";
 import { parseStructuredAIText } from "@/features/ai-processing/structured-output";
 import type { CaptureRow, CategoryRow, ClaimRow } from "@/server/db/schema";
 import { AppError } from "@/shared/errors/app-error";
@@ -35,9 +36,15 @@ import {
 export const AI_PROVIDERS = ["mock", "openai", "deepseek"] as const;
 export type AIProviderName = (typeof AI_PROVIDERS)[number];
 
+type AIResultProvider =
+  | AIProviderName
+  | "openai-ccswitch"
+  | "ccswitch-codex-oauth"
+  | "ccswitch-current-provider";
+
 type OrganizeResult = {
   payload: AISuggestionPayload;
-  provider: AIProviderName | "openai-ccswitch" | "ccswitch-codex-oauth" | "ccswitch-current-provider";
+  provider: AIResultProvider;
   model: string;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -45,7 +52,7 @@ type OrganizeResult = {
 
 export type ClaimAuditResult = {
   payload: ClaimAIAuditPayload;
-  provider: AIProviderName | "openai-ccswitch" | "ccswitch-codex-oauth" | "ccswitch-current-provider";
+  provider: AIResultProvider;
   model: string;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -53,7 +60,7 @@ export type ClaimAuditResult = {
 
 export type TopicSynthesisResult = {
   payload: TopicSynthesisPayload;
-  provider: AIProviderName | "openai-ccswitch" | "ccswitch-codex-oauth" | "ccswitch-current-provider";
+  provider: AIResultProvider;
   model: string;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -246,9 +253,11 @@ function providerConfig(
         : !connection || connection.mode === "server"
           ? process.env.OPENAI_BASE_URL || undefined
           : undefined,
-      transport: usesCodexOAuthProxy || usesCurrentProviderProxy
-        ? ("anthropic_messages_text_json" as const)
-        : ("openai_responses" as const),
+      transport: usesCurrentProviderProxy
+        ? ("ccswitch_auto" as const)
+        : usesCodexOAuthProxy
+          ? ("anthropic_messages_text_json" as const)
+          : ("openai_responses" as const),
     } as const;
   }
 
@@ -304,8 +313,57 @@ async function generateStructuredPayload<T>(input: {
   system: string;
   prompt: string;
 }) {
-  const model = modelForConfig(input.config);
   const timeout = Number(process.env.AI_REQUEST_TIMEOUT_MS || 90_000);
+
+  if (input.config.transport === "ccswitch_auto") {
+    const baseURL = input.config.baseURL;
+    if (!baseURL) {
+      throw new AppError("AI_CC_SWITCH_URL_INVALID", "CC-Switch 地址缺失。");
+    }
+    const route = await resolveCCSwitchRoute({
+      baseURL,
+      model: input.config.model,
+    });
+    const model =
+      route.protocol === "openai_responses"
+        ? createOpenAI({
+            apiKey: input.config.apiKey,
+            baseURL,
+          }).responses(route.model)
+        : createAnthropic({
+            apiKey: input.config.apiKey,
+            baseURL,
+          }).messages(route.model);
+    const disableDeepSeekThinking =
+      route.protocol === "anthropic_messages" &&
+      /deepseek/i.test(route.target?.providerName ?? "");
+    const result = await generateText({
+      model,
+      maxOutputTokens: Number(process.env.AI_MAX_OUTPUT_TOKENS || 8_192),
+      timeout,
+      providerOptions: disableDeepSeekThinking
+        ? {
+            anthropic: {
+              thinking: { type: "disabled" },
+            },
+          }
+        : undefined,
+      system: [
+        input.system,
+        "CC-Switch 可能把请求转发给不同供应商；不要调用工具。只返回一个满足 output_schema 的原始 JSON 对象，不要使用 Markdown 代码块或补充说明。",
+      ].join("\n"),
+      prompt: input.prompt,
+    });
+    return {
+      payload: parseStructuredAIText(result.text, input.schema),
+      inputTokens: result.usage.inputTokens ?? null,
+      outputTokens: result.usage.outputTokens ?? null,
+      routedModel: route.model,
+      providerName: route.target?.providerName ?? null,
+    };
+  }
+
+  const model = modelForConfig(input.config);
 
   if (input.config.transport === "anthropic_messages_text_json") {
     const result = await generateText({
@@ -321,6 +379,8 @@ async function generateStructuredPayload<T>(input: {
       payload: parseStructuredAIText(result.text, input.schema),
       inputTokens: result.usage.inputTokens ?? null,
       outputTokens: result.usage.outputTokens ?? null,
+      routedModel: undefined,
+      providerName: null,
     };
   }
 
@@ -335,7 +395,21 @@ async function generateStructuredPayload<T>(input: {
     payload: result.output,
     inputTokens: result.usage.inputTokens ?? null,
     outputTokens: result.usage.outputTokens ?? null,
+    routedModel: undefined,
+    providerName: null,
   };
+}
+
+function resolvedAIResultProvider(
+  auditProvider: AIResultProvider,
+  providerName: string | null,
+): AIResultProvider {
+  if (auditProvider !== "ccswitch-current-provider" || !providerName) {
+    return auditProvider;
+  }
+  if (/deepseek/i.test(providerName)) return "deepseek";
+  if (/^(openai|codex)$/i.test(providerName.trim())) return "openai";
+  return auditProvider;
 }
 
 export function getAISelection(
@@ -396,8 +470,8 @@ export async function organizeWithAI(input: {
 
   return {
     payload: result.payload,
-    provider: config.auditProvider,
-    model: config.model,
+    provider: resolvedAIResultProvider(config.auditProvider, result.providerName),
+    model: result.routedModel ?? config.model,
     inputTokens: result.inputTokens,
     outputTokens: result.outputTokens,
   };
@@ -528,8 +602,8 @@ export async function auditClaimWithAI(input: {
 
   return {
     payload: result.payload,
-    provider: config.auditProvider,
-    model: config.model,
+    provider: resolvedAIResultProvider(config.auditProvider, result.providerName),
+    model: result.routedModel ?? config.model,
     inputTokens: result.inputTokens,
     outputTokens: result.outputTokens,
   };
@@ -642,8 +716,8 @@ export async function synthesizeTopicWithAI(input: {
 
   return {
     payload: result.payload,
-    provider: config.auditProvider,
-    model: config.model,
+    provider: resolvedAIResultProvider(config.auditProvider, result.providerName),
+    model: result.routedModel ?? config.model,
     inputTokens: result.inputTokens,
     outputTokens: result.outputTokens,
   };

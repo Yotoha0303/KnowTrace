@@ -12,6 +12,7 @@ import {
   claims,
 } from "@/server/db/schema";
 import { currentDataAccessScope } from "@/features/auth/access";
+import { captureReadCondition } from "@/features/auth/resource-scope";
 import {
   buildSearchPattern,
   makeSearchSnippet,
@@ -114,7 +115,7 @@ export async function searchKnowledge(options: {
           .where(
             and(
               categoryCaptureIds ? inArray(captures.id, categoryCaptureIds) : undefined,
-              scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+              captureReadCondition(scope),
               subject ? ilike(captures.subject, subjectPattern) : undefined,
               options.occurredFrom ? gte(captures.occurredAt, options.occurredFrom) : undefined,
               options.occurredToExclusive ? lt(captures.occurredAt, options.occurredToExclusive) : undefined,
@@ -145,7 +146,7 @@ export async function searchKnowledge(options: {
           .where(
             and(
               categoryCaptureIds ? inArray(claims.captureId, categoryCaptureIds) : undefined,
-              scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+              captureReadCondition(scope),
               subject ? ilike(captures.subject, subjectPattern) : undefined,
               options.occurredFrom ? gte(captures.occurredAt, options.occurredFrom) : undefined,
               options.occurredToExclusive ? lt(captures.occurredAt, options.occurredToExclusive) : undefined,
@@ -179,7 +180,7 @@ export async function searchKnowledge(options: {
           .where(
             and(
               categoryCaptureIds ? inArray(claims.captureId, categoryCaptureIds) : undefined,
-              scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+              captureReadCondition(scope),
               subject ? ilike(captures.subject, subjectPattern) : undefined,
               options.occurredFrom ? gte(captures.occurredAt, options.occurredFrom) : undefined,
               options.occurredToExclusive ? lt(captures.occurredAt, options.occurredToExclusive) : undefined,
@@ -212,7 +213,7 @@ export async function searchKnowledge(options: {
           .where(
             and(
               categoryCaptureIds ? inArray(claims.captureId, categoryCaptureIds) : undefined,
-              scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+              captureReadCondition(scope),
               subject ? ilike(captures.subject, subjectPattern) : undefined,
               options.occurredFrom ? gte(captures.occurredAt, options.occurredFrom) : undefined,
               options.occurredToExclusive ? lt(captures.occurredAt, options.occurredToExclusive) : undefined,

@@ -26,6 +26,7 @@ import {
 } from "./contracts";
 import { currentTransferActor, type TransferActor } from "./auth";
 import { createPortableWorkbook, parsePortableWorkbook } from "./workbook";
+import { importRecordFingerprint } from "./fingerprint";
 
 type ExistingCapture = typeof captures.$inferSelect;
 
@@ -83,19 +84,24 @@ async function analyzeImport(payload: PortablePayload, actor: TransferActor): Pr
     else categoriesToCreate += 1;
   }
 
-  const keys = payload.records.map((record) => importKey(record.key));
   const recordUuids = payload.records.map((record) => record.key).filter((key) => z.uuid().safeParse(key).success);
   const existingCaptures = payload.records.length
-    ? await db.select().from(captures).where(and(
-        eq(captures.createdById, actor.id),
-        or(
-          keys.length ? inArray(captures.idempotencyKey, keys) : undefined,
-          recordUuids.length ? inArray(captures.id, recordUuids) : undefined,
-        ),
-      ))
+    ? await db.select().from(captures).where(eq(captures.createdById, actor.id))
     : [];
   const byImportKey = new Map(existingCaptures.map((capture) => [capture.idempotencyKey, capture]));
   const byId = new Map(existingCaptures.map((capture) => [capture.id, capture]));
+  const byFingerprint = new Map(
+    existingCaptures.map((capture) => [
+      capture.importFingerprint ?? importRecordFingerprint({
+        title: capture.title,
+        subject: capture.subject,
+        content: capture.content,
+        occurredAt: capture.occurredAt.toISOString(),
+        contentType: capture.contentType,
+      }),
+      capture,
+    ]),
+  );
   const existingRelationshipRows = recordUuids.length
     ? await db.select({ captureId: captureCategories.captureId, normalizedName: categories.normalizedName })
         .from(captureCategories)
@@ -110,7 +116,9 @@ async function analyzeImport(payload: PortablePayload, actor: TransferActor): Pr
   }
   const categoryNameByKey = new Map(payload.categories.map((category) => [category.key, normalizeCategoryName(category.name)]));
   const skippedKeys = new Set<string>();
+  const seenPayloadFingerprints = new Set<string>();
   for (const record of payload.records) {
+    const fingerprint = importRecordFingerprint(record);
     const imported = byImportKey.get(importKey(record.key));
     const sameId = byId.get(record.key);
     if (imported) {
@@ -121,7 +129,10 @@ async function analyzeImport(payload: PortablePayload, actor: TransferActor): Pr
       const actualCategories = [...(existingCategoryNamesByCapture.get(sameId.id) ?? [])].sort();
       if (sameCapture(sameId, record) && stableStringify(expectedCategories) === stableStringify(actualCategories)) skippedKeys.add(record.key);
       else issues.push({ sheet: "记录", row: 0, field: record.key, message: "记录标识与现有记录冲突" });
+    } else if (seenPayloadFingerprints.has(fingerprint) || byFingerprint.has(fingerprint)) {
+      skippedKeys.add(record.key);
     }
+    seenPayloadFingerprints.add(fingerprint);
   }
 
   const relationshipsTotal = payload.records.reduce((total, record) => total + record.categoryKeys.length, 0);
@@ -144,18 +155,40 @@ async function analyzeImport(payload: PortablePayload, actor: TransferActor): Pr
 export async function exportPortableData(): Promise<Buffer> {
   const actor = await currentTransferActor();
   if (!actor) throw new AppError("AUTH_REQUIRED", "请先登录。");
-  const captureFilter = actor.isAdmin ? undefined : eq(captures.createdById, actor.id);
-  const categoryFilter = actor.isAdmin ? undefined : eq(categories.createdById, actor.id);
-  const [captureRows, categoryRows] = await Promise.all([
-    db.select().from(captures).where(captureFilter).orderBy(asc(captures.createdAt), asc(captures.id)),
-    db.select().from(categories).where(categoryFilter).orderBy(asc(categories.createdAt), asc(categories.id)),
-  ]);
+  const captureFilter = actor.isAdmin
+    ? undefined
+    : or(
+        eq(captures.createdById, actor.id),
+        eq(captures.visibility, "shared"),
+      );
+  const captureRows = await db
+    .select()
+    .from(captures)
+    .where(captureFilter)
+    .orderBy(asc(captures.createdAt), asc(captures.id));
   const captureIds = captureRows.map((capture) => capture.id);
   const relationshipRows = captureIds.length
     ? await db.select().from(captureCategories)
         .where(inArray(captureCategories.captureId, captureIds))
         .orderBy(asc(captureCategories.captureId), asc(captureCategories.categoryId))
     : [];
+  const relatedCategoryIds = [...new Set(
+    relationshipRows.map((relationship) => relationship.categoryId),
+  )];
+  const categoryRows = await db
+    .select()
+    .from(categories)
+    .where(
+      actor.isAdmin
+        ? undefined
+        : or(
+            eq(categories.createdById, actor.id),
+            relatedCategoryIds.length
+              ? inArray(categories.id, relatedCategoryIds)
+              : undefined,
+          ),
+    )
+    .orderBy(asc(categories.createdAt), asc(categories.id));
   const categoryKeysByCapture = new Map<string, string[]>();
   for (const relationship of relationshipRows) {
     const values = categoryKeysByCapture.get(relationship.captureId) ?? [];
@@ -250,6 +283,7 @@ async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, r
     }
 
     let recordsCreated = 0;
+    let concurrentRecordsSkipped = 0;
     let relationshipsCreated = 0;
     for (const record of payload.records) {
       if (skippedKeys.has(record.key)) continue;
@@ -262,9 +296,41 @@ async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, r
         status: "active",
         idempotencyKey: importKey(record.key),
         idempotencyHash: recordHash(record),
+        importFingerprint: importRecordFingerprint(record),
+        visibility: actor.isAdmin ? "shared" : "private",
         createdById: actor.id,
         createdByName: actor.name,
-      }).returning();
+      }).onConflictDoNothing().returning();
+      if (!created) {
+        const [conflict] = await transaction
+          .select({
+            idempotencyKey: captures.idempotencyKey,
+            idempotencyHash: captures.idempotencyHash,
+            importFingerprint: captures.importFingerprint,
+          })
+          .from(captures)
+          .where(
+            and(
+              eq(captures.createdById, actor.id),
+              or(
+                eq(captures.idempotencyKey, importKey(record.key)),
+                eq(captures.importFingerprint, importRecordFingerprint(record)),
+              ),
+            ),
+          )
+          .limit(1);
+        if (
+          conflict?.idempotencyKey === importKey(record.key) &&
+          conflict.idempotencyHash !== recordHash(record)
+        ) {
+          throw new AppError(
+            "IMPORT_RECORD_CONFLICT",
+            "并发导入时发现相同记录标识对应不同内容，请重新预检。",
+          );
+        }
+        concurrentRecordsSkipped += 1;
+        continue;
+      }
       await transaction.insert(captureRevisions).values({
         captureId: created.id,
         version: 1,
@@ -293,7 +359,7 @@ async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, r
     }
     const result = {
       recordsCreated,
-      recordsSkipped: skippedKeys.size,
+      recordsSkipped: skippedKeys.size + concurrentRecordsSkipped,
       categoriesCreated,
       categoriesReused,
       relationshipsCreated,

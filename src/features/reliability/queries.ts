@@ -18,6 +18,7 @@ import { sha256, stableStringify } from "@/shared/hash";
 
 import { evaluateReleaseReadiness, sourceIdentity } from "./readiness";
 import { currentDataAccessScope } from "@/features/auth/access";
+import { captureReadCondition } from "@/features/auth/resource-scope";
 
 export type ReliabilityDossierDTO = {
   claim: {
@@ -107,7 +108,7 @@ export async function listKnowledgeReleases(options?: {
     .where(
       and(
         options?.claimId ? eq(knowledgeReleases.claimId, options.claimId) : undefined,
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureReadCondition(scope),
       ),
     )
     .orderBy(desc(knowledgeReleases.createdAt), desc(knowledgeReleases.id))
@@ -138,7 +139,7 @@ export async function getReliabilityDossier(
     .where(
       and(
         eq(claims.id, claimId),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureReadCondition(scope),
       ),
     )
     .limit(1);

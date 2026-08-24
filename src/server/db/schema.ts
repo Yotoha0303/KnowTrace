@@ -31,6 +31,11 @@ export const recordStatusEnum = pgEnum("record_status", [
   "archived",
 ]);
 
+export const captureVisibilityEnum = pgEnum("capture_visibility", [
+  "private",
+  "shared",
+]);
+
 export const categoryAssignedByEnum = pgEnum("category_assigned_by", [
   "manual",
   "ai_accepted",
@@ -139,9 +144,11 @@ export const captures = pgTable(
       .defaultNow(),
     contentType: contentTypeEnum("content_type").notNull().default("unknown"),
     status: recordStatusEnum("status").notNull().default("active"),
+    visibility: captureVisibilityEnum("visibility").notNull().default("private"),
     version: integer("version").notNull().default(1),
     idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
     idempotencyHash: varchar("idempotency_hash", { length: 64 }).notNull(),
+    importFingerprint: varchar("import_fingerprint", { length: 64 }),
     createdById: varchar("created_by_id", { length: 100 })
       .notNull()
       .default("legacy-local"),
@@ -160,6 +167,15 @@ export const captures = pgTable(
     uniqueIndex("captures_creator_idempotency_key_uq").on(
       table.createdById,
       table.idempotencyKey,
+    ),
+    uniqueIndex("captures_creator_import_fingerprint_uq")
+      .on(table.createdById, table.importFingerprint)
+      .where(sql`${table.importFingerprint} is not null`),
+    index("captures_visibility_status_created_idx").on(
+      table.visibility,
+      table.status,
+      table.createdAt,
+      table.id,
     ),
     index("captures_creator_status_created_idx").on(
       table.createdById,

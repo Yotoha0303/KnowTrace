@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   addClaimEvidenceSchema,
   checkClaimEvidenceSourceSchema,
+  createManualClaimSchema,
   transitionClaimSchema,
   updateClaimEvidenceSchema,
   uploadEvidenceImageSchema,
@@ -17,6 +18,21 @@ describe("claim workflow schemas", () => {
         targetStatus: "investigating",
       }).success,
     ).toBe(true);
+  });
+
+  it("requires a complete manually entered falsifiable claim", () => {
+    const valid = {
+      captureId: "d92f5b20-52d0-4b3e-b9ad-3b1fd759bd6a",
+      expectedCaptureVersion: 2,
+      statement: "每天复盘能够提高问题处理效率",
+      sourceExcerpt: "我通过每天复盘改进了处理方式",
+      falsificationCriteria: "若长期对照记录显示处理效率没有提升，则应修正该主张",
+    };
+    expect(createManualClaimSchema.safeParse(valid).success).toBe(true);
+    expect(createManualClaimSchema.safeParse({
+      ...valid,
+      falsificationCriteria: "无法证伪",
+    }).success).toBe(false);
   });
 
   it("accepts an empty evidence source URL or a valid HTTP(S) URL", () => {

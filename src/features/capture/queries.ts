@@ -7,6 +7,7 @@ import {
   ilike,
   inArray,
   or,
+  sql,
 } from "drizzle-orm";
 
 import {
@@ -35,6 +36,10 @@ import {
 } from "@/features/ai-processing/schema";
 import { claimAuditEvidenceFingerprint } from "@/features/ai-processing/claim-audit";
 import { currentDataAccessScope } from "@/features/auth/access";
+import {
+  canManageCapture,
+  captureReadCondition,
+} from "@/features/auth/resource-scope";
 
 export type CategoryDTO = {
   id: string;
@@ -45,6 +50,7 @@ export type CategoryDTO = {
   activeCaptureCount: number;
   createdById: string;
   createdByName: string;
+  canManage: boolean;
 };
 
 export type CaptureListItemDTO = {
@@ -63,9 +69,11 @@ export type CaptureListItemDTO = {
     | "mixed"
     | "unknown";
   status: "active" | "archived";
+  visibility: "private" | "shared";
   version: number;
   createdById: string;
   createdByName: string;
+  canManage: boolean;
   categories: Pick<CategoryDTO, "id" | "name">[];
   createdAt: string;
   updatedAt: string;
@@ -263,6 +271,14 @@ async function categoriesByCaptureIds(captureIds: string[]) {
 
 export async function listCategories(includeArchived = false): Promise<CategoryDTO[]> {
   const scope = await currentDataAccessScope();
+  const readableCaptureIds = db
+    .select({ id: captures.id })
+    .from(captures)
+    .where(captureReadCondition(scope));
+  const readableCategoryIds = db
+    .select({ categoryId: captureCategories.categoryId })
+    .from(captureCategories)
+    .where(inArray(captureCategories.captureId, readableCaptureIds));
   const rows = await db
     .select({
       id: categories.id,
@@ -271,8 +287,8 @@ export async function listCategories(includeArchived = false): Promise<CategoryD
       status: categories.status,
       createdById: categories.createdById,
       createdByName: categories.createdByName,
-      captureCount: countDistinct(captureCategories.captureId),
-      activeCaptureCount: countDistinct(captures.id),
+      captureCount: countDistinct(captures.id),
+      activeCaptureCount: sql<number>`count(distinct ${captures.id}) filter (where ${captures.status} = 'active')`,
     })
     .from(categories)
     .leftJoin(captureCategories, eq(categories.id, captureCategories.categoryId))
@@ -280,13 +296,18 @@ export async function listCategories(includeArchived = false): Promise<CategoryD
       captures,
       and(
         eq(captures.id, captureCategories.captureId),
-        eq(captures.status, "active"),
+        captureReadCondition(scope),
       ),
     )
     .where(
       and(
         includeArchived ? undefined : eq(categories.status, "active"),
-        scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
+        scope.isAdmin
+          ? undefined
+          : or(
+              eq(categories.createdById, scope.actorId),
+              inArray(categories.id, readableCategoryIds),
+            ),
       ),
     )
     .groupBy(categories.id)
@@ -296,6 +317,7 @@ export async function listCategories(includeArchived = false): Promise<CategoryD
     ...row,
     captureCount: Number(row.captureCount),
     activeCaptureCount: Number(row.activeCaptureCount),
+    canManage: scope.isAdmin || row.createdById === scope.actorId,
   }));
 }
 
@@ -323,7 +345,7 @@ export async function listCaptures(options?: {
       and(
         eq(captures.status, status),
         categoryFilter ? inArray(captures.id, categoryFilter) : undefined,
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureReadCondition(scope),
       ),
     )
     .orderBy(desc(captures.createdAt), desc(captures.id))
@@ -339,9 +361,11 @@ export async function listCaptures(options?: {
     occurredAt: toIso(row.occurredAt),
     contentType: row.contentType,
     status: row.status,
+    visibility: row.visibility,
     version: row.version,
     createdById: row.createdById,
     createdByName: row.createdByName,
+    canManage: canManageCapture(scope, row.createdById),
     categories: groupedCategories.get(row.id) ?? [],
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
@@ -368,7 +392,7 @@ export async function listClaims(options?: {
     .where(
       and(
         options?.status ? eq(claims.status, options.status) : undefined,
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureReadCondition(scope),
         query
           ? or(
               ilike(claims.statement, `%${query}%`),
@@ -455,7 +479,7 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
     .where(
       and(
         eq(captures.id, id),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureReadCondition(scope),
       ),
     )
     .limit(1);
@@ -602,9 +626,11 @@ export async function getCaptureDetail(id: string): Promise<CaptureDetailDTO | n
     occurredAt: toIso(row.occurredAt),
     contentType: row.contentType,
     status: row.status,
+    visibility: row.visibility,
     version: row.version,
     createdById: row.createdById,
     createdByName: row.createdByName,
+    canManage: canManageCapture(scope, row.createdById),
     categories: groupedCategories.get(row.id) ?? [],
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
