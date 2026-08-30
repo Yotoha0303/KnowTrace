@@ -5,12 +5,20 @@ import { Archive, ArrowLeftRight, ContactRound, Inbox, Menu, Scale, Search, Sett
 import { useRef } from "react";
 
 import { LogoutButton } from "@/components/logout-button";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import type { WorkspaceAccess } from "@/features/workspace/service";
 
 type MobileNavDrawerProps = Readonly<{
+  currentWorkspaceId: string;
+  workspaces: WorkspaceAccess[];
   user: null | { id: number; username: string; nickname: string };
 }>;
 
-export function MobileNavDrawer({ user }: MobileNavDrawerProps) {
+export function MobileNavDrawer({
+  currentWorkspaceId,
+  workspaces,
+  user,
+}: MobileNavDrawerProps) {
   const drawerRef = useRef<HTMLDetailsElement>(null);
 
   function closeDrawer() {
@@ -23,6 +31,12 @@ export function MobileNavDrawer({ user }: MobileNavDrawerProps) {
         <Menu size={21} />
       </summary>
       <div className="mobile-nav-panel">
+        <WorkspaceSwitcher
+          currentWorkspaceId={currentWorkspaceId}
+          variant="mobile"
+          workspaces={workspaces}
+        />
+
         <p className="mobile-nav-heading">导航</p>
         <nav className="mobile-nav-list" aria-label="移动端主要导航">
           <Link href="/" onClick={closeDrawer}>

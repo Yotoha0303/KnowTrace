@@ -1,0 +1,82 @@
+name: knowtrace-v2-isolated
+
+x-app-environment: &app-environment
+  EVIDENCE_UPLOAD_DIR: /app/data/uploads/evidence
+  AUTH_ENABLED: "false"
+  AI_DEFAULT_PROVIDER: mock
+  AI_REQUEST_TIMEOUT_MS: "1000"
+
+services:
+  source-postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: knowtrace_source
+      POSTGRES_USER: knowtrace
+      POSTGRES_PASSWORD: isolated
+    ports:
+      - "127.0.0.1:15433:5432"
+    volumes:
+      - source_postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knowtrace -d knowtrace_source"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  target-postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: knowtrace_target
+      POSTGRES_USER: knowtrace
+      POSTGRES_PASSWORD: isolated
+    ports:
+      - "127.0.0.1:15434:5432"
+    volumes:
+      - target_postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knowtrace -d knowtrace_target"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  source-app:
+    image: knowtrace-app:latest
+    environment:
+      <<: *app-environment
+      DATABASE_URL: postgres://knowtrace:isolated@source-postgres:5432/knowtrace_source
+    ports:
+      - "127.0.0.1:3301:3000"
+    volumes:
+      - ./source-uploads:/app/data/uploads
+    depends_on:
+      source-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+
+  target-app:
+    image: knowtrace-app:latest
+    environment:
+      <<: *app-environment
+      DATABASE_URL: postgres://knowtrace:isolated@target-postgres:5432/knowtrace_target
+    ports:
+      - "127.0.0.1:3302:3000"
+    volumes:
+      - ./target-uploads:/app/data/uploads
+    depends_on:
+      target-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  source_postgres:
+  target_postgres:

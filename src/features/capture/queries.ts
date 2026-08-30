@@ -301,6 +301,7 @@ export async function listCategories(includeArchived = false): Promise<CategoryD
     )
     .where(
       and(
+        eq(categories.workspaceId, scope.workspaceId),
         includeArchived ? undefined : eq(categories.status, "active"),
         scope.isAdmin
           ? undefined

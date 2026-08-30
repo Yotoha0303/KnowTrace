@@ -64,6 +64,7 @@ async function analyzeImport(payload: PortablePayload, actor: TransferActor): Pr
   const categoryUuids = payload.categories.map((category) => category.key).filter((key) => z.uuid().safeParse(key).success);
   const existingCategories = payload.categories.length
     ? await db.select().from(categories).where(and(
+        eq(categories.workspaceId, actor.workspaceId),
         eq(categories.createdById, actor.id),
         or(
           categoryNormalizedNames.length ? inArray(categories.normalizedName, categoryNormalizedNames) : undefined,
@@ -86,7 +87,15 @@ async function analyzeImport(payload: PortablePayload, actor: TransferActor): Pr
 
   const recordUuids = payload.records.map((record) => record.key).filter((key) => z.uuid().safeParse(key).success);
   const existingCaptures = payload.records.length
-    ? await db.select().from(captures).where(eq(captures.createdById, actor.id))
+    ? await db
+        .select()
+        .from(captures)
+        .where(
+          and(
+            eq(captures.workspaceId, actor.workspaceId),
+            eq(captures.createdById, actor.id),
+          ),
+        )
     : [];
   const byImportKey = new Map(existingCaptures.map((capture) => [capture.idempotencyKey, capture]));
   const byId = new Map(existingCaptures.map((capture) => [capture.id, capture]));
@@ -103,10 +112,21 @@ async function analyzeImport(payload: PortablePayload, actor: TransferActor): Pr
     ]),
   );
   const existingRelationshipRows = recordUuids.length
-    ? await db.select({ captureId: captureCategories.captureId, normalizedName: categories.normalizedName })
+    ? await db
+        .select({
+          captureId: captureCategories.captureId,
+          normalizedName: categories.normalizedName,
+        })
         .from(captureCategories)
+        .innerJoin(captures, eq(captureCategories.captureId, captures.id))
         .innerJoin(categories, eq(captureCategories.categoryId, categories.id))
-        .where(inArray(captureCategories.captureId, recordUuids))
+        .where(
+          and(
+            inArray(captureCategories.captureId, recordUuids),
+            eq(captures.workspaceId, actor.workspaceId),
+            eq(categories.workspaceId, actor.workspaceId),
+          ),
+        )
     : [];
   const existingCategoryNamesByCapture = new Map<string, string[]>();
   for (const relationship of existingRelationshipRows) {
@@ -152,15 +172,25 @@ async function analyzeImport(payload: PortablePayload, actor: TransferActor): Pr
   };
 }
 
+export async function analyzePortableBaseImport(
+  payload: PortablePayload,
+  actor: TransferActor,
+) {
+  return analyzeImport(payload, actor);
+}
+
 export async function exportPortableData(): Promise<Buffer> {
   const actor = await currentTransferActor();
   if (!actor) throw new AppError("AUTH_REQUIRED", "请先登录。");
-  const captureFilter = actor.isAdmin
-    ? undefined
-    : or(
-        eq(captures.createdById, actor.id),
-        eq(captures.visibility, "shared"),
-      );
+  const captureFilter = and(
+    eq(captures.workspaceId, actor.workspaceId),
+    actor.isAdmin
+      ? undefined
+      : or(
+          eq(captures.createdById, actor.id),
+          eq(captures.visibility, "shared"),
+        ),
+  );
   const captureRows = await db
     .select()
     .from(captures)
@@ -179,14 +209,17 @@ export async function exportPortableData(): Promise<Buffer> {
     .select()
     .from(categories)
     .where(
-      actor.isAdmin
-        ? undefined
-        : or(
-            eq(categories.createdById, actor.id),
-            relatedCategoryIds.length
-              ? inArray(categories.id, relatedCategoryIds)
-              : undefined,
-          ),
+      and(
+        eq(categories.workspaceId, actor.workspaceId),
+        actor.isAdmin
+          ? undefined
+          : or(
+              eq(categories.createdById, actor.id),
+              relatedCategoryIds.length
+                ? inArray(categories.id, relatedCategoryIds)
+                : undefined,
+            ),
+      ),
     )
     .orderBy(asc(categories.createdAt), asc(categories.id));
   const categoryKeysByCapture = new Map<string, string[]>();
@@ -232,6 +265,7 @@ export async function previewPortableImport(input: {
   const issues = [...parsed.issues, ...analysis.summary.issues].slice(0, 100);
   const summary: ImportPreviewSummary = { ...analysis.summary, valid: issues.length === 0, issues };
   const [run] = await db.insert(dataImportRuns).values({
+    workspaceId: input.actor.workspaceId,
     actorId: input.actor.id,
     actorName: input.actor.name,
     fileName: input.fileName.slice(0, 255),
@@ -247,152 +281,315 @@ export async function previewPortableImport(input: {
   return { runId: run.id, status: run.status, summary };
 }
 
-async function applyImport(payload: PortablePayload, skippedKeys: Set<string>, runId: string, actor: TransferActor): Promise<ImportResultSummary> {
-  return db.transaction(async (transaction) => {
-    const normalizedNames = payload.categories.map((category) => normalizeCategoryName(category.name));
-    const existing = normalizedNames.length
-      ? await transaction.select().from(categories).where(
+type DataTransferTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export type PortableBaseImportApplyResult = ImportResultSummary & {
+  captureIdByKey: Map<string, string>;
+  categoryIdByKey: Map<string, string>;
+};
+
+export async function applyPortableBaseImport(
+  transaction: DataTransferTransaction,
+  payload: PortablePayload,
+  skippedKeys: Set<string>,
+  actor: TransferActor,
+): Promise<PortableBaseImportApplyResult> {
+  const normalizedNames = payload.categories.map((category) => normalizeCategoryName(category.name));
+  const existing = normalizedNames.length
+    ? await transaction.select().from(categories).where(
+        and(
+          eq(categories.workspaceId, actor.workspaceId),
+          eq(categories.createdById, actor.id),
+          inArray(categories.normalizedName, normalizedNames),
+        ),
+      )
+    : [];
+  const categoryIdByKey = new Map<string, string>();
+  const byName = new Map(existing.map((category) => [category.normalizedName, category]));
+  let categoriesCreated = 0;
+  let categoriesReused = 0;
+  for (const category of payload.categories) {
+    const found = byName.get(normalizeCategoryName(category.name));
+    if (found) {
+      categoryIdByKey.set(category.key, found.id);
+      categoriesReused += 1;
+      continue;
+    }
+    const [created] = await transaction.insert(categories).values({
+      workspaceId: actor.workspaceId,
+      name: category.name,
+      normalizedName: normalizeCategoryName(category.name),
+      description: category.description,
+      status: "active",
+      createdById: actor.id,
+      createdByName: actor.name,
+    }).returning();
+    categoryIdByKey.set(category.key, created.id);
+    byName.set(created.normalizedName, created);
+    categoriesCreated += 1;
+  }
+
+  const existingCaptures = payload.records.length
+    ? await transaction
+        .select()
+        .from(captures)
+        .where(
           and(
-            eq(categories.createdById, actor.id),
-            inArray(categories.normalizedName, normalizedNames),
+            eq(captures.workspaceId, actor.workspaceId),
+            eq(captures.createdById, actor.id),
           ),
         )
-      : [];
-    const categoryIdByKey = new Map<string, string>();
-    const byName = new Map(existing.map((category) => [category.normalizedName, category]));
-    let categoriesCreated = 0;
-    let categoriesReused = 0;
-    for (const category of payload.categories) {
-      const found = byName.get(normalizeCategoryName(category.name));
-      if (found) {
-        categoryIdByKey.set(category.key, found.id);
-        categoriesReused += 1;
-        continue;
+    : [];
+  const byImportKey = new Map(existingCaptures.map((capture) => [capture.idempotencyKey, capture]));
+  const byId = new Map(existingCaptures.map((capture) => [capture.id, capture]));
+  const byFingerprint = new Map(
+    existingCaptures.map((capture) => [
+      capture.importFingerprint ?? importRecordFingerprint({
+        title: capture.title,
+        subject: capture.subject,
+        content: capture.content,
+        occurredAt: capture.occurredAt.toISOString(),
+        contentType: capture.contentType,
+      }),
+      capture,
+    ]),
+  );
+  const captureIdByKey = new Map<string, string>();
+  let recordsCreated = 0;
+  let concurrentRecordsSkipped = 0;
+  let relationshipsCreated = 0;
+
+  for (const record of payload.records) {
+    const fingerprint = importRecordFingerprint(record);
+    if (skippedKeys.has(record.key)) {
+      const existingCapture =
+        byImportKey.get(importKey(record.key)) ??
+        byId.get(record.key) ??
+        byFingerprint.get(fingerprint);
+      if (!existingCapture) {
+        throw new AppError(
+          "IMPORT_STATE_CHANGED",
+          "预检时识别的重复记录已经变化，请重新上传文件预检。",
+        );
       }
-      const [created] = await transaction.insert(categories).values({
-        name: category.name,
-        normalizedName: normalizeCategoryName(category.name),
-        description: category.description,
-        status: "active",
-        createdById: actor.id,
-        createdByName: actor.name,
-      }).returning();
-      categoryIdByKey.set(category.key, created.id);
-      byName.set(created.normalizedName, created);
-      categoriesCreated += 1;
+      captureIdByKey.set(record.key, existingCapture.id);
+      continue;
     }
 
-    let recordsCreated = 0;
-    let concurrentRecordsSkipped = 0;
-    let relationshipsCreated = 0;
-    for (const record of payload.records) {
-      if (skippedKeys.has(record.key)) continue;
-      const [created] = await transaction.insert(captures).values({
-        title: record.title,
-        subject: record.subject,
-        content: record.content,
-        occurredAt: new Date(record.occurredAt),
-        contentType: record.contentType,
-        status: "active",
-        idempotencyKey: importKey(record.key),
-        idempotencyHash: recordHash(record),
-        importFingerprint: importRecordFingerprint(record),
-        visibility: actor.isAdmin ? "shared" : "private",
-        createdById: actor.id,
-        createdByName: actor.name,
-      }).onConflictDoNothing().returning();
-      if (!created) {
-        const [conflict] = await transaction
-          .select({
-            idempotencyKey: captures.idempotencyKey,
-            idempotencyHash: captures.idempotencyHash,
-            importFingerprint: captures.importFingerprint,
-          })
-          .from(captures)
-          .where(
-            and(
-              eq(captures.createdById, actor.id),
-              or(
-                eq(captures.idempotencyKey, importKey(record.key)),
-                eq(captures.importFingerprint, importRecordFingerprint(record)),
-              ),
+    const [created] = await transaction.insert(captures).values({
+      workspaceId: actor.workspaceId,
+      title: record.title,
+      subject: record.subject,
+      content: record.content,
+      occurredAt: new Date(record.occurredAt),
+      contentType: record.contentType,
+      status: "active",
+      idempotencyKey: importKey(record.key),
+      idempotencyHash: recordHash(record),
+      importFingerprint: fingerprint,
+      visibility: actor.isAdmin ? "shared" : "private",
+      createdById: actor.id,
+      createdByName: actor.name,
+    }).onConflictDoNothing().returning();
+    if (!created) {
+      const [conflict] = await transaction
+        .select()
+        .from(captures)
+        .where(
+          and(
+            eq(captures.workspaceId, actor.workspaceId),
+            eq(captures.createdById, actor.id),
+            or(
+              eq(captures.idempotencyKey, importKey(record.key)),
+              eq(captures.importFingerprint, fingerprint),
             ),
-          )
-          .limit(1);
-        if (
-          conflict?.idempotencyKey === importKey(record.key) &&
-          conflict.idempotencyHash !== recordHash(record)
-        ) {
-          throw new AppError(
-            "IMPORT_RECORD_CONFLICT",
-            "并发导入时发现相同记录标识对应不同内容，请重新预检。",
-          );
-        }
-        concurrentRecordsSkipped += 1;
-        continue;
+          ),
+        )
+        .limit(1);
+      if (!conflict) {
+        throw new AppError(
+          "IMPORT_STATE_CHANGED",
+          "并发导入导致记录状态变化，请重新上传文件预检。",
+        );
       }
-      await transaction.insert(captureRevisions).values({
-        captureId: created.id,
-        version: 1,
-        title: created.title,
-        subject: created.subject,
-        content: created.content,
-        contentType: created.contentType,
-        occurredAt: created.occurredAt,
-      });
-      const categoryIds = record.categoryKeys.map((key) => categoryIdByKey.get(key)).filter((id): id is string => Boolean(id));
-      if (categoryIds.length) {
-        await transaction.insert(captureCategories).values(categoryIds.map((categoryId) => ({ captureId: created.id, categoryId, assignedBy: "manual" as const })));
-        relationshipsCreated += categoryIds.length;
+      if (
+        conflict.idempotencyKey === importKey(record.key) &&
+        conflict.idempotencyHash !== recordHash(record)
+      ) {
+        throw new AppError(
+          "IMPORT_RECORD_CONFLICT",
+          "并发导入时发现相同记录标识对应不同内容，请重新预检。",
+        );
       }
-      if (record.status === "archived") {
-        await transaction.update(captures).set({ status: "archived", archivedAt: new Date(), updatedAt: new Date() }).where(eq(captures.id, created.id));
-      }
-      recordsCreated += 1;
+      captureIdByKey.set(record.key, conflict.id);
+      byImportKey.set(conflict.idempotencyKey, conflict);
+      byId.set(conflict.id, conflict);
+      if (conflict.importFingerprint) byFingerprint.set(conflict.importFingerprint, conflict);
+      concurrentRecordsSkipped += 1;
+      continue;
     }
-    for (const category of payload.categories) {
-      if (category.status === "archived" && !byName.has(normalizeCategoryName(category.name))) continue;
-      if (category.status === "archived" && !existing.some((item) => item.normalizedName === normalizeCategoryName(category.name))) {
-        const categoryId = categoryIdByKey.get(category.key);
-        if (categoryId) await transaction.update(categories).set({ status: "archived", updatedAt: new Date() }).where(eq(categories.id, categoryId));
+
+    captureIdByKey.set(record.key, created.id);
+    byImportKey.set(created.idempotencyKey, created);
+    byId.set(created.id, created);
+    if (created.importFingerprint) byFingerprint.set(created.importFingerprint, created);
+    await transaction.insert(captureRevisions).values({
+      captureId: created.id,
+      version: 1,
+      title: created.title,
+      subject: created.subject,
+      content: created.content,
+      contentType: created.contentType,
+      occurredAt: created.occurredAt,
+    });
+    const categoryIds = record.categoryKeys
+      .map((key) => categoryIdByKey.get(key))
+      .filter((id): id is string => Boolean(id));
+    if (categoryIds.length) {
+      await transaction.insert(captureCategories).values(
+        categoryIds.map((categoryId) => ({
+          captureId: created.id,
+          categoryId,
+          assignedBy: "manual" as const,
+        })),
+      );
+      relationshipsCreated += categoryIds.length;
+    }
+    if (record.status === "archived") {
+      await transaction
+        .update(captures)
+        .set({ status: "archived", archivedAt: new Date(), updatedAt: new Date() })
+        .where(eq(captures.id, created.id));
+    }
+    recordsCreated += 1;
+  }
+
+  for (const category of payload.categories) {
+    if (category.status === "archived" && !byName.has(normalizeCategoryName(category.name))) continue;
+    if (
+      category.status === "archived" &&
+      !existing.some((item) => item.normalizedName === normalizeCategoryName(category.name))
+    ) {
+      const categoryId = categoryIdByKey.get(category.key);
+      if (categoryId) {
+        await transaction
+          .update(categories)
+          .set({ status: "archived", updatedAt: new Date() })
+          .where(eq(categories.id, categoryId));
       }
     }
-    const result = {
-      recordsCreated,
-      recordsSkipped: skippedKeys.size + concurrentRecordsSkipped,
-      categoriesCreated,
-      categoriesReused,
-      relationshipsCreated,
-    };
+  }
+
+  return {
+    recordsCreated,
+    recordsSkipped: skippedKeys.size + concurrentRecordsSkipped,
+    categoriesCreated,
+    categoriesReused,
+    relationshipsCreated,
+    captureIdByKey,
+    categoryIdByKey,
+  };
+}
+
+async function applyImport(
+  payload: PortablePayload,
+  skippedKeys: Set<string>,
+  runId: string,
+  actor: TransferActor,
+): Promise<ImportResultSummary> {
+  return db.transaction(async (transaction) => {
+    const baseResult = await applyPortableBaseImport(
+      transaction,
+      payload,
+      skippedKeys,
+      actor,
+    );
+    const {
+      captureIdByKey: _captureIdByKey,
+      categoryIdByKey: _categoryIdByKey,
+      ...result
+    } = baseResult;
     await transaction.update(dataImportRuns).set({
       status: "completed",
       resultSummary: result,
       completedAt: new Date(),
-    }).where(and(eq(dataImportRuns.id, runId), eq(dataImportRuns.status, "importing")));
+    }).where(
+      and(
+        eq(dataImportRuns.id, runId),
+        eq(dataImportRuns.workspaceId, actor.workspaceId),
+        eq(dataImportRuns.actorId, actor.id),
+        eq(dataImportRuns.status, "importing"),
+      ),
+    );
     return result;
   });
 }
 
 export async function confirmPortableImport(runId: string, actor: TransferActor) {
-  const [run] = await db.select().from(dataImportRuns).where(and(eq(dataImportRuns.id, runId), eq(dataImportRuns.actorId, actor.id))).limit(1);
+  const [run] = await db
+    .select()
+    .from(dataImportRuns)
+    .where(
+      and(
+        eq(dataImportRuns.id, runId),
+        eq(dataImportRuns.workspaceId, actor.workspaceId),
+        eq(dataImportRuns.actorId, actor.id),
+      ),
+    )
+    .limit(1);
   if (!run) throw new AppError("IMPORT_RUN_NOT_FOUND", "找不到这次导入预检记录。");
   if (run.status !== "previewed") throw new AppError("IMPORT_RUN_NOT_READY", "只有预检通过且尚未导入的文件才能确认导入。");
   const payload = portablePayloadSchema.parse(run.stagedPayload);
   const analysis = await analyzeImport(payload, actor);
   if (!analysis.summary.valid) {
-    await db.update(dataImportRuns).set({ status: "failed", errorCode: "IMPORT_STATE_CHANGED", errorMessage: "数据库内容已变化，请重新上传文件预检。", completedAt: new Date() }).where(eq(dataImportRuns.id, run.id));
+    await db
+      .update(dataImportRuns)
+      .set({
+        status: "failed",
+        errorCode: "IMPORT_STATE_CHANGED",
+        errorMessage: "数据库内容已变化，请重新上传文件预检。",
+        completedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(dataImportRuns.id, run.id),
+          eq(dataImportRuns.workspaceId, actor.workspaceId),
+          eq(dataImportRuns.actorId, actor.id),
+        ),
+      );
     throw new AppError("IMPORT_STATE_CHANGED", "数据库内容已变化，请重新上传文件预检。");
   }
   const [claimedRun] = await db.update(dataImportRuns)
     .set({ status: "importing", startedAt: new Date(), errorCode: null, errorMessage: null })
-    .where(and(eq(dataImportRuns.id, run.id), eq(dataImportRuns.status, "previewed")))
+    .where(
+      and(
+        eq(dataImportRuns.id, run.id),
+        eq(dataImportRuns.workspaceId, actor.workspaceId),
+        eq(dataImportRuns.actorId, actor.id),
+        eq(dataImportRuns.status, "previewed"),
+      ),
+    )
     .returning({ id: dataImportRuns.id });
   if (!claimedRun) throw new AppError("IMPORT_RUN_NOT_READY", "这次导入已经被处理，请重新上传文件预检。");
   try {
     const result = await applyImport(payload, analysis.skippedKeys, run.id, actor);
     return { runId: run.id, status: "completed" as const, result };
   } catch (error) {
-    await db.update(dataImportRuns).set({ status: "failed", errorCode: "IMPORT_TRANSACTION_FAILED", errorMessage: "导入事务失败，未写入部分数据。", completedAt: new Date() }).where(eq(dataImportRuns.id, run.id));
+    await db
+      .update(dataImportRuns)
+      .set({
+        status: "failed",
+        errorCode: "IMPORT_TRANSACTION_FAILED",
+        errorMessage: "导入事务失败，未写入部分数据。",
+        completedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(dataImportRuns.id, run.id),
+          eq(dataImportRuns.workspaceId, actor.workspaceId),
+          eq(dataImportRuns.actorId, actor.id),
+        ),
+      );
     throw error;
   }
 }

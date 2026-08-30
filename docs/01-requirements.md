@@ -233,7 +233,7 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 
 状态：已实现。KnowTrace 读取 CC-Switch 状态与模型目录，区分代理可达、供应商身份和可用路由；可用路由检测成功后不再强制每次手工测试。未知供应商保持“未识别”，不会猜测名称。
 
-### US-16 Excel 导出与导入主张、证据及附件（下一次迭代）
+### US-16 Excel/ZIP 导出与导入主张、证据及附件（已完成）
 
 作为使用者，我希望 Excel 数据迁移不仅保存原始记录和分类，还能保存其主张、证伪条件、证据摘录、来源信息、核验状态、人工结论和证据图片，从而在另一个 KnowTrace 实例中继续原有知识调查，而不是只得到失去证据链的原文。
 
@@ -246,7 +246,48 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 - 明确可编辑交换包能否恢复已采纳/已审核状态；没有受信任完整性机制时必须安全降级为待核验。
 - 继续兼容当前 `v1` Excel 导入；Excel 交换包仍不能替代 PostgreSQL、认证数据库和上传目录的完整备份。
 
-状态：已纳入下一次开发，尚未实现。详细范围与测试矩阵见 `KT-DEFER-005`。
+状态：已完成。`v2` 已实现主张、证据、来源/附件检查、人工结论、结论证据关系和图片 manifest 的 Excel 生成/解析，以及 `manifest.json + knowtrace.xlsx + attachments/` ZIP 包；导入会校验工作簿与附件 SHA-256、大小、MIME、路径和引用完整性，并拒绝目录穿越、额外文件和超限附件。Capture/Category 复用 `v1` 预检与事务语义，Claim/Evidence/Attachment 使用按 actor、格式版本和稳定对象身份隔离的 provenance，实现 `create / skip / repair / conflict`。确认导入会重新校验服务端暂存 ZIP、文件哈希和数据库预检快照，并在单个数据库事务中写入基础对象与知识链；附件文件失败时执行补偿清理。当前数据迁移页同时支持 `.xlsx v1` 与 `.zip v2`，可信状态按非受信任交换包策略安全降级。隔离恢复验收已使用两套独立 KnowTrace App + PostgreSQL 实例完成真实 HTTP 导出/预检/确认链路，验证空白实例恢复、图片在线读取与 SHA-256 一致、同一 actor 第二次导入全量幂等；同一真实目标 PostgreSQL 上还验证了第二 actor 使用独立 provenance 重新创建，不跨 actor 错误去重。详细范围与测试矩阵见 `KT-DEFER-005`。
+
+### US-17 Workspace 数据隔离（已完成并部署）
+
+作为多个用户和后续组织协作场景的使用者，我希望 KnowTrace 以 Workspace 作为数据边界，而不是仅依赖单个 actor/管理员可见性规则，从而让同一账号可以进入不同空间，并保证记录、知识链、搜索、导入导出和附件不会跨 Workspace 泄露。
+
+阶段目标：先完成**数据隔离和 Workspace 上下文**，不在本阶段同时展开复杂 RBAC、计费、Agent 权限或组织管理。
+
+验收标准：
+
+- 新增稳定 Workspace 实体与成员关系；每个需要业务隔离的对象必须能够确定唯一 Workspace 归属。
+- 当前 Workspace 必须由服务端会话/成员关系解析，客户端不能通过伪造 `workspace_id` 越权访问其他空间。
+- Capture、Category、Claim、Evidence、Review、AI Run、Topic、可靠发布、附件、搜索和数据迁移都必须使用一致的 Workspace 过滤边界。
+- 直接猜测对象 ID、图片 ID、导入 run ID 或 API 路径时，跨 Workspace 资源必须表现为不可访问，不能通过 403/404 差异泄露存在性。
+- 同一用户可以属于多个 Workspace，并能显式切换当前 Workspace；切换后列表、搜索、分类、主题、导入导出和 AI 上下文全部同步切换。
+- 现有数据需要迁移到明确的默认 Workspace；迁移必须可重复验证，不允许产生无 Workspace 的悬空业务数据。
+- v1/v2 导入导出的幂等和 provenance 身份必须纳入 Workspace 边界；相同 actor 在不同 Workspace 导入同一包时不能错误去重。
+- 审计记录至少保留 actor 与 Workspace 身份，后续细粒度角色授权可在此基础上扩展。
+- 自动化测试至少覆盖：同用户跨 Workspace 隔离、不同用户同 Workspace 合法访问、跨 Workspace ID 猜测、搜索/附件/导出隔离、迁移兼容和 provenance 隔离。
+
+完成标准：在两个真实 Workspace 中构造相同内容与知识链，任何查询、搜索、图片、导入导出和直接资源访问都只能看到当前 Workspace 数据；切换 Workspace 后上下文完整切换且不存在跨空间缓存污染。
+
+状态：已完成并部署。`0020_workspace_foundation.sql` 已建立 Workspace、Membership、默认 Workspace 迁移以及 Workspace-aware 的 Capture/Category/import run/provenance/idempotency 边界；`0021_workspace_audit_identity.sql` 为 AI Run 与 Topic Synthesis 补充显式 Workspace 与 actor 审计身份。当前 Workspace 由服务端 Cookie + Membership 校验解析，桌面 Sidebar 与移动导航均可显式切换。Workspace 所有者还可删除空的非默认 Workspace：默认空间永久保护、成员无删除权、删除前必须输入完整空间名称确认、有任一业务数据时返回 `WORKSPACE_NOT_EMPTY`，删除当前空间后服务端自动切回默认 Workspace。真实双实例/双 Workspace HTTP 验收已覆盖列表、详情、分类、搜索、主张、对象聚合、图片、v2 导出、import run ID、幂等、provenance 以及 Workspace 删除权限/空状态保护；跨 Workspace 资源与不存在资源保持同类 404，不通过状态差异泄露存在性。生产实例已依次应用 `0020` 与 `0021` 并恢复健康。
+
+### US-18 移动 App（第二阶段）
+
+在 Workspace 数据隔离稳定后，作为移动端使用者，我希望通过真正的移动 App 快速记录、查看和继续处理 KnowTrace 内容，而不是依赖桌面网页缩放版。
+
+阶段顺序：**US-17 Workspace 数据隔离完成并验收后再启动 US-18**，两者不并行开发。
+
+首期范围：
+
+- 复用现有服务端认证与 `/api/v1` 能力，不在移动端复制业务规则或可信状态判断。
+- 支持登录、当前 Workspace 选择、快速 Capture、新建/查看记录、最近记录、基础搜索和记录详情。
+- 支持移动端图片选择/拍摄并上传为 Evidence 附件，继续复用服务端 MIME、大小、SHA-256 和权限校验。
+- 网络不稳定时至少保证重复提交不会产生重复 Capture；是否实现完整离线队列在移动阶段设计时单独决定。
+- Token/会话必须使用移动平台安全存储方案，不能把长期凭据写入普通本地存储或日志。
+- App 只消费公开稳定 API，不直接连接 PostgreSQL、MySQL、Redis 或本地文件目录。
+- Workspace、用户、Capture、Claim、Evidence 与附件权限必须与 Web 端保持同一服务端授权结果。
+- 技术方案在启动本阶段时再在 React Native/Expo、Flutter 等方案中评估；不预先把“WebView 包装网页”视为完成标准。
+
+完成标准：至少在一台真实移动设备上完成登录 → 选择 Workspace → 新建 Capture → 查看同步结果 → 上传图片证据 → 再次读取的闭环，并验证弱网重试、权限隔离和凭据存储边界。
 
 ## 4. 状态
 
@@ -328,7 +369,7 @@ AI Audit Recommendation：`supported / refuted / inconclusive / needs_more_evide
 
 ### 安全
 
-- 应用不包含身份和授权，必须在文档与部署页面显示该限制。
+- 身份由 go-user-system 提供，KnowTrace 只接受服务端验证后的用户与角色上下文；业务数据还必须经过当前 Workspace Membership 和资源级访问策略校验，客户端提交的用户、角色或 Workspace 标识不能直接成为授权依据。
 - AI API Key 可以来自服务端环境变量，也可以由用户在 AI 整理台为单次请求提供；UI Key 不写入数据库、AI Run 或服务端日志。
 - UI Key 只有在用户明确勾选时才保存到当前标签页的 `sessionStorage`，关闭标签页后失效。
 - 日志不记录完整正文、Prompt、API Key 或供应商原始敏感错误。

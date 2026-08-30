@@ -155,7 +155,7 @@ export async function generateTopicSynthesis(input: {
   provider?: AIProviderName;
   connection?: AIConnectionInput;
 }) {
-  await requireCategoryAccess(input.categoryId);
+  const scope = await requireCategoryAccess(input.categoryId);
   const [category] = await db
     .select()
     .from(categories)
@@ -172,6 +172,9 @@ export async function generateTopicSynthesis(input: {
   const [run] = await db
     .insert(topicSyntheses)
     .values({
+      workspaceId: scope.workspaceId,
+      actorId: scope.actorId,
+      actorName: scope.actorName,
       categoryId: category.id,
       sourceHash: topicSourceHash(snapshot),
       sourceSnapshot: snapshot,
@@ -225,7 +228,7 @@ export async function decideTopicSynthesis(input: {
   synthesisId: string;
   decision: "accepted" | "rejected";
 }) {
-  await requireTopicSynthesisAccess(input.synthesisId);
+  const scope = await requireTopicSynthesisAccess(input.synthesisId);
   const [target] = await db
     .select({ categoryId: topicSyntheses.categoryId, sourceHash: topicSyntheses.sourceHash })
     .from(topicSyntheses)
@@ -245,7 +248,12 @@ export async function decideTopicSynthesis(input: {
   }
   const [updated] = await db
     .update(topicSyntheses)
-    .set({ decision: input.decision, decidedAt: new Date() })
+    .set({
+      decision: input.decision,
+      decidedAt: new Date(),
+      decidedById: scope.actorId,
+      decidedByName: scope.actorName,
+    })
     .where(
       and(
         eq(topicSyntheses.id, input.synthesisId),
