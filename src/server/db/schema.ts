@@ -15,6 +15,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import { LEGACY_DEFAULT_WORKSPACE_ID } from "@/shared/workspace";
+
 export const contentTypeEnum = pgEnum("content_type", [
   "keyword_set",
   "thought_fragment",
@@ -53,6 +55,11 @@ export const dataImportStatusEnum = pgEnum("data_import_status", [
   "importing",
   "completed",
   "failed",
+]);
+
+export const workspaceMemberRoleEnum = pgEnum("workspace_member_role", [
+  "owner",
+  "member",
 ]);
 
 export const suggestionStatusEnum = pgEnum("suggestion_status", [
@@ -124,6 +131,46 @@ export const independentReviewDecisionEnum = pgEnum(
   ["approved", "changes_requested"],
 );
 
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 100 }).notNull(),
+    slug: varchar("slug", { length: 80 }).notNull(),
+    createdById: varchar("created_by_id", { length: 100 }).notNull(),
+    createdByName: varchar("created_by_name", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workspaces_slug_uq").on(table.slug),
+    index("workspaces_created_by_idx").on(table.createdById, table.createdAt),
+  ],
+);
+
+export const workspaceMemberships = pgTable(
+  "workspace_memberships",
+  {
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    actorId: varchar("actor_id", { length: 100 }).notNull(),
+    actorName: varchar("actor_name", { length: 255 }).notNull(),
+    role: workspaceMemberRoleEnum("role").notNull().default("member"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.actorId] }),
+    index("workspace_memberships_actor_idx").on(table.actorId, table.workspaceId),
+  ],
+);
+
 export type EvidenceAttachmentVerificationSnapshot = Array<{
   id: string;
   originalName: string;
@@ -136,6 +183,10 @@ export const captures = pgTable(
   "captures",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(LEGACY_DEFAULT_WORKSPACE_ID)
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     title: varchar("title", { length: 200 }),
     subject: varchar("subject", { length: 200 }),
     content: text("content").notNull(),
@@ -164,20 +215,23 @@ export const captures = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("captures_creator_idempotency_key_uq").on(
+    uniqueIndex("captures_workspace_creator_idempotency_key_uq").on(
+      table.workspaceId,
       table.createdById,
       table.idempotencyKey,
     ),
-    uniqueIndex("captures_creator_import_fingerprint_uq")
-      .on(table.createdById, table.importFingerprint)
+    uniqueIndex("captures_workspace_creator_import_fingerprint_uq")
+      .on(table.workspaceId, table.createdById, table.importFingerprint)
       .where(sql`${table.importFingerprint} is not null`),
-    index("captures_visibility_status_created_idx").on(
+    index("captures_workspace_visibility_status_created_idx").on(
+      table.workspaceId,
       table.visibility,
       table.status,
       table.createdAt,
       table.id,
     ),
-    index("captures_creator_status_created_idx").on(
+    index("captures_workspace_creator_status_created_idx").on(
+      table.workspaceId,
       table.createdById,
       table.status,
       table.createdAt,
@@ -230,6 +284,10 @@ export const categories = pgTable(
   "categories",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(LEGACY_DEFAULT_WORKSPACE_ID)
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     name: varchar("name", { length: 60 }).notNull(),
     normalizedName: varchar("normalized_name", { length: 80 }).notNull(),
     description: varchar("description", { length: 500 }),
@@ -248,11 +306,13 @@ export const categories = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("categories_creator_normalized_name_uq").on(
+    uniqueIndex("categories_workspace_creator_normalized_name_uq").on(
+      table.workspaceId,
       table.createdById,
       table.normalizedName,
     ),
-    index("categories_creator_status_name_idx").on(
+    index("categories_workspace_creator_status_name_idx").on(
+      table.workspaceId,
       table.createdById,
       table.status,
       table.name,
@@ -290,6 +350,11 @@ export const aiProcessingRuns = pgTable(
   "ai_processing_runs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    actorId: varchar("actor_id", { length: 100 }).notNull(),
+    actorName: varchar("actor_name", { length: 255 }).notNull(),
     captureId: uuid("capture_id")
       .notNull()
       .references(() => captures.id, { onDelete: "cascade" }),
@@ -315,6 +380,11 @@ export const aiProcessingRuns = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index("ai_runs_workspace_actor_created_idx").on(
+      table.workspaceId,
+      table.actorId,
+      table.createdAt,
+    ),
     index("ai_runs_capture_created_idx").on(
       table.captureId,
       table.createdAt,
@@ -749,6 +819,11 @@ export const topicSyntheses = pgTable(
   "topic_syntheses",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    actorId: varchar("actor_id", { length: 100 }).notNull(),
+    actorName: varchar("actor_name", { length: 255 }).notNull(),
     categoryId: uuid("category_id")
       .notNull()
       .references(() => categories.id, { onDelete: "cascade" }),
@@ -770,11 +845,18 @@ export const topicSyntheses = pgTable(
     requestId: varchar("request_id", { length: 80 }).notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedById: varchar("decided_by_id", { length: 100 }),
+    decidedByName: varchar("decided_by_name", { length: 255 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
+    index("topic_syntheses_workspace_actor_created_idx").on(
+      table.workspaceId,
+      table.actorId,
+      table.createdAt,
+    ),
     index("topic_syntheses_category_created_idx").on(
       table.categoryId,
       table.createdAt,
@@ -790,6 +872,10 @@ export const dataImportRuns = pgTable(
   "data_import_runs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(LEGACY_DEFAULT_WORKSPACE_ID)
+      .references(() => workspaces.id, { onDelete: "restrict" }),
     actorId: varchar("actor_id", { length: 100 }).notNull(),
     actorName: varchar("actor_name", { length: 255 }).notNull(),
     fileName: varchar("file_name", { length: 255 }).notNull(),
@@ -808,7 +894,8 @@ export const dataImportRuns = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
   (table) => [
-    index("data_import_runs_actor_created_idx").on(
+    index("data_import_runs_workspace_actor_created_idx").on(
+      table.workspaceId,
       table.actorId,
       table.createdAt,
     ),
@@ -823,6 +910,55 @@ export const dataImportRuns = pgTable(
   ],
 );
 
+export const dataImportObjects = pgTable(
+  "data_import_objects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .default(LEGACY_DEFAULT_WORKSPACE_ID)
+      .references(() => workspaces.id, { onDelete: "restrict" }),
+    actorId: varchar("actor_id", { length: 100 }).notNull(),
+    formatVersion: varchar("format_version", { length: 20 }).notNull(),
+    objectType: varchar("object_type", { length: 40 }).notNull(),
+    sourceKey: varchar("source_key", { length: 100 }).notNull(),
+    localId: uuid("local_id").notNull(),
+    contentHash: varchar("content_hash", { length: 64 }).notNull(),
+    importRunId: uuid("import_run_id")
+      .notNull()
+      .references(() => dataImportRuns.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("data_import_objects_workspace_actor_version_type_source_uq").on(
+      table.workspaceId,
+      table.actorId,
+      table.formatVersion,
+      table.objectType,
+      table.sourceKey,
+    ),
+    index("data_import_objects_workspace_actor_local_idx").on(
+      table.workspaceId,
+      table.actorId,
+      table.objectType,
+      table.localId,
+    ),
+    index("data_import_objects_run_idx").on(table.importRunId),
+    check(
+      "data_import_objects_content_hash_chk",
+      sql`char_length(${table.contentHash}) = 64`,
+    ),
+    check(
+      "data_import_objects_type_chk",
+      sql`${table.objectType} in ('capture', 'category', 'claim', 'evidence', 'attachment', 'source_check', 'review')`,
+    ),
+  ],
+);
+
+export type WorkspaceRow = typeof workspaces.$inferSelect;
+export type WorkspaceMembershipRow = typeof workspaceMemberships.$inferSelect;
 export type CaptureRow = typeof captures.$inferSelect;
 export type CategoryRow = typeof categories.$inferSelect;
 export type AIRunRow = typeof aiProcessingRuns.$inferSelect;

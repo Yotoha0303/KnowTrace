@@ -205,7 +205,7 @@ export async function organizeCapture(input: {
   provider?: AIProviderName;
   connection?: AIConnectionInput;
 }) {
-  await requireCaptureAccess(input.captureId);
+  const scope = await requireCaptureAccess(input.captureId);
   const [capture] = await db
     .select()
     .from(captures)
@@ -222,6 +222,7 @@ export async function organizeCapture(input: {
       .from(categories)
       .where(
         and(
+          eq(categories.workspaceId, capture.workspaceId),
           eq(categories.status, "active"),
           eq(categories.createdById, capture.createdById),
         ),
@@ -254,6 +255,9 @@ export async function organizeCapture(input: {
   const [run] = await db
     .insert(aiProcessingRuns)
     .values({
+      workspaceId: scope.workspaceId,
+      actorId: scope.actorId,
+      actorName: scope.actorName,
       captureId: capture.id,
       captureVersion: capture.version,
       inputHash,
@@ -330,7 +334,7 @@ export async function auditClaim(input: {
   provider?: AIProviderName;
   connection?: AIConnectionInput;
 }) {
-  await requireClaimAccess(input.claimId);
+  const scope = await requireClaimAccess(input.claimId);
   const [claimContext] = await db
     .select({ claim: claims, captureVersion: captures.version })
     .from(claims)
@@ -420,6 +424,9 @@ export async function auditClaim(input: {
   const [run] = await db
     .insert(aiProcessingRuns)
     .values({
+      workspaceId: scope.workspaceId,
+      actorId: scope.actorId,
+      actorName: scope.actorName,
       captureId: claimContext.claim.captureId,
       captureVersion: claimContext.captureVersion,
       inputHash,
@@ -607,13 +614,18 @@ export async function decideSuggestion(input: {
       const [created] = await transaction
         .insert(categories)
         .values({
+          workspaceId: capture.workspaceId,
           name: sourceName.trim(),
           normalizedName,
           createdById: capture.createdById,
           createdByName: capture.createdByName,
         })
         .onConflictDoNothing({
-          target: [categories.createdById, categories.normalizedName],
+          target: [
+            categories.workspaceId,
+            categories.createdById,
+            categories.normalizedName,
+          ],
         })
         .returning({ id: categories.id });
       if (created) {
@@ -624,6 +636,7 @@ export async function decideSuggestion(input: {
           .from(categories)
           .where(
             and(
+              eq(categories.workspaceId, capture.workspaceId),
               eq(categories.createdById, capture.createdById),
               eq(categories.normalizedName, normalizedName),
               eq(categories.status, "active"),
@@ -641,6 +654,7 @@ export async function decideSuggestion(input: {
           .where(
             and(
               inArray(categories.id, [...new Set(existingCategoryIds)]),
+              eq(categories.workspaceId, capture.workspaceId),
               eq(categories.status, "active"),
             ),
           )

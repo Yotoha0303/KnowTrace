@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import { isAuthEnabled } from "./go-user-system";
 import { currentAuthContext } from "./session";
@@ -18,7 +18,9 @@ import {
   evidenceAttachments,
   topicSyntheses,
 } from "@/server/db/schema";
-import type { DataAccessScope } from "./access-policy";
+import type { ActorAccessIdentity, DataAccessScope } from "./access-policy";
+import { resolveActorWorkspace } from "@/features/workspace/service";
+import { CURRENT_WORKSPACE_COOKIE } from "@/shared/workspace";
 import {
   captureReadCondition,
   captureWriteCondition,
@@ -31,7 +33,7 @@ function scopeFromIdentity(input: {
   username: string;
   nickname: string;
   roleCodes: string[];
-}): DataAccessScope {
+}): ActorAccessIdentity {
   return {
     actorId: `go-user:${input.id}`,
     actorName: input.nickname.trim() || input.username,
@@ -48,6 +50,7 @@ async function applyAdminSharingPolicy(
       .set({ visibility: "shared" })
       .where(
         and(
+          eq(captures.workspaceId, scope.workspaceId),
           eq(captures.createdById, scope.actorId),
           eq(captures.visibility, "private"),
         ),
@@ -56,9 +59,24 @@ async function applyAdminSharingPolicy(
   return scope;
 }
 
+async function resolveDataAccessScope(
+  identity: ActorAccessIdentity,
+): Promise<DataAccessScope> {
+  const preferredWorkspaceId =
+    (await cookies()).get(CURRENT_WORKSPACE_COOKIE)?.value ?? null;
+  const workspace = await resolveActorWorkspace(identity, preferredWorkspaceId);
+  return applyAdminSharingPolicy({
+    ...identity,
+    workspaceId: workspace.workspaceId,
+    workspaceName: workspace.workspaceName,
+    workspaceSlug: workspace.workspaceSlug,
+    workspaceRole: workspace.role,
+  });
+}
+
 export const currentDataAccessScope = cache(async (): Promise<DataAccessScope> => {
   if (!isAuthEnabled()) {
-    return applyAdminSharingPolicy({
+    return resolveDataAccessScope({
       actorId: "local-owner",
       actorName: "本地使用者",
       isAdmin: true,
@@ -68,27 +86,31 @@ export const currentDataAccessScope = cache(async (): Promise<DataAccessScope> =
   const requestHeaders = await headers();
   const userId = Number(requestHeaders.get("x-knowtrace-user-id"));
   if (Number.isInteger(userId) && userId > 0) {
-    return applyAdminSharingPolicy(scopeFromIdentity({
-      id: userId,
-      username: decodeURIComponent(requestHeaders.get("x-knowtrace-username") ?? ""),
-      nickname: decodeURIComponent(requestHeaders.get("x-knowtrace-nickname") ?? ""),
-      roleCodes: (requestHeaders.get("x-knowtrace-role-codes") ?? "")
-        .split(",")
-        .map((code) => code.trim())
-        .filter(Boolean),
-    }));
+    return resolveDataAccessScope(
+      scopeFromIdentity({
+        id: userId,
+        username: decodeURIComponent(requestHeaders.get("x-knowtrace-username") ?? ""),
+        nickname: decodeURIComponent(requestHeaders.get("x-knowtrace-nickname") ?? ""),
+        roleCodes: (requestHeaders.get("x-knowtrace-role-codes") ?? "")
+          .split(",")
+          .map((code) => code.trim())
+          .filter(Boolean),
+      }),
+    );
   }
 
   const context = await currentAuthContext();
   if (!context) {
     throw new AppError("AUTH_REQUIRED", "登录会话已失效，请重新登录。");
   }
-  return applyAdminSharingPolicy(scopeFromIdentity({
-    id: context.user.id,
-    username: context.user.username,
-    nickname: context.user.nickname,
-    roleCodes: context.authorization.role_codes,
-  }));
+  return resolveDataAccessScope(
+    scopeFromIdentity({
+      id: context.user.id,
+      username: context.user.username,
+      nickname: context.user.nickname,
+      roleCodes: context.authorization.role_codes,
+    }),
+  );
 });
 
 export async function requireCaptureReadAccess(
@@ -128,6 +150,7 @@ export async function requireCategoryAccess(categoryId: string): Promise<DataAcc
     .where(
       and(
         eq(categories.id, categoryId),
+        eq(categories.workspaceId, scope.workspaceId),
         scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
       ),
     )
@@ -151,6 +174,7 @@ export async function requireCategoryReadAccess(
     .where(
       and(
         eq(categories.id, categoryId),
+        eq(categories.workspaceId, scope.workspaceId),
         scope.isAdmin
           ? undefined
           : or(
@@ -225,6 +249,7 @@ export async function requireTopicSynthesisAccess(synthesisId: string): Promise<
     .where(
       and(
         eq(topicSyntheses.id, synthesisId),
+        eq(categories.workspaceId, scope.workspaceId),
         scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
       ),
     )

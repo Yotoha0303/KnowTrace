@@ -10,6 +10,10 @@ const member: DataAccessScope = {
   actorId: "go-user:21",
   actorName: "成员甲",
   isAdmin: false,
+  workspaceId: "00000000-0000-4000-8000-000000000001",
+  workspaceName: "默认空间",
+  workspaceSlug: "legacy-default",
+  workspaceRole: "member",
 };
 
 describe("content ownership access", () => {

@@ -64,6 +64,7 @@ export async function getCategoryDossier(id: string): Promise<CategoryDossierDTO
     .where(
       and(
         eq(categories.id, id),
+        eq(categories.workspaceId, scope.workspaceId),
         scope.isAdmin
           ? undefined
           : or(

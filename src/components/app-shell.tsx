@@ -2,23 +2,33 @@ import Link from "next/link";
 import { Archive, ArrowLeftRight, BookMarked, ContactRound, Inbox, Scale, Search, Settings2, UserRound } from "lucide-react";
 
 import type { CategoryDTO } from "@/features/capture/queries";
+import type { WorkspaceAccess } from "@/features/workspace/service";
 import { CategoryCreator } from "@/components/category-creator";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
 export function AppShell({
   categories,
+  currentWorkspaceId,
+  workspaces,
   user,
   children,
 }: Readonly<{
   categories: CategoryDTO[];
+  currentWorkspaceId: string;
+  workspaces: WorkspaceAccess[];
   user: null | { id: number; username: string; nickname: string };
   children: React.ReactNode;
 }>) {
   return (
     <div className="app-frame">
       <aside className="sidebar">
-        <MobileNavDrawer user={user} />
+        <MobileNavDrawer
+          currentWorkspaceId={currentWorkspaceId}
+          user={user}
+          workspaces={workspaces}
+        />
 
         <Link className="brand" href="/" aria-label="KnowTrace 首页">
           <span className="brand-mark">K</span>
@@ -27,6 +37,11 @@ export function AppShell({
             <small>Capture what matters</small>
           </span>
         </Link>
+
+        <WorkspaceSwitcher
+          currentWorkspaceId={currentWorkspaceId}
+          workspaces={workspaces}
+        />
 
         <nav className="nav-list" aria-label="主要导航">
           <Link href="/">

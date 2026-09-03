@@ -4,7 +4,9 @@ import { connection } from "next/server";
 
 import { listCategories } from "@/features/capture/queries";
 import { AppShell } from "@/components/app-shell";
+import { currentDataAccessScope } from "@/features/auth/access";
 import { isAuthEnabled } from "@/features/auth/go-user-system";
+import { listActorWorkspaces } from "@/features/workspace/service";
 
 import "./globals.css";
 
@@ -41,12 +43,23 @@ export default async function RootLayout({
   }
 
   await connection();
-  const categories = await listCategories();
+  const scope = await currentDataAccessScope();
+  const [categories, workspaces] = await Promise.all([
+    listCategories(),
+    listActorWorkspaces(scope.actorId),
+  ]);
 
   return (
     <html lang="zh-CN">
       <body>
-        <AppShell categories={categories} user={user}>{children}</AppShell>
+        <AppShell
+          categories={categories}
+          currentWorkspaceId={scope.workspaceId}
+          user={user}
+          workspaces={workspaces}
+        >
+          {children}
+        </AppShell>
       </body>
     </html>
   );

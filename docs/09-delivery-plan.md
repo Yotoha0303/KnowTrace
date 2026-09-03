@@ -169,11 +169,33 @@ P2.6–P2.9 已继续交付：
 
 四项使用中发现的问题已完成并记录于 [`14-deferred-issues.md`](./14-deferred-issues.md)：无变化保存不再增加 Revision、AI 操作不再强制重复连接测试、管理员内容默认共享且成员只读，以及同一用户导入按稳定标识和版本化指纹防重。
 
-### 下一次开发：Excel 主张与证据链交换包
+### 已完成：v2 主张与证据链交换包
 
-下一次开发已选择 `US-16 / KT-DEFER-005`：把当前仅覆盖 Capture 与 Category 的 Excel `v1` 扩展为包含主张、证据、核验、人工结论和图片 manifest 的 `v2` 知识链交换包，同时保持 `v1` 导入兼容。实现前必须先决定可编辑交换包中的已采纳/已审核状态是安全降级，还是通过受信任完整性机制迁移；完整数据库与上传目录备份仍是最高恢复等级。
+`US-16 / KT-DEFER-005` 已完成：保留 `.xlsx v1` 基础交换表，同时新增 `.zip v2` 知识链交换包，包含 Capture、Category、Claim、Evidence、核验上下文、人工结论上下文、图片 manifest 与真实图片字节。v2 已实现稳定引用、公式与 ZIP 路径安全校验、工作簿和附件 SHA-256/大小/MIME 校验、服务端预检包暂存、确认时重新校验、Capture/Category 基础防重、Claim/Evidence/Attachment provenance 的 `create / skip / repair / conflict`、单事务写入与附件补偿清理。普通 v2 包仍按**安全降级**处理：已采纳、已核验和已结论状态仅作为迁移审计上下文，不能直接恢复可信状态。数据迁移 UI 已同时接入 v1/v2，生产 Docker 构建通过，数据库 migration `0018`/`0019` 已应用。
 
-完成 Excel `v2` 的隔离实例往返和安全验收后，下一阶段再从 Workspace 数据隔离、细粒度角色授权、真正的移动 App、自动联网补证中选择一个，不同时展开。
+恢复验收使用两套独立 KnowTrace App + PostgreSQL 实例执行真实 HTTP 导出→预检→确认流程，已经验证空白目标实例恢复、图片在线访问与 SHA-256 一致、同一 actor 第二次导入全量幂等；同一真实目标 PostgreSQL 上还验证第二 actor 会重新创建 Capture/Claim/Evidence/Attachment，并生成独立 provenance，不跨 actor 错误去重。至此 `US-16` 关闭。完整数据库与上传目录备份仍是最高恢复等级。
+
+### 已完成并部署：P3 / US-17 Workspace 数据隔离
+
+P3 已完成数据边界、上下文、迁移、切换和越权验收，不扩展为复杂组织 RBAC、计费或 Agent 权限系统。
+
+已交付：
+
+1. Workspace、Membership 与服务端 Current Workspace Context；现有数据迁移到明确的默认 Workspace。
+2. Capture、Category、Claim、Evidence、Review、AI Run、Topic、可靠发布、搜索、附件、API 与 v1/v2 数据迁移统一使用 Workspace 边界。
+3. import fingerprint、provenance 与幂等键升级为 Workspace-aware，同一 actor 在不同 Workspace 不会错误去重。
+4. `GET/POST/DELETE /api/v1/workspaces` 与 `POST /api/v1/workspaces/current`，切换时服务端重新验证 Membership，并使用 HttpOnly Cookie 保存当前 Workspace。
+5. 桌面 Sidebar 与移动导航共用 Workspace Switcher；创建 Workspace 后可直接切换。Workspace 删除采用保守策略：默认空间不可删除、只有 owner 可删除、必须输入完整空间名称确认、仅空 Workspace 可删除；删除当前 Workspace 后服务端自动切回默认空间。
+6. `0021_workspace_audit_identity.sql` 为 AI Processing Run 与 Topic Synthesis 增加显式 Workspace/actor 审计身份；历史无法可靠反推的 actor 使用 `legacy-unknown`，不伪造执行者。
+7. 跨 Workspace 越权矩阵覆盖 Capture/Category/Claim/Search/Subject、图片 ID、import run ID、v2 export、幂等和 provenance；真实资源与不存在资源保持同类 404。Workspace 删除真实 HTTP 验收还覆盖默认空间保护、member 拒绝、确认名称校验、空空间删除与 Cookie 回退、非空空间 `WORKSPACE_NOT_EMPTY` 保护。
+
+验收结果：production TypeScript/build 通过；Vitest `36` 个测试文件、`141` 项测试全部通过；两套保留旧数据的隔离 App/PostgreSQL 实例已真实完成 `0020 → 0021` 升级，并执行 Workspace 删除安全矩阵；正式实例已部署包含安全删除能力的最新 App，PostgreSQL/Auth/MySQL/Redis 均恢复 healthy。至此 `US-17` 关闭。
+
+### 下一开发阶段：P4 / US-18 移动 App
+
+P3 已完成并验收，因此后续可以启动 P4。移动 App 首期以现有服务端 API 为唯一业务真相源，优先完成登录、Workspace 选择、快速记录、最近记录、基础搜索、记录详情和图片 Evidence 上传的真实设备闭环。
+
+移动端技术栈在 P4 启动时再评估 React Native/Expo、Flutter 等方案；当前不锁定实现框架，也不以简单 WebView 包装网页作为完成标准。移动 App 不直接连接数据库或本地上传目录，权限、幂等、可信状态和 Workspace 边界继续由服务端统一执行。
 
 ## 8. 编码前仍需确认
 

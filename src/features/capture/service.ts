@@ -21,6 +21,7 @@ import {
   currentDataAccessScope,
   type DataAccessScope,
 } from "@/features/auth/access";
+import { captureWriteCondition } from "@/features/auth/resource-scope";
 
 function isUniqueViolation(error: unknown): boolean {
   return (
@@ -58,6 +59,7 @@ async function validateActiveCategories(
     .where(
       and(
         inArray(categories.id, uniqueIds),
+        eq(categories.workspaceId, scope.workspaceId),
         eq(categories.status, "active"),
         scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
       ),
@@ -79,6 +81,7 @@ export async function createCapture(input: CreateCaptureInput) {
     .from(captures)
     .where(
       and(
+        eq(captures.workspaceId, scope.workspaceId),
         eq(captures.createdById, scope.actorId),
         eq(captures.idempotencyKey, input.idempotencyKey),
       ),
@@ -101,6 +104,7 @@ export async function createCapture(input: CreateCaptureInput) {
       const [created] = await transaction
         .insert(captures)
         .values({
+          workspaceId: scope.workspaceId,
           title: input.title?.trim() || null,
           subject: input.subject?.trim() || null,
           content: input.content,
@@ -134,6 +138,7 @@ export async function createCapture(input: CreateCaptureInput) {
       .from(captures)
       .where(
         and(
+          eq(captures.workspaceId, scope.workspaceId),
           eq(captures.createdById, scope.actorId),
           eq(captures.idempotencyKey, input.idempotencyKey),
         ),
@@ -157,7 +162,7 @@ export async function updateCapture(input: UpdateCaptureInput) {
       .where(
         and(
           eq(captures.id, input.id),
-          scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+          captureWriteCondition(scope),
         ),
       )
       .for("update")
@@ -227,7 +232,7 @@ export async function setCaptureStatus(
     .where(
       and(
         eq(captures.id, id),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureWriteCondition(scope),
       ),
     )
     .returning();
@@ -240,9 +245,7 @@ export async function setCaptureStatus(
 
 export async function deleteCapture(id: string, expectedVersion?: number) {
   const scope = await currentDataAccessScope();
-  const ownerCondition = scope.isAdmin
-    ? undefined
-    : eq(captures.createdById, scope.actorId);
+  const ownerCondition = captureWriteCondition(scope);
   const attachmentRows = await db
     .select({ storagePath: evidenceAttachments.storagePath })
     .from(evidenceAttachments)
@@ -297,7 +300,7 @@ export async function setCaptureCategories(
       .where(
         and(
           eq(captures.id, captureId),
-          scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+          captureWriteCondition(scope),
         ),
       )
       .for("update")
@@ -360,7 +363,7 @@ export async function getCaptureRow(id: string) {
     .where(
       and(
         eq(captures.id, id),
-        scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
+        captureWriteCondition(scope),
       ),
     )
     .limit(1);
@@ -377,6 +380,7 @@ export async function getActiveCategoryRows() {
     .from(categories)
     .where(
       and(
+        eq(categories.workspaceId, scope.workspaceId),
         eq(categories.status, "active"),
         scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
       ),

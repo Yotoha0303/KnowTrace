@@ -26,6 +26,7 @@ export async function createCategory(input: {
     const [created] = await db
       .insert(categories)
       .values({
+        workspaceId: scope.workspaceId,
         name,
         normalizedName: normalizeCategoryName(name),
         description: input.description?.trim() || null,
@@ -56,6 +57,7 @@ export async function renameCategory(id: string, newName: string) {
       .where(
         and(
           eq(categories.id, id),
+          eq(categories.workspaceId, scope.workspaceId),
           scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
         ),
       )
@@ -83,6 +85,7 @@ export async function setCategoryStatus(
     .where(
       and(
         eq(categories.id, id),
+        eq(categories.workspaceId, scope.workspaceId),
         scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
       ),
     )
@@ -102,6 +105,7 @@ export async function deleteCategory(id: string) {
       .where(
         and(
           eq(categories.id, id),
+          eq(categories.workspaceId, scope.workspaceId),
           scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
         ),
       )
@@ -149,6 +153,7 @@ export async function addCategoriesToCapture(
     .where(
       and(
         eq(captures.id, captureId),
+        eq(captures.workspaceId, scope.workspaceId),
         scope.isAdmin ? undefined : eq(captures.createdById, scope.actorId),
       ),
     )
@@ -161,6 +166,7 @@ export async function addCategoriesToCapture(
     .where(
       and(
         inArray(categories.id, uniqueIds),
+        eq(categories.workspaceId, scope.workspaceId),
         eq(categories.status, "active"),
         scope.isAdmin ? undefined : eq(categories.createdById, scope.actorId),
       ),
