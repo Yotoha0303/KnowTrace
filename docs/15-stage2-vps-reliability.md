@@ -134,6 +134,18 @@ python3 scripts/linux/load-baseline.py \
 
 第一档无错误后，才从 VPS 外的工作站测试 HTTPS 健康端点。代理、工作站网络与地理距离都会进入延迟结果，必须一并记录。业务读取测试应使用专门测试账号和只读数据；登录、注册、写入与上传接口不能拿健康端点脚本直接轰击。
 
+Windows Python 的默认 CA 来源可能不同于系统证书存储。若默认校验失败，应先用浏览器、curl/OpenSSL 和证书有效期交叉确认，再通过 `--ca-file <可信 PEM CA 包>` 明确指定 CA；需要直连时同时使用 `--no-proxy`。脚本不提供跳过 TLS 校验的选项，不能用“不验证证书”制造通过结果。
+
+```powershell
+$CaFile = python -m certifi
+python scripts/linux/load-baseline.py `
+  https://knowtrace.duckdns.org/api/health/ready `
+  --requests 200 `
+  --concurrency 5 `
+  --ca-file $CaFile `
+  --no-proxy
+```
+
 压测后再次采集 `docker stats --no-stream`、ready 端点和相关容器日志。一次 200 请求/并发 5 的结果只是基线，不是“支持 5 并发用户”或“生产容量”的证据。
 
 ## 6. Bug 与真实故障流程

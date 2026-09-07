@@ -9,8 +9,10 @@ import json
 import math
 import os
 import platform
+import ssl
 import statistics
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -22,6 +24,7 @@ from pathlib import Path
 
 MAX_REQUESTS = 5_000
 MAX_CONCURRENCY = 50
+_thread_state = threading.local()
 
 
 @dataclass(frozen=True)
@@ -69,12 +72,24 @@ def parse_args() -> argparse.Namespace:
         help="Per-request timeout in seconds",
     )
     parser.add_argument("--expect-status", type=int, default=200)
+    parser.add_argument(
+        "--ca-file",
+        type=Path,
+        help="PEM CA bundle for HTTPS verification; verification is never disabled",
+    )
+    parser.add_argument(
+        "--no-proxy",
+        action="store_true",
+        help="Ignore environment and operating-system proxy configuration",
+    )
     parser.add_argument("--output", type=Path, help="Optional JSON result path")
     args = parser.parse_args()
     if not args.url.startswith(("http://", "https://")):
         parser.error("url must start with http:// or https://")
     if args.concurrency > args.requests:
         parser.error("concurrency cannot exceed requests")
+    if args.ca_file and not args.ca_file.is_file():
+        parser.error(f"CA file does not exist or is not a file: {args.ca_file}")
     return args
 
 
@@ -85,7 +100,25 @@ def percentile(sorted_values: list[float], percent: float) -> float:
     return sorted_values[index]
 
 
-def fetch(url: str, timeout: int) -> Sample:
+def get_opener(ca_file: Path | None, no_proxy: bool) -> urllib.request.OpenerDirector:
+    opener = getattr(_thread_state, "opener", None)
+    if opener is not None:
+        return opener
+
+    context = ssl.create_default_context(
+        cafile=str(ca_file.resolve()) if ca_file else None
+    )
+    handlers: list[urllib.request.BaseHandler] = [
+        urllib.request.HTTPSHandler(context=context)
+    ]
+    if no_proxy:
+        handlers.insert(0, urllib.request.ProxyHandler({}))
+    opener = urllib.request.build_opener(*handlers)
+    _thread_state.opener = opener
+    return opener
+
+
+def fetch(url: str, timeout: int, ca_file: Path | None, no_proxy: bool) -> Sample:
     request = urllib.request.Request(
         url,
         method="GET",
@@ -97,7 +130,7 @@ def fetch(url: str, timeout: int) -> Sample:
     )
     started = time.perf_counter()
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with get_opener(ca_file, no_proxy).open(request, timeout=timeout) as response:
             body = response.read()
             return Sample(
                 status=response.status,
@@ -131,7 +164,13 @@ def main() -> int:
         max_workers=args.concurrency
     ) as executor:
         futures = [
-            executor.submit(fetch, args.url, args.timeout)
+            executor.submit(
+                fetch,
+                args.url,
+                args.timeout,
+                args.ca_file,
+                args.no_proxy,
+            )
             for _ in range(args.requests)
         ]
         samples = [future.result() for future in concurrent.futures.as_completed(futures)]
@@ -179,6 +218,10 @@ def main() -> int:
             "proxy_environment_present": any(
                 os.getenv(name)
                 for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")
+            ),
+            "proxy_mode": "disabled" if args.no_proxy else "automatic",
+            "tls_ca_source": (
+                f"custom:{args.ca_file.name}" if args.ca_file else "python-default"
             ),
         },
         "scope_note": (
