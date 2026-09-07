@@ -11,6 +11,8 @@ backups/
 !.env.example
 *.log
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
 .DS_Store
 Thumbs.db
 data/uploads/**

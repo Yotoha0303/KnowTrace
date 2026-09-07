@@ -179,6 +179,8 @@ make backup
 13. [运行、备份与恢复](docs/11-operations.md)
 14. [移动端 API](docs/12-mobile-api.md)
 15. [产品愿景完成度审计](docs/13-product-completion-audit.md)
+16. [延期问题清单](docs/14-deferred-issues.md)
+17. [VPS 阶段二：备份、恢复、压测与故障迭代](docs/15-stage2-vps-reliability.md)
 
 ## 首版完成定义
 
