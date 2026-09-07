@@ -68,6 +68,35 @@ sudo /opt/knowtrace/scripts/linux/verify-restore.sh "$archive" \
 
 这项检查验证归档可恢复及数据统计，不等同于完整浏览器业务旅程。灾难恢复演练还需要在隔离环境完成登录、查询一条已知记录和读取一张已知图片。
 
+### 3.4 定时执行与保留策略
+
+仓库提供每日备份单元。它在 Asia/Shanghai 03:20 后的五分钟随机窗口执行一致性备份，因此该时段可能短暂返回 502；默认删除超过 14 天的旧备份集，但无论时间如何至少保留最近 7 份。删除器只接受脚本生成的严格文件名，并同时删除对应目录、校验文件和 VPS 上的加密副本。
+
+```bash
+sudo install -m 700 scripts/linux/backup-all.sh /opt/knowtrace/scripts/linux/backup-all.sh
+sudo install -m 700 scripts/linux/prune-backups.sh /opt/knowtrace/scripts/linux/prune-backups.sh
+sudo install -m 644 deploy/systemd/knowtrace-backup.service /etc/systemd/system/knowtrace-backup.service
+sudo install -m 644 deploy/systemd/knowtrace-backup.timer /etc/systemd/system/knowtrace-backup.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now knowtrace-backup.timer
+systemctl list-timers knowtrace-backup.timer --all
+```
+
+查看最近执行结果与日志：
+
+```bash
+systemctl status knowtrace-backup.service --no-pager
+journalctl -u knowtrace-backup.service --since today --no-pager
+```
+
+回滚定时任务不会删除任何已有备份：
+
+```bash
+sudo systemctl disable --now knowtrace-backup.timer
+sudo rm -f /etc/systemd/system/knowtrace-backup.timer /etc/systemd/system/knowtrace-backup.service
+sudo systemctl daemon-reload
+```
+
 ## 4. 加密异地副本
 
 备份含账号资料、密码哈希、知识内容、会话状态和 `.env`，不得把明文归档提交 Git、放进公开网盘或复制到项目输出目录。
@@ -157,6 +186,7 @@ Bug 是可复现的软件行为偏差；故障是对可用性、数据、安全�
 - [ ] 隔离恢复脚本输出 `RESTORE_VERIFY=PASS`。
 - [ ] 对已知业务记录完成读取验证并留证。
 - [ ] 加密副本已离开 VPS，且完成解密校验。
+- [ ] 每日定时器已启用，下一次执行时间和 journald 日志已验证。
 - [ ] 健康端点低并发基线无错误，资源与日志证据齐全。
 - [ ] 至少一个 Bug 使用模板完成闭环；没有真实 Bug 时不得虚构。
 - [ ] 至少一个真实故障按时间线完成处理与复盘。
