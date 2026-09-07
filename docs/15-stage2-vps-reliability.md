@@ -73,8 +73,8 @@ sudo /opt/knowtrace/scripts/linux/verify-restore.sh "$archive" \
 仓库提供每日备份单元。它在 Asia/Shanghai 03:20 后的五分钟随机窗口执行一致性备份，因此该时段可能短暂返回 502；默认删除超过 14 天的旧备份集，但无论时间如何至少保留最近 7 份。删除器只接受脚本生成的严格文件名，并同时删除对应目录、校验文件和 VPS 上的加密副本。
 
 ```bash
-sudo install -m 700 scripts/linux/backup-all.sh /opt/knowtrace/scripts/linux/backup-all.sh
-sudo install -m 700 scripts/linux/prune-backups.sh /opt/knowtrace/scripts/linux/prune-backups.sh
+sudo chmod 700 /opt/knowtrace/scripts/linux/backup-all.sh
+sudo chmod 700 /opt/knowtrace/scripts/linux/prune-backups.sh
 sudo install -m 644 deploy/systemd/knowtrace-backup.service /etc/systemd/system/knowtrace-backup.service
 sudo install -m 644 deploy/systemd/knowtrace-backup.timer /etc/systemd/system/knowtrace-backup.timer
 sudo systemctl daemon-reload
