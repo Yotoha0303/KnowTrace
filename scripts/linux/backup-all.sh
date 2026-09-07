@@ -6,6 +6,8 @@ umask 077
 PROJECT_DIR="${PROJECT_DIR:-/opt/knowtrace}"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/knowtrace}"
 QUIESCE_WRITES="${QUIESCE_WRITES:-1}"
+APP_READY_URL="${APP_READY_URL:-http://127.0.0.1:3000/api/health/ready}"
+AUTH_READY_URL="${AUTH_READY_URL:-http://127.0.0.1:8082/readyz}"
 
 log() {
   printf '%s %s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$*"
@@ -157,7 +159,7 @@ mysql_counts() {
     [[ -n "$table_name" ]] || continue
     [[ "$table_name" =~ ^[A-Za-z0-9_]+$ ]] || die "MySQL 表名包含未支持字符: $table_name"
     row_count="$("${compose[@]}" exec -T auth-mysql sh -ec \
-      "MYSQL_PWD=\"\$MYSQL_ROOT_PASSWORD\" mysql --batch --skip-column-names --user=root --database=go_user_system --execute='SELECT COUNT(*) FROM \`$table_name\`'")"
+      "MYSQL_PWD=\"\$MYSQL_ROOT_PASSWORD\" mysql --batch --skip-column-names --user=root --database=go_user_system --execute='SELECT COUNT(*) FROM \`$table_name\`'" </dev/null)"
     printf '%s\t%s\n' "$table_name" "$row_count"
   done <<<"$table_list"
 }
@@ -188,17 +190,45 @@ mysql_counts | sort >"$incomplete_dir/mysql-counts.tsv"
 
 log "生成 Redis RDB 快照"
 redis_key_count="$("${compose[@]}" exec -T auth-redis redis-cli --raw DBSIZE)"
-"${compose[@]}" exec -T auth-redis redis-cli --raw BGSAVE SCHEDULE >/dev/null
 for _ in {1..60}; do
   redis_info="$("${compose[@]}" exec -T auth-redis redis-cli --raw INFO persistence | tr -d '\r')"
   if grep -q '^rdb_bgsave_in_progress:0$' <<<"$redis_info"; then
+    break
+  fi
+  sleep 1
+done
+grep -q '^rdb_bgsave_in_progress:0$' <<<"$redis_info" || die "等待已有 Redis RDB 任务结束超时"
+redis_saves_before="$(awk -F: '$1 == "rdb_saves" {print $2}' <<<"$redis_info")"
+[[ "$redis_saves_before" =~ ^[0-9]+$ ]] || die "无法读取 Redis rdb_saves 计数"
+
+"${compose[@]}" exec -T auth-redis redis-cli --raw BGSAVE >/dev/null
+for _ in {1..60}; do
+  redis_info="$("${compose[@]}" exec -T auth-redis redis-cli --raw INFO persistence | tr -d '\r')"
+  redis_saves_after="$(awk -F: '$1 == "rdb_saves" {print $2}' <<<"$redis_info")"
+  if [[ "$redis_saves_after" =~ ^[0-9]+$ ]] \
+    && (( redis_saves_after > redis_saves_before )) \
+    && grep -q '^rdb_bgsave_in_progress:0$' <<<"$redis_info"; then
     grep -q '^rdb_last_bgsave_status:ok$' <<<"$redis_info" || die "Redis 最近一次 RDB 保存失败"
     break
   fi
   sleep 1
 done
-grep -q '^rdb_bgsave_in_progress:0$' <<<"$redis_info" || die "Redis RDB 保存超时"
-"${compose[@]}" cp auth-redis:/data/dump.rdb "$incomplete_dir/redis.rdb"
+[[ "${redis_saves_after:-}" =~ ^[0-9]+$ ]] \
+  && (( redis_saves_after > redis_saves_before )) \
+  && grep -q '^rdb_bgsave_in_progress:0$' <<<"$redis_info" \
+  || die "Redis 新 RDB 保存未在等待时间内完成"
+
+redis_dir="$("${compose[@]}" exec -T auth-redis redis-cli --raw CONFIG GET dir | sed -n '2p' | tr -d '\r')"
+redis_dbfilename="$("${compose[@]}" exec -T auth-redis redis-cli --raw CONFIG GET dbfilename | sed -n '2p' | tr -d '\r')"
+[[ "$redis_dir" =~ ^/[A-Za-z0-9._/-]+$ && "/$redis_dir/" != *"/../"* ]] \
+  || die "Redis dir 不是受支持的安全绝对路径: $redis_dir"
+[[ "$redis_dbfilename" =~ ^[A-Za-z0-9._-]+$ && "$redis_dbfilename" != ".." ]] \
+  || die "Redis dbfilename 不安全: $redis_dbfilename"
+redis_rdb_path="${redis_dir%/}/$redis_dbfilename"
+"${compose[@]}" exec -T auth-redis sh -ec "test -s '$redis_rdb_path'" \
+  || die "Redis RDB 不存在或为空: $redis_rdb_path"
+"${compose[@]}" exec -T auth-redis sh -ec "cat '$redis_rdb_path'" >"$incomplete_dir/redis.rdb"
+[[ -s "$incomplete_dir/redis.rdb" ]] || die "导出的 Redis RDB 为空"
 printf '%s\n' "$redis_key_count" >"$incomplete_dir/redis-key-count.txt"
 
 log "归档上传文件"
@@ -250,8 +280,8 @@ chmod -R go-rwx "$incomplete_dir"
 
 restore_runtime
 
-curl -fsS --max-time 10 http://127.0.0.1:3000/api/health/ready >/dev/null || die "备份后 KnowTrace ready 检查失败"
-curl -fsS --max-time 10 http://127.0.0.1:8082/readyz >/dev/null || die "备份后认证服务 ready 检查失败"
+curl -fsS --max-time 10 "$APP_READY_URL" >/dev/null || die "备份后 KnowTrace ready 检查失败: $APP_READY_URL"
+curl -fsS --max-time 10 "$AUTH_READY_URL" >/dev/null || die "备份后认证服务 ready 检查失败: $AUTH_READY_URL"
 
 mv "$incomplete_dir" "$final_dir"
 tar --create --gzip --file "$archive_path" --directory "$BACKUP_ROOT" "$backup_id"

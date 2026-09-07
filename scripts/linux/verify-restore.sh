@@ -173,13 +173,8 @@ containers+=("$pg_container")
 wait_for_command "$pg_container" 60 pg_isready --username=knowtrace --dbname=knowtrace \
   || die "临时 PostgreSQL 未就绪"
 docker cp "$bundle_dir/postgres.dump" "$pg_container:/tmp/postgres.dump"
-docker exec "$pg_container" pg_restore \
-  --username=knowtrace \
-  --dbname=knowtrace \
-  --no-owner \
-  --no-privileges \
-  --exit-on-error \
-  /tmp/postgres.dump
+docker exec "$pg_container" sh -ec \
+  'pg_restore --username=knowtrace --dbname=knowtrace --no-owner --no-privileges --exit-on-error /tmp/postgres.dump'
 postgres_counts_container "$pg_container" | sed '/^[[:space:]]*$/d' | sort >"$scratch_dir/postgres-restored.tsv"
 cmp --silent "$bundle_dir/postgres-counts.tsv" "$scratch_dir/postgres-restored.tsv" \
   || { diff --unified "$bundle_dir/postgres-counts.tsv" "$scratch_dir/postgres-restored.tsv" >&2 || true; die "PostgreSQL 表行数与备份时不一致"; }
@@ -196,7 +191,8 @@ docker run --detach \
   --env MYSQL_DATABASE=go_user_system \
   "$MYSQL_IMAGE" --skip-log-bin >/dev/null
 containers+=("$mysql_container")
-wait_for_command "$mysql_container" 90 sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqladmin ping --user=root' \
+wait_for_command "$mysql_container" 90 sh -ec \
+  'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --batch --skip-column-names --user=root --execute="SELECT 1"' \
   || die "临时 MySQL 未就绪"
 docker cp "$bundle_dir/mysql.sql" "$mysql_container:/tmp/mysql.sql"
 docker exec "$mysql_container" sh -ec \
@@ -218,7 +214,7 @@ containers+=("$redis_container")
 docker cp "$bundle_dir/redis.rdb" "$redis_container:/data/dump.rdb"
 docker start "$redis_container" >/dev/null
 wait_for_command "$redis_container" 30 redis-cli ping || die "临时 Redis 未就绪"
-docker exec "$redis_container" redis-check-rdb /data/dump.rdb >/dev/null
+docker exec "$redis_container" sh -ec 'redis-check-rdb /data/dump.rdb' >/dev/null
 source_redis_count="$(tr -d '[:space:]' <"$bundle_dir/redis-key-count.txt")"
 restored_redis_count="$(docker exec "$redis_container" redis-cli --raw DBSIZE | tr -d '[:space:]')"
 [[ "$source_redis_count" =~ ^[0-9]+$ && "$restored_redis_count" =~ ^[0-9]+$ ]] \
