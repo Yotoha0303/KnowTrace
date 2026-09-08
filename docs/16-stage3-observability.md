@@ -48,6 +48,7 @@ Caddy / Nginx / Docker JSON logs -> Logstash -> Elasticsearch -> Kibana
 | `deploy/grafana/` | 数据源和 dashboard provisioning |
 | `deploy/logstash/` | Caddy、Nginx、Docker 与验证事件管道 |
 | `scripts/linux/init-observability-env.sh` | 生成本地 secrets、渲染 Alertmanager 配置 |
+| `scripts/linux/configure-163-alert-email.sh` | 交互式写入 163 邮箱与隐藏授权码 |
 | `scripts/linux/deploy-observability.sh` | 容量预检、配置校验、部署和验收 |
 | `scripts/linux/verify-observability.py` | 端点、target、PromQL、Grafana 和 ELK 验收 |
 | `scripts/linux/observability-drill.sh` | 可恢复的监控故障演练 |
@@ -117,10 +118,36 @@ ALERT_SMTP_SMARTHOST=smtp.example.com:587
 ALERT_SMTP_FROM=alerts@example.com
 ALERT_SMTP_AUTH_USERNAME=alerts@example.com
 ALERT_SMTP_AUTH_PASSWORD=<应用专用密码>
+ALERT_SMTP_REQUIRE_TLS=true
 ALERT_EMAIL_TO=operator@example.com
 ```
 
 推荐 587/STARTTLS 和应用专用密码，不使用邮箱网页登录密码。更新后：
+
+若提供商只开放 465 隐式 TLS（例如本次 163 邮箱），当前固定版本
+Alertmanager 0.28.1 应使用：
+
+```dotenv
+ALERT_SMTP_SMARTHOST=smtp.163.com:465
+ALERT_SMTP_REQUIRE_TLS=false
+```
+
+这里的 `false` 只跳过已建立 TLS 后的第二次 STARTTLS 请求，不会把 465
+连接降级为明文。Alertmanager 0.28.1 的邮件实现会先对 465 执行 TLS 握手，
+而 `require_tls=true` 还会继续检查并请求 STARTTLS。修改端口或升级
+Alertmanager 后必须重新核对该版本实现并做证书、配置和实际收件验证。
+
+163 邮箱可用交互助手配置。授权码只通过隐藏提示输入，不放在命令参数、
+Shell 历史、聊天或文档中：
+
+```bash
+scripts/linux/configure-163-alert-email.sh
+```
+
+如果授权码曾出现在聊天、截图或工单中，先在邮箱后台作废并生成新授权码，
+再运行助手；不要继续使用已暴露的授权码。
+
+更新后：
 
 ```bash
 scripts/linux/init-observability-env.sh

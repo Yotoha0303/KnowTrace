@@ -36,6 +36,7 @@ if [[ ! -e "$environment_file" ]]; then
     echo "ALERT_SMTP_FROM=alerts@example.com"
     echo "ALERT_SMTP_AUTH_USERNAME=alerts@example.com"
     echo "ALERT_SMTP_AUTH_PASSWORD="
+    echo "ALERT_SMTP_REQUIRE_TLS=true"
     echo "ALERT_EMAIL_TO=operator@example.com"
   } >"$environment_file"
   echo "已创建 $environment_file（0600）；未输出任何密码或 token。"
@@ -118,12 +119,20 @@ if email_enabled:
     if missing:
         raise SystemExit("邮件告警已启用但缺少：" + ", ".join(missing))
 
+    smtp_smarthost = values["ALERT_SMTP_SMARTHOST"].strip()
+    smtp_require_tls = values.get("ALERT_SMTP_REQUIRE_TLS", "true").lower() != "false"
+    if smtp_smarthost.rsplit(":", 1)[-1] == "465" and smtp_require_tls:
+        raise SystemExit(
+            "Alertmanager 0.28.1 使用 465 隐式 TLS 时，"
+            "ALERT_SMTP_REQUIRE_TLS 必须设为 false，以避免在已加密连接上重复请求 STARTTLS"
+        )
+
     email_config: dict[str, object] = {
         "to": values["ALERT_EMAIL_TO"],
         "from": values["ALERT_SMTP_FROM"],
-        "smarthost": values["ALERT_SMTP_SMARTHOST"],
+        "smarthost": smtp_smarthost,
         "send_resolved": True,
-        "require_tls": values.get("ALERT_SMTP_REQUIRE_TLS", "true").lower() != "false",
+        "require_tls": smtp_require_tls,
         "headers": {"Subject": "[KnowTrace] {{ .Status | toUpper }} {{ .CommonLabels.alertname }}"},
     }
     username = values.get("ALERT_SMTP_AUTH_USERNAME", "").strip()
@@ -134,7 +143,7 @@ if email_enabled:
         email_config["auth_password"] = password
     config["global"] = {
         "resolve_timeout": "5m",
-        "smtp_smarthost": values["ALERT_SMTP_SMARTHOST"],
+        "smtp_smarthost": smtp_smarthost,
         "smtp_from": values["ALERT_SMTP_FROM"],
         "smtp_require_tls": email_config["require_tls"],
     }
