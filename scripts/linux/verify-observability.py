@@ -48,7 +48,10 @@ def request(
         headers={"User-Agent": "KnowTrace-observability-verify/1.0", **(headers or {})},
     )
     with urllib.request.urlopen(http_request, timeout=timeout) as response:
-        return response.status, response.read(), dict(response.headers.items())
+        response_headers = {
+            key.lower(): value for key, value in response.headers.items()
+        }
+        return response.status, response.read(), response_headers
 
 
 def get_json(url: str, *, headers: dict[str, str] | None = None) -> tuple[int, Any]:
@@ -116,7 +119,7 @@ def verify_core(values: dict[str, str]) -> None:
     metrics_text = body.decode("utf-8", errors="replace")
     if status != 200 or "knowtrace_build_info" not in metrics_text:
         raise RuntimeError("主应用受保护 metrics 端点缺少预期指标")
-    if "text/plain" not in headers.get("Content-Type", ""):
+    if "text/plain" not in headers.get("content-type", ""):
         raise RuntimeError("主应用 metrics Content-Type 不正确")
     print("PASS KnowTrace protected metrics endpoint")
 
