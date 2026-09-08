@@ -151,6 +151,7 @@ services:
     logging: *observability-logging
     networks:
       - logging-internal
+      - logging-management
 
   logstash:
     image: docker.elastic.co/logstash/logstash:8.19.21
@@ -181,6 +182,7 @@ services:
     logging: *observability-logging
     networks:
       - logging-internal
+      - logging-management
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.19.21
@@ -209,6 +211,7 @@ services:
     logging: *observability-logging
     networks:
       - logging-internal
+      - logging-management
 
 volumes:
   prometheus_data:
@@ -221,3 +224,8 @@ volumes:
 networks:
   logging-internal:
     internal: true
+  # Docker Engine 29 does not realize published ports for containers that are
+  # attached only to an internal network. This bridge exists solely for the
+  # loopback-bound ELK management ports above.
+  logging-management:
+    driver: bridge

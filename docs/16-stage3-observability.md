@@ -35,7 +35,7 @@ Caddy / Nginx / Docker JSON logs -> Logstash -> Elasticsearch -> Kibana
 - `.env.observability` 和渲染后的 Alertmanager 配置不进入 Git；权限分别为 0600/0400。
 - Prometheus 同时按 7 天和 512 MB 限制时序数据。
 - Docker 日志对新建的阶段三容器限制为 10 MB × 3 文件。
-- ELK 采用独立内部网络、固定内存上限和 7 天 ILM，只按需运行。停止命令保留所有数据卷。
+- ELK 采用独立内部网络、固定内存上限和 7 天 ILM，只按需运行。另接一个普通管理 bridge 以兼容 Docker Engine 29 的端口发布行为，但所有宿主机端口仍只绑定 `127.0.0.1`。停止命令保留所有数据卷。
 - 不使用 `docker compose down --volumes`；它会删除监控或日志数据。
 
 ## 关键文件
@@ -165,6 +165,8 @@ scripts/linux/elk.sh stop
 ```
 
 `stop` 只停止三个容器，保留 Elasticsearch、Logstash、Kibana 数据卷。ELK 运行时若网站延迟、swap 或 I/O 明显升高，先保存 `docker stats`、`free -h`、`vmstat` 和容器日志，再停止 ELK。
+
+若容器内健康、`HostConfig.PortBindings` 有配置，但 `NetworkSettings.Ports` 为 `null`，说明容器只连接了 internal bridge，Docker Engine 29 没有真正建立发布端口。不要开放公网端口或关闭防火墙；确认 ELK 服务同时连接 `logging-internal` 与 `logging-management`，再强制重建这三个按需容器。
 
 ## 验收命令
 
