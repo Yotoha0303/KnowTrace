@@ -12,6 +12,7 @@ import { clearSessionCookies } from "@/features/auth/response";
 const publicPath = (pathname: string) =>
   pathname.startsWith("/api/v1/auth/") ||
   pathname.startsWith("/api/health") ||
+  pathname === "/api/metrics" ||
   pathname === "/favicon.ico";
 
 function loginRedirect(request: NextRequest) {

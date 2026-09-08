@@ -1,0 +1,7 @@
+http.host: "0.0.0.0"
+pipeline.ecs_compatibility: v8
+pipeline.ordered: auto
+queue.type: persisted
+queue.max_bytes: 128mb
+dead_letter_queue.enable: true
+monitoring.enabled: false

@@ -1,5 +1,12 @@
 import type { Instrumentation } from "next";
 
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { registerMetricsRuntime } = await import("@/server/metrics");
+    registerMetricsRuntime();
+  }
+}
+
 function requestErrorDetails(error: unknown) {
   if (error instanceof Error) {
     return {
@@ -24,6 +31,11 @@ export const onRequestError: Instrumentation.onRequestError = async (
   request,
   context,
 ) => {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { recordRequestError } = await import("@/server/metrics");
+    recordRequestError(context.routeType, context.routePath);
+  }
+
   console.error(
     "[knowtrace-request-error]",
     JSON.stringify({

@@ -15,6 +15,7 @@ Environment=MIN_KEEP=7
 UMask=0077
 ExecStart=/opt/knowtrace/scripts/linux/backup-all.sh
 ExecStartPost=/opt/knowtrace/scripts/linux/prune-backups.sh
+ExecStartPost=-/opt/knowtrace/scripts/linux/write-backup-metrics.sh
 TimeoutStartSec=30min
 Nice=10
 IOSchedulingClass=best-effort

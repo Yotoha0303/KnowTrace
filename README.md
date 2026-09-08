@@ -181,6 +181,7 @@ make backup
 15. [产品愿景完成度审计](docs/13-product-completion-audit.md)
 16. [延期问题清单](docs/14-deferred-issues.md)
 17. [VPS 阶段二：备份、恢复、压测与故障迭代](docs/15-stage2-vps-reliability.md)
+18. [VPS 阶段三：指标、可视化、集中日志与邮件告警](docs/16-stage3-observability.md)
 
 ## 首版完成定义
 

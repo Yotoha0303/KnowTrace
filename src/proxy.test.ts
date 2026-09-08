@@ -62,6 +62,16 @@ describe("authentication proxy", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("passes the token-protected metrics endpoint without a user session", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await proxy(new NextRequest("http://localhost/api/metrics"));
+
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("allows the registration page only when upstream registration is enabled", async () => {
     const enabled = await proxy(new NextRequest("http://localhost/register"));
     expect(enabled.headers.get("x-middleware-next")).toBe("1");

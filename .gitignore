@@ -8,7 +8,9 @@ backups/
 .env
 .env.local
 .env.*.local
+.env.observability
 !.env.example
+!.env.observability.example
 *.log
 *.tsbuildinfo
 __pycache__/
@@ -18,3 +20,4 @@ Thumbs.db
 data/uploads/**
 !data/uploads/evidence/
 !data/uploads/evidence/.gitkeep
+runtime/
