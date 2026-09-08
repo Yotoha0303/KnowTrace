@@ -45,7 +45,7 @@ case "$action" in
     echo "ELK 为按需模式；启动期间可能使用 swap，完成验证后请执行 $0 stop。"
     cleanup_on_error() {
       echo "ELK 启动或验证失败，正在停止按需容器并保留数据卷。" >&2
-      "${compose[@]}" stop kibana logstash elasticsearch >/dev/null 2>&1 || true
+      "${compose[@]}" stop --timeout 60 kibana logstash elasticsearch >/dev/null 2>&1 || true
     }
     trap cleanup_on_error ERR
 
@@ -58,7 +58,7 @@ case "$action" in
     trap - ERR
     ;;
   stop)
-    "${compose[@]}" stop kibana logstash elasticsearch
+    "${compose[@]}" stop --timeout 60 kibana logstash elasticsearch
     echo "ELK 已停止；Elasticsearch、Logstash 和 Kibana 数据卷均保留。"
     ;;
   status)

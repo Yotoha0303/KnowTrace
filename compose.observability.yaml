@@ -147,6 +147,7 @@ services:
       retries: 30
       start_period: 60s
     restart: "no"
+    stop_grace_period: 60s
     mem_limit: 700m
     logging: *observability-logging
     networks:
@@ -178,6 +179,7 @@ services:
       retries: 30
       start_period: 60s
     restart: "no"
+    stop_grace_period: 60s
     mem_limit: 512m
     logging: *observability-logging
     networks:
@@ -207,6 +209,7 @@ services:
       retries: 40
       start_period: 90s
     restart: "no"
+    stop_grace_period: 60s
     mem_limit: 768m
     logging: *observability-logging
     networks:

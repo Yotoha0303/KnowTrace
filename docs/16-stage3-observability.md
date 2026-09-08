@@ -166,6 +166,8 @@ scripts/linux/elk.sh stop
 
 `stop` 只停止三个容器，保留 Elasticsearch、Logstash、Kibana 数据卷。ELK 运行时若网站延迟、swap 或 I/O 明显升高，先保存 `docker stats`、`free -h`、`vmstat` 和容器日志，再停止 ELK。
 
+ELK 组件在负载下可能超过 Docker Compose 默认的 10 秒停止等待；脚本使用 60 秒宽限期。退出码 137 且 `OOMKilled=false` 通常表示停止超时后收到 SIGKILL，仍应延长宽限并复测，不能误记为内存 OOM。
+
 若容器内健康、`HostConfig.PortBindings` 有配置，但 `NetworkSettings.Ports` 为 `null`，说明容器只连接了 internal bridge，Docker Engine 29 没有真正建立发布端口。不要开放公网端口或关闭防火墙；确认 ELK 服务同时连接 `logging-internal` 与 `logging-management`，再强制重建这三个按需容器。
 
 若 Kibana 退出码为 134、容器的 `OOMKilled=false`，但日志含 `JavaScript heap out of memory`，这是 Kibana 自身 Node 堆耗尽，不是 Linux OOM Killer。当前实验配置给 Kibana 512 MiB Node 堆和 768 MiB 容器上限，并给 Logstash 512 MiB 上限；重启前仍需检查整机内存和 swap，验证后立即停止 ELK。
