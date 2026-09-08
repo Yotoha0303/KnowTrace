@@ -170,6 +170,8 @@ scripts/linux/elk.sh stop
 
 若 Kibana 退出码为 134、容器的 `OOMKilled=false`，但日志含 `JavaScript heap out of memory`，这是 Kibana 自身 Node 堆耗尽，不是 Linux OOM Killer。当前实验配置给 Kibana 512 MiB Node 堆和 768 MiB 容器上限，并给 Logstash 512 MiB 上限；重启前仍需检查整机内存和 swap，验证后立即停止 ELK。
 
+若 Logstash 日志显示 `object mapping for [source] tried to parse field [source] as object`，表示自定义事件把 ECS 的 `source` 对象字段当成了字符串。不要删除索引或映射；把自定义字段改为项目专用名称（本项目使用 `verification_source`），重新注入事件并验证。
+
 ## 验收命令
 
 ```bash

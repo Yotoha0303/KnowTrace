@@ -178,7 +178,7 @@ def send_verification_log() -> str:
         "event_id": event_id,
         "level": "INFO",
         "message": "KnowTrace stage-three ELK verification event",
-        "source": "scripts/linux/verify-observability.py",
+        "verification_source": "scripts/linux/verify-observability.py",
     }
     with socket.create_connection(("127.0.0.1", 5000), timeout=8) as connection:
         connection.sendall((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
