@@ -49,8 +49,9 @@ compose=(docker compose --project-directory "$project_directory" --env-file "$pr
 
 "${compose[@]}" config --quiet
 docker run --rm --entrypoint /bin/promtool \
-  -v "$project_directory/deploy/monitoring:/etc/prometheus:ro" \
-  -v "$project_directory/runtime/prometheus/metrics.token:/etc/prometheus/secrets/metrics.token:ro" \
+  -v "$project_directory/deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+  -v "$project_directory/deploy/monitoring/rules:/etc/prometheus/rules:ro" \
+  -v "$project_directory/runtime/prometheus:/etc/prometheus/secrets:ro" \
   quay.io/prometheus/prometheus:v3.5.5 \
   check config /etc/prometheus/prometheus.yml
 docker run --rm --entrypoint /bin/amtool \
