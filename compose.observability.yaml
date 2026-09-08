@@ -178,7 +178,7 @@ services:
       retries: 30
       start_period: 60s
     restart: "no"
-    mem_limit: 384m
+    mem_limit: 512m
     logging: *observability-logging
     networks:
       - logging-internal
@@ -192,7 +192,7 @@ services:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       XPACK_SECURITY_ENABLED: "false"
       TELEMETRY_ENABLED: "false"
-      NODE_OPTIONS: --max-old-space-size=384
+      NODE_OPTIONS: --max-old-space-size=512
     ports:
       - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
     volumes:
@@ -207,7 +207,7 @@ services:
       retries: 40
       start_period: 90s
     restart: "no"
-    mem_limit: 600m
+    mem_limit: 768m
     logging: *observability-logging
     networks:
       - logging-internal
