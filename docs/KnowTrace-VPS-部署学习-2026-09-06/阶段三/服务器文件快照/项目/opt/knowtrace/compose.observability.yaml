@@ -1,0 +1,234 @@
+x-observability-logging: &observability-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    environment:
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?Run scripts/linux/init-observability-env.sh first}
+      KNOWTRACE_APP_REVISION: ${KNOWTRACE_APP_REVISION:-unknown}
+    logging: *observability-logging
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.9.1
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containers/storage/.+)($|/)
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+      - ./runtime/node-exporter:/var/lib/node_exporter/textfile_collector:ro
+    restart: unless-stopped
+    mem_limit: 64m
+    logging: *observability-logging
+
+  blackbox-exporter:
+    image: quay.io/prometheus/blackbox-exporter:v0.27.0
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+    volumes:
+      - ./deploy/monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    restart: unless-stopped
+    mem_limit: 64m
+    logging: *observability-logging
+
+  alertmanager:
+    image: quay.io/prometheus/alertmanager:v0.28.1
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.json
+      - --storage.path=/alertmanager
+      - --data.retention=120h
+      - --cluster.listen-address=
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./runtime/alertmanager/alertmanager.json:/etc/alertmanager/alertmanager.json:ro
+      - alertmanager_data:/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9093/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: 128m
+    logging: *observability-logging
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:v3.5.5
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=512MB
+      - --web.enable-lifecycle
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/rules:/etc/prometheus/rules:ro
+      - ./runtime/prometheus/metrics.token:/etc/prometheus/secrets/metrics.token:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      app:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+      alertmanager:
+        condition: service_healthy
+      node-exporter:
+        condition: service_started
+      blackbox-exporter:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: 320m
+    logging: *observability-logging
+
+  grafana:
+    image: docker.io/grafana/grafana:12.2.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Run scripts/linux/init-observability-env.sh first}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # Grafana is reached through an SSH tunnel on local HTTP, never directly
+      # from the public network, so a Secure cookie would prevent login.
+      GF_SECURITY_COOKIE_SECURE: "false"
+      GF_SERVER_ROOT_URL: http://127.0.0.1:${GRAFANA_PORT:-3001}
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    restart: unless-stopped
+    mem_limit: 384m
+    logging: *observability-logging
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.21
+    profiles: ["elk"]
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      xpack.ml.enabled: "false"
+      ES_JAVA_OPTS: -Xms384m -Xmx384m
+    ports:
+      - "127.0.0.1:${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    restart: "no"
+    stop_grace_period: 60s
+    mem_limit: 700m
+    logging: *observability-logging
+    networks:
+      - logging-internal
+      - logging-management
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.19.21
+    profiles: ["elk"]
+    user: "0:0"
+    environment:
+      LS_JAVA_OPTS: -Xms192m -Xmx192m
+    ports:
+      - "127.0.0.1:${LOGSTASH_TCP_PORT:-5000}:5000"
+    volumes:
+      - ./deploy/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./deploy/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - logstash_data:/usr/share/logstash/data
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log/caddy:/var/log/caddy:ro
+      - /var/log/nginx:/var/log/nginx:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9600/_node/pipelines >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    restart: "no"
+    stop_grace_period: 60s
+    mem_limit: 512m
+    logging: *observability-logging
+    networks:
+      - logging-internal
+      - logging-management
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.19.21
+    profiles: ["elk"]
+    environment:
+      SERVER_HOST: 0.0.0.0
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      XPACK_SECURITY_ENABLED: "false"
+      TELEMETRY_ENABLED: "false"
+      NODE_OPTIONS: --max-old-space-size=512
+    ports:
+      - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
+    volumes:
+      - kibana_data:/usr/share/kibana/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5601/api/status >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 90s
+    restart: "no"
+    stop_grace_period: 60s
+    mem_limit: 768m
+    logging: *observability-logging
+    networks:
+      - logging-internal
+      - logging-management
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+  elasticsearch_data:
+  logstash_data:
+  kibana_data:
+
+networks:
+  logging-internal:
+    internal: true
+  # Docker Engine 29 does not realize published ports for containers that are
+  # attached only to an internal network. This bridge exists solely for the
+  # loopback-bound ELK management ports above.
+  logging-management:
+    driver: bridge
