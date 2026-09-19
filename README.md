@@ -1,5 +1,9 @@
 # KnowTrace
 
+![KnowTrace 主页面](./images/knowtrace_main_1.png)
+
+更多界面截图见 [KnowTrace 界面截图](./images/READEME.md)。
+
 <p align="center">
   <a href="https://github.com/Yotoha0303/KnowTrace/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yotoha0303/KnowTrace/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
