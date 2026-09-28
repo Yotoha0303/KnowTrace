@@ -203,16 +203,20 @@ sudo systemctl daemon-reload
 ## 8. 日志去向
 
 - **systemd 侧**：`journalctl -u knowtrace-<任务>.service`
-  注意本机 **journal 未持久化**（`/var/log/journal` 不存在），重启后 journal 会丢。
-  要长期留痕就靠下面两个。
 - **巡检结论**：`/var/lib/knowtrace/reports/*.json` + `*.md`
 - **运维记录骨架**：`/var/log/knowtrace-logs/<年月>/<日期>.md`（需人工定稿）
 
-**journal 未持久化是个真实短板**：定时任务在 19:34 UTC 跑，如果第二天早上才去看，
-journal 还在（只要没重启）；但一旦重启就查不到执行痕迹了。
-要补的话：`mkdir -p /var/log/journal && systemd-tmpfiles --create --prefix /var/log/journal && systemctl restart systemd-journald`，
-再在 `/etc/systemd/journald.conf` 里设 `Storage=persistent`。
-不过巡检结论本来就会落成 JSON/MD 文件，所以这不是必需的。
+> ✅ **journal 是持久化的（2026-09-28 更正）**：早先笔记里写的「journal 未持久化」是错的。
+> 实测 `/var/log/journal/` 目录存在、`journalctl --disk-usage` 显示 346.6M、
+> `journalctl --list-boots` 能看到 2024-06-16 以来的多次启动记录。
+> `/etc/systemd/journald.conf` 是注释状态（`auto`），而 `/var/log/journal` 存在时
+> `auto` 等价于持久化。所以**重启后仍能查到定时任务的执行痕迹**，不必额外配置。
+>
+> 要查历史执行：
+> ```bash
+> journalctl -u knowtrace-daily-ops.service --since "7 days ago" --output=short-iso
+> journalctl -u knowtrace-daily-ops.service --list-boots
+> ```
 
 ## 9. 相关文件
 
