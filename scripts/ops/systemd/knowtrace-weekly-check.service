@@ -6,7 +6,10 @@ Description=KnowTrace 每周运维只读巡检 (weekly-check)
 #      否则报 "Failed to resolve unit specifiers ... Invalid slot"，且解析结果为空
 # 下面这行 = 中文文件名 + 百分号编码 + %% 转义，已用 `systemctl show -p Documentation` 确认。
 # ⚠ systemd-analyze verify 查不出第 2 个坑，必须真的 start 一次看 journal。
-Documentation=file:///opt/knowtrace-ops/%%E8%%BF%%90%%E7%%BB%%B4%%E8%%84%%9A%%E6%%9C%%AC%%E4%%BD%%BF%%E7%%94%%A8%%E8%%AF%%B4%%E6%%98%%8E.md
+# 手册在 docs/ 下（仓库标准位置），不要在部署根目录另放一份 —— 那样两份会各自漂移。
+# 下面这行 = docs/ + 中文文件名百分号编码 + %% 转义，已用
+# `systemctl show -p Documentation` 与 journal 双重确认（解析非空、0 报错）。
+Documentation=file:///opt/knowtrace-ops/docs/%%E8%%BF%%90%%E7%%BB%%B4%%E8%%84%%9A%%E6%%9C%%AC%%E4%%BD%%BF%%E7%%94%%A8%%E8%%AF%%B4%%E6%%98%%8E.md
 After=docker.service network-online.target
 Wants=network-online.target
 
