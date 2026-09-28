@@ -1,0 +1,11 @@
+[Unit]
+Description=每月执行 KnowTrace 月运维巡检（演练模式，不执行写操作）
+
+[Timer]
+# 每月 1 日 21:00 UTC
+OnCalendar=*-*-01 21:00:00 UTC
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

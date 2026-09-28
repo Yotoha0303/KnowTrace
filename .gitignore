@@ -21,3 +21,6 @@ data/uploads/**
 !data/uploads/evidence/
 !data/uploads/evidence/.gitkeep
 runtime/
+
+# 运维工具包（scripts/ops）的运行配置：含内网地址、端口与账号名，不能入库
+ops.conf

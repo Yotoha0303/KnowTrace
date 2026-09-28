@@ -1,0 +1,27 @@
+[Unit]
+Description=KnowTrace 每日运维只读巡检 (daily-ops)
+# systemd 的 Documentation= 只接受「可打印 ASCII 的 URI」：写原始中文路径会被判为
+# "Invalid URL, ignoring" 并整条丢弃（实测 systemd 255）。百分号编码才是有效写法。
+Documentation=file:///opt/knowtrace-ops/%E8%BF%90%E7%BB%B4%E8%84%9A%E6%9C%AC%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.md
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/knowtrace-ops
+Environment=OPS_CONF=/etc/knowtrace/ops.conf
+# --quiet 只输出 WARN/FAIL；报告写到统一目录供 ops-report.py 汇总
+ExecStart=/usr/bin/bash /opt/knowtrace-ops/scripts/daily-ops.sh --quiet --record --json /var/lib/knowtrace/reports/ --markdown /var/lib/knowtrace/reports/
+# 退出码 1=WARN 2=FAIL 是「巡检结论」而不是「服务失败」，不要让 systemd 标记 failed。
+# 结论由 JSON 报告与告警链路负责。若要 systemd 因 FAIL 报警，删掉这一行。
+SuccessExitStatus=0 1 2
+
+# 只读脚本：再收紧一层权限
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/knowtrace /var/log/knowtrace-logs
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,224 @@
+# ============================================================================
+# KnowTrace 运维工具包配置模板（ops.conf.example）
+# ============================================================================
+#
+# 用法：
+#   cp ops.conf.example ops.conf        # 与 lib/ 同级，或放到 /etc/knowtrace/ops.conf
+#   chmod 600 ops.conf                  # 不要提交进仓库（见文末 .gitignore 提醒）
+#
+# 解析规则（lib/ops-common.sh 与 lib/ops_common.py 完全一致）：
+#   * 只认 KEY=VALUE 形式，不执行任何内容，不做变量展开
+#   * 以 # 开头的整行是注释；KEY 必须是 [A-Za-z_][A-Za-z0-9_]*
+#   * 值两侧的成对单/双引号会被去掉
+#   * 值里可以带空格（例：CONTAINER_LOG_KEYWORDS=error|panic|timeout）
+#   * 列表类配置（SUFFIX 为 _LIST/_SERVICES/_UNITS/_DOMAINS/_PORTS 等）用空白分隔
+#
+# 优先级：--conf 参数 > 环境变量 OPS_CONF > <工具包根>/ops.conf > /etc/knowtrace/ops.conf
+#
+# ⚠ 本文件不应存放密码、Token 或私钥。脚本只把它当「阈值与路径」的来源；
+#   需要判断 .env 里的口令状态时，脚本只读 .env 并只输出「是否存在/是否占位值」。
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# 路径
+# ----------------------------------------------------------------------------
+PROJECT_DIR=/opt/knowtrace
+COMPOSE_OVERLAY=compose.production.yaml
+ENV_FILE=/opt/knowtrace/.env
+OBSERVABILITY_ENV_FILE=/opt/knowtrace/.env.observability
+UPLOAD_DIR=/opt/knowtrace/data/uploads
+BACKUP_ROOT=/var/backups/knowtrace
+DOCKER_DATA_DIR=/var/lib/docker
+BACKUP_LOG=/var/log/knowtrace-backup.log
+
+# 报告输出目录（同时也是 ops-report.py 汇总时的扫描目录）。
+# 需要 root 才能创建，属于「运维数据」而不是「项目代码」，因此不放在 PROJECT_DIR 下。
+REPORTS_DIR=/var/lib/knowtrace/reports
+
+# 运维记录（Markdown）输出目录。weekly/monthly 用 --write-record 时写到这里。
+RECORD_DIR=/var/log/knowtrace-logs
+
+# 日志存档目录（daily-check.sh 部署版里有 logs-records 软链指向它）
+LOG_ARCHIVE_DIR=/var/log/knowtrace-logs
+
+
+# ----------------------------------------------------------------------------
+# 健康端点
+# ----------------------------------------------------------------------------
+APP_HEALTH_BASE=http://127.0.0.1:3000
+NGINX_HEALTH_URL=http://127.0.0.1:8080/api/health/ready
+AUTH_HEALTH_URL=http://127.0.0.1:8082/readyz
+
+# 公网端点，留空则跳过。设成真实域名后 daily-check 才会做公网探测。
+PUBLIC_HEALTH_URL=
+PUBLIC_DOMAIN=knowtrace.duckdns.org
+
+# Prometheus / Alertmanager / Grafana（都只绑 127.0.0.1，走本机或 SSH 隧道）
+PROMETHEUS_BASE=http://127.0.0.1:9090
+ALERTMANAGER_BASE=http://127.0.0.1:9093
+GRAFANA_BASE=http://127.0.0.1:3001
+
+
+# ----------------------------------------------------------------------------
+# 日志路径（security-check.sh 使用）
+# ----------------------------------------------------------------------------
+SSHD_CONFIG=/etc/ssh/sshd_config
+NGINX_ACCESS_LOG=/var/log/nginx/knowtrace.access.log
+NGINX_ERROR_LOG=/var/log/nginx/knowtrace.error.log
+CADDY_ACCESS_LOG=/var/log/caddy/knowtrace-access.log
+
+
+# ----------------------------------------------------------------------------
+# 期望存在的单元与服务
+# ----------------------------------------------------------------------------
+SYSTEMD_UNITS=docker nginx caddy ssh
+BACKUP_TIMER_UNIT=knowtrace-backup.timer
+
+# 核心服务：缺失 = FAIL
+EXPECTED_SERVICES=app auth postgres auth-mysql auth-redis
+# 监控组件：缺失 = WARN（按需策略允许临时停）
+OPTIONAL_SERVICES=prometheus grafana alertmanager blackbox-exporter node-exporter
+
+# 必须只绑 127.0.0.1 的管理端口（daily/security 都会校验）
+MANAGED_PORTS=9090 3001 9093 9200 5601 5000
+# 允许对公网开放的端口（UFW 应恰好只放行这些）
+PUBLIC_PORTS_ALLOWED=80 443 22345
+
+
+# ----------------------------------------------------------------------------
+# 证书（cert_check.py + weekly-check.sh）
+# ----------------------------------------------------------------------------
+CERT_DOMAINS=knowtrace.duckdns.org
+CERT_PORT=443
+CERT_WARN_DAYS=30
+CERT_CRITICAL_DAYS=7
+# 证书链校验用的根证书；留空则用系统默认信任库
+CERT_CA_FILE=
+
+
+# ----------------------------------------------------------------------------
+# 阈值：主机资源
+# ----------------------------------------------------------------------------
+THRESHOLD_DISK_WARN=80
+THRESHOLD_DISK_FAIL=90
+THRESHOLD_INODE_WARN=80
+THRESHOLD_INODE_FAIL=90
+THRESHOLD_MEM_WARN=15
+THRESHOLD_MEM_FAIL=8
+THRESHOLD_SWAP_WARN=50
+THRESHOLD_SWAP_FAIL=80
+THRESHOLD_LOAD_WARN_FACTOR=2
+
+
+# ----------------------------------------------------------------------------
+# 阈值：备份
+# ----------------------------------------------------------------------------
+THRESHOLD_BACKUP_WARN_HOURS=26
+THRESHOLD_BACKUP_FAIL_HOURS=48
+# 校验备份时最多逐项校验多少个内部文件（超出会明确记录跳过数量，不静默截断）
+BACKUP_CHECKSUM_MAX_ITEMS=200
+# 归档成员清单最多列出多少条（仅证据展示用）
+BACKUP_MEMBER_LIST_LIMIT=50
+
+
+# ----------------------------------------------------------------------------
+# 阈值：告警与探测（weekly-check.sh + ops-report.py）
+# ----------------------------------------------------------------------------
+# Prometheus 抓取目标数下限：低于此值说明抓取面塌了
+THRESHOLD_TARGETS_MIN=10
+# 允许的 down 目标数（超过即 FAIL）
+THRESHOLD_TARGETS_DOWN_MAX=0
+# 允许的 firing 告警数（超过即 WARN）
+THRESHOLD_ALERTS_FIRING_WARN=0
+# 告警静默/停止更新的最大小时数（Alertmanager 长时间无数据说明链路断了）
+THRESHOLD_ALERTS_STALE_HOURS=2
+# blackbox 探测：允许的非 2xx/3xx 比例
+THRESHOLD_BLACKBOX_FAIL_RATIO=0
+# 黑盒探测响应时间中位数上限（毫秒），仅 WARN
+THRESHOLD_BLACKBOX_MEDIAN_MS=2000
+# curl 单次超时
+PROM_QUERY_TIMEOUT=8
+
+
+# ----------------------------------------------------------------------------
+# 阈值：日志分析（log_analyzer.py + weekly-check.sh）
+# ----------------------------------------------------------------------------
+# docker logs --since 的窗口
+CONTAINER_LOG_WINDOW=168h
+CONTAINER_LOG_MAX_LINES=20000
+CONTAINER_LOG_KEYWORDS=error|panic|timeout|connection refused|permission denied
+LOG_SCAN_LINES=100
+# 错误行总数超过即报警
+THRESHOLD_LOG_ERROR_WARN=20
+THRESHOLD_LOG_ERROR_FAIL=200
+# 相对上次基线「新出现」的高危模式数量超过即 WARN
+THRESHOLD_LOG_NEW_PATTERN_WARN=1
+# 报告中展示的 TOP 模式数量
+LOG_TOP_PATTERNS=10
+
+
+# ----------------------------------------------------------------------------
+# 阈值：安全（security-check.sh + weekly-check.sh）
+# ----------------------------------------------------------------------------
+FAILED_LOGIN_WINDOW_HOURS=24
+THRESHOLD_FAILED_LOGIN_WARN=20
+THRESHOLD_FAILED_LOGIN_FAIL=100
+
+
+# ----------------------------------------------------------------------------
+# 阈值：月度运维（monthly-ops.sh）
+# ----------------------------------------------------------------------------
+# 上次成功备份超过这个小时数时，月度恢复演练会拒绝执行（避免拿坏备份做演练）
+THRESHOLD_RESTORE_DRILL_MAX_AGE_HOURS=72
+# apt 列表上次更新超过这个天数即 WARN
+THRESHOLD_APT_LIST_MAX_AGE_DAYS=7
+# 需要人工重启系统才算完成的更新（内核/库）数量超过即 WARN
+THRESHOLD_APT_REBOOT_REQUIRED_WARN=1
+
+# 文档/运维记录多久没更新算过期（天）
+THRESHOLD_DOC_STALE_DAYS=35
+
+# 月度动作的默认开关（命令行 --with-* / --without-* 可覆盖）
+MONTHLY_RESTORE_DRILL=1
+MONTHLY_PRUNE_BACKUPS=1
+MONTHLY_STOP_ELK=1
+MONTHLY_ARCHIVE_LOGS=1
+MONTHLY_BUILD_REPORT=1
+
+# 写操作的动作只允许在「现在小时数」落入这个区间时执行（UTC，例：1-6 表示凌晨 1~6 点）。
+# 留空表示不限制时间。目的是避免在业务高峰做恢复演练 / 删备份。
+MONTHLY_WRITE_WINDOW=
+
+# 每个写操作的总超时（秒）
+APPLY_TIMEOUT_SECONDS=1800
+
+# 已有脚本的路径（monthly-ops.sh 会调用它们，签名见 docs/运维脚本使用说明.md）
+BACKUP_ALL_SCRIPT=/opt/knowtrace/scripts/linux/backup-all.sh
+RESTORE_VERIFY_SCRIPT=/opt/knowtrace/scripts/linux/verify-restore.sh
+PRUNE_BACKUPS_SCRIPT=/opt/knowtrace/scripts/linux/prune-backups.sh
+ELK_SCRIPT=/opt/knowtrace/scripts/linux/elk.sh
+
+# 每日/每周巡检脚本的路径（weekly-check.sh 委派用；留空则用同目录下的脚本）
+CERT_SCRIPT=
+SECURITY_SCRIPT=
+
+# 备份保留策略（仅用于月度巡检的「姿态」判断，不参与删除决策）
+BACKUP_RETENTION_DAYS=14
+BACKUP_MIN_KEEP=7
+
+
+# ----------------------------------------------------------------------------
+# 汇总报告（ops-report.py）
+# ----------------------------------------------------------------------------
+# 报告超过「周期 × 这个倍数」没有更新即视为过期
+REPORT_STALE_FACTOR=2
+# 汇总时最多回看多少天的报告
+REPORT_LOOKBACK_DAYS=40
+
+
+# ============================================================================
+# 提醒：ops.conf 可能含内网地址、账号名等敏感信息，请
+#   1) chmod 600 ops.conf
+#   2) 确认仓库 .gitignore 包含 ops.conf（不要把生产配置提交上去）
+# ============================================================================
