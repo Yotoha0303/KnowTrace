@@ -204,7 +204,8 @@ sudo systemctl daemon-reload
 
 - **systemd 侧**：`journalctl -u knowtrace-<任务>.service`
 - **巡检结论**：`/var/lib/knowtrace/reports/*.json` + `*.md`
-- **运维记录骨架**：`/var/log/knowtrace-logs/<年月>/<日期>.md`（需人工定稿）
+- **记录骨架 + 月度归档**：`/var/log/knowtrace-logs/<年月>/`
+  （`<年月>` 是 `YYYYMM`，如 `202609` —— 记录骨架与 `reports.tar.gz` 都放这一层）
 
 > ✅ **journal 是持久化的（2026-09-28 更正）**：早先笔记里写的「journal 未持久化」是错的。
 > 实测 `/var/log/journal/` 目录存在、`journalctl --disk-usage` 显示 346.6M、

@@ -655,7 +655,10 @@ fi
 
 # ---- 8.4 日志与报告归档 ----
 if action_enabled "archive-logs" MONTHLY_ARCHIVE_LOGS; then
-    archive_month="$(date -u '+%Y-%m')"
+    # 用 %Y%m 而不是 %Y-%m：同一个 LOG_ARCHIVE_DIR 下，记录骨架走的是 <年月>（见
+    # daily-ops.sh 的 record 段），归档若走 <年-月> 就会出现 202609/ 与 2026-09/ 两个
+    # 描述同一个月的目录。项目自己的约定也是 YYYYMM（docs/日常运维/images/202609/）。
+    archive_month="$(date -u '+%Y%m')"
     archive_path="$LOG_ARCHIVE_DIR/$archive_month"
     if [[ ! -d "$LOG_ARCHIVE_DIR" ]]; then
         ops_warn "apply.archive" "归档根目录不存在: $LOG_ARCHIVE_DIR"
