@@ -349,7 +349,11 @@ ops_record() {
     ops_finding_check+=("$check")
     ops_finding_message+=("$message")
 
-    [[ "$OPS_QUIET" == "1" && "$level" != "FAIL" ]] && return 0
+    # quiet 只保留「需要人看的」级别：WARN 与 FAIL。
+    # 不要把这里改成「只放行 FAIL」—— 这个模式的用途是「把输出直接当告警邮件正文」，
+    # 只放行 FAIL 会让一次 WARN=3 的运行在邮件里什么都不显示，
+    # 而那 3 条 WARN 恰恰是收件人要看的东西。OK/INFO 才是该被压掉的噪声。
+    [[ "$OPS_QUIET" == "1" && "$level" != "WARN" && "$level" != "FAIL" ]] && return 0
 
     local padded
     padded="$(printf '%-30s' "$check")"

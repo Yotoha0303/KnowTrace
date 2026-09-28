@@ -440,7 +440,10 @@ class Report:
         return self._color("RESET")
 
     def _print(self, finding: Finding) -> None:
-        if self.quiet and finding.level != "FAIL":
+        # quiet 只保留 WARN/FAIL —— 与 lib/ops-common.sh 的 ops_record 保持同一套语义。
+        # 这个模式的用途是把输出直接当告警邮件正文，所以 WARN 必须显示，
+        # OK/INFO 才是该被压掉的噪声。
+        if self.quiet and finding.level not in ("WARN", "FAIL"):
             return
         tag = f"{self._color(finding.level)}[{finding.level:^4}]{self.reset()}"
         if finding.message:
