@@ -89,6 +89,37 @@ ops_require_value() {
     (( $# >= 2 )) || ops_die "选项 $1 缺少取值"
 }
 
+# 探测一个 HTTP 端点，输出 "<状态码> <耗时秒>"。
+#
+# 为什么要重试：公网探测是「单次 curl --max-time N」时，一次瞬时抖动（DNS 抖动、
+# 连接被丢弃、TLS 握手超时）就会返回 000，脚本据此记 FAIL 并让退出码变 2。
+# 实测遇到过一次：https://.../api/health/ready 返回 000，紧接着连测 3 次都是 200
+# （DNS 0.04s / TLS 0.09s / total 0.10s）。挂到告警链路后这种误报会消耗对告警的信任，
+# 所以任何要拿去告警的探测都必须重试。
+#
+# 重试策略：只在「没拿到 HTTP 状态码（000）」时重试 —— 那是传输层失败，值得再试；
+# 拿到 4xx/5xx 说明服务确实应答了，重试没有意义，直接返回真实状态码。
+#
+# 用法：read -r code total < <(ops_http_probe <url> [期望码正则] [尝试次数])
+# 环境变量 OPS_HTTP_RETRIES 可覆盖默认尝试次数（默认 3）。
+ops_http_probe() {
+    local url="$1" want="${2:-*}" attempts="${3:-${OPS_HTTP_RETRIES:-3}}"
+    [[ "$attempts" =~ ^[0-9]+$ ]] && (( attempts >= 1 )) || attempts=1
+
+    local i code total result=""
+    for (( i = 1; i <= attempts; i++ )); do
+        read -r code total < <(curl -k -s -o /dev/null -w '%{http_code} %{time_total}' \
+            --max-time 8 "$url" 2>/dev/null || printf '000 0')
+        [[ "$code" =~ ^[0-9]+$ ]] || code=000
+        [[ "$total" =~ ^[0-9.]+$ ]] || total=0
+        result="$code $total"
+        # 拿到了状态码就不再重试，哪怕它不是期望值
+        [[ "$code" != "000" ]] && break
+        (( i < attempts )) && sleep 1
+    done
+    printf '%s' "$result"
+}
+
 # 检查依赖命令，缺失即终止（避免“看起来跑了但没测到”的假通过）
 ops_require_cmds() {
     local missing=() cmd

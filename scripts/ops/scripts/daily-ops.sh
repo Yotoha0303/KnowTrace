@@ -313,10 +313,9 @@ check_http() {
         return 0
     fi
     local code total
-    read -r code total < <(curl -k -s -o /dev/null -w '%{http_code} %{time_total}' \
-        --max-time 8 "$url" 2>/dev/null || printf '000 0')
+    read -r code total < <(ops_http_probe "$url")
     if [[ "$code" == "000" ]]; then
-        ops_fail "$check" "$label 无响应: $url"
+        ops_fail "$check" "$label 无响应: $url（已重试 ${OPS_HTTP_RETRIES:-3} 次）"
     elif [[ "$code" == 2* ]]; then
         ops_ok "$check" "$label HTTP $code（${total}s）"
     else
