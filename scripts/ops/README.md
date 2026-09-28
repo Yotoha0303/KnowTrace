@@ -16,7 +16,7 @@
 | `scripts/cert_check.py` | 被 weekly 调用：TLS 证书有效期与链校验 |
 | `scripts/security-check.sh` | 被 weekly 调用：异常登录与端口合规 |
 | `lib/` | Bash 与 Python 公共库，两个日巡检脚本都依赖 |
-| `systemd/` | 6 个定时任务单元 + [`MEMO.md`](systemd/MEMO.md)（安装步骤、退出码语义、踩过的坑） |
+| `systemd/` | 6 个定时任务单元 + [`MEMO.md`](systemd/MEMO.md)（安装/回滚/退出码语义/踩过的坑）。**2026-09-28 已安装并 enable** |
 | `docs/运维脚本使用说明.md` | 完整手册：安装、用法、安全模型、阈值说明 |
 | `ops.conf.example` | 配置模板。**实际使用的 `ops.conf` 不入库**（含内网地址与账号名，已在 `.gitignore`） |
 
@@ -70,7 +70,9 @@ sudo mkdir -p /var/lib/knowtrace/reports
 # 4) 试跑（只读，不会改任何东西）
 sudo bash /opt/knowtrace-ops/scripts/daily-check.sh
 
-# 5) 挂定时任务 —— 见 systemd/MEMO.md
+# 5) 挂定时任务 —— 已挂好，见 systemd/MEMO.md
+#    重建顺序：先 cp 单元 + daemon-reload，再「手工 start 验证」，
+#    确认 journal 无 specifier 报错后才 enable --now
 ```
 
 ## 只读保证

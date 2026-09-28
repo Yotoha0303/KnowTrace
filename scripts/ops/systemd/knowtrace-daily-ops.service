@@ -1,8 +1,12 @@
 [Unit]
 Description=KnowTrace 每日运维只读巡检 (daily-ops)
-# systemd 的 Documentation= 只接受「可打印 ASCII 的 URI」：写原始中文路径会被判为
-# "Invalid URL, ignoring" 并整条丢弃（实测 systemd 255）。百分号编码才是有效写法。
-Documentation=file:///opt/knowtrace-ops/%E8%BF%90%E7%BB%B4%E8%84%9A%E6%9C%AC%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.md
+# systemd 的 Documentation= 有两个坑（都实测过，systemd 255）：
+#   1. 只接受可打印 ASCII 的 URI —— 写原始中文路径会报 "Invalid URL, ignoring"，整条被丢弃
+#   2. URI 里的 % 会被当成「单元说明符」（如 %E）去解析 —— 百分号编码必须把 % 写成 %%，
+#      否则报 "Failed to resolve unit specifiers ... Invalid slot"，且解析结果为空
+# 下面这行 = 中文文件名 + 百分号编码 + %% 转义，已用 `systemctl show -p Documentation` 确认。
+# ⚠ systemd-analyze verify 查不出第 2 个坑，必须真的 start 一次看 journal。
+Documentation=file:///opt/knowtrace-ops/%%E8%%BF%%90%%E7%%BB%%B4%%E8%%84%%9A%%E6%%9C%%AC%%E4%%BD%%BF%%E7%%94%%A8%%E8%%AF%%B4%%E6%%98%%8E.md
 After=docker.service network-online.target
 Wants=network-online.target
 

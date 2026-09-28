@@ -1,7 +1,16 @@
 # 巡检定时任务备忘（6 个 systemd 单元）
 
 最后更新：2026-09-28
-状态：**单元文件已就绪，但尚未安装到系统** —— 见第 3 节。
+状态：**已安装到 `/etc/systemd/system/` 并已 `enable --now`，定时任务在运行。**
+
+| 定时器 | 下次触发 | 说明 |
+| --- | --- | --- |
+| `knowtrace-backup.timer` | 每天 19:22 UTC | 原有备份任务（先跑） |
+| `knowtrace-daily-ops.timer` | 每天 19:34 UTC | 日巡检（后跑，能看到当天备份） |
+| `knowtrace-weekly-check.timer` | 周一 20:04 UTC | 周巡检 |
+| `knowtrace-monthly-ops.timer` | 每月 1 日 21:06 UTC | 月巡检（演练模式） |
+
+（实际触发时间会带 `RandomizedDelaySec` 的随机偏移，所以上面不是整点。）
 
 ---
 
@@ -18,6 +27,9 @@
 **触发时间不是随便定的**：已有的 `knowtrace-backup.timer` 在 **19:21 UTC** 跑备份，
 所以日巡检排在 19:30（能看到当天的备份）、周巡检排在周一 20:00（校验的是刚生成的归档）。
 改时间时别把它们排到备份之前，否则「备份新鲜度」检查会看到昨天的归档。
+
+另：`MONTHLY_WRITE_WINDOW=1-6`（UTC 1~6 点）已设置，服务器时区是 UTC，
+换算成本地时间是 **上午 9 点到下午 2 点**。它只约束 `--apply` 的人工执行，不影响定时器的只读巡检。
 
 ## 2. 三个单元的关键差异
 
@@ -39,7 +51,7 @@
 sudo bash /opt/knowtrace-ops/scripts/monthly-ops.sh --apply
 ```
 
-## 3. 安装步骤（还没做）
+## 3. 安装步骤（已完成，留作重建参考）
 
 ```bash
 # 1) 装单元
@@ -107,25 +119,37 @@ SuccessExitStatus=0 1 2
 **要改行为**：想让 systemd 因 FAIL 报警，删掉那一行即可（这样退出码 2 会让单元变 failed）。
 想让退出码恒为 0，设环境变量 `OPS_EXIT_ZERO=1`。
 
-## 6. 两个踩过的坑
+## 6. 三个踩过的坑
 
-### 6.1 `Documentation=` 必须用百分号编码
+### 6.1 `Documentation=` 有两个坑，第二个 `systemd-analyze verify` 查不出来
 
 ```ini
-# ✗ 会被整条忽略：systemd 只接受「可打印 ASCII 的 URI」
+# ✗ 坑 1：原始中文路径 —— systemd 只接受可打印 ASCII 的 URI，整条被丢弃
 Documentation=file:/opt/knowtrace-ops/运维脚本使用说明.md
 
-# ✓ 百分号编码后有效（实测 systemd 255）
-Documentation=file:///opt/knowtrace-ops/%E8%BF%90%E7%BB%B4%E8%84%9A%E6%9C%AC%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E.md
+# ✗ 坑 2：裸百分号编码 —— URI 里的 % 会被当成「单元说明符」（如 %E）解析，整条被丢弃
+Documentation=file:///opt/knowtrace-ops/%E8%BF%90%E7%BB%B4...%E6%98%8E.md
+
+# ✓ 正确：中文文件名 + 百分号编码 + 把每个 % 写成 %%
+Documentation=file:///opt/knowtrace-ops/%%E8%%BF%%90%%E7%%BB%%B4%%E8%%84%%9A%%E6%%9C%%AC%%E4%%BD%%BF%%E7%%94%%A8%%E8%%AF%%B4%%E6%%98%%8E.md
 ```
 
-报错长这样，很容易被忽略（只警告、不阻止加载）：
+两种错误的报错不一样，而且**都只是警告，不阻止加载**，所以很容易被忽略：
 
-```
-Invalid URL, ignoring: file:/opt/knowtrace-ops/运维脚本使用说明.md
+| 写法 | 报错 | 何时可见 |
+| --- | --- | --- |
+| 原始中文路径 | `Invalid URL, ignoring: ...` | `systemd-analyze verify` 就能看到 |
+| 裸百分号编码 | `Failed to resolve unit specifiers in '...', ignoring: Invalid slot` | **只有真的 start 一次，看 journal 才会出现** |
+
+坑 2 的隐蔽之处：`systemd-analyze verify` 对它**不报任何错**（当时实测 6 个单元全是 `InvalidURL=0`），
+必须用下面任意一种方式才能验出来：
+
+```bash
+systemctl start <单元>.service && journalctl -u <单元>.service --since "-2min" --output=cat | grep specifier
+systemctl show -p Documentation <单元>.service     # 看解析结果是否为空
 ```
 
-自查：`systemd-analyze verify <单元文件>`，输出里 `Invalid URL` 的出现次数应为 0。
+**推荐用 ASCII 路径**（例如把手册同时放在一个英文名下），可以彻底绕开这两个坑。
 
 ### 6.2 报告目录必须显式传，否则会分裂成两份
 
@@ -139,26 +163,42 @@ Invalid URL, ignoring: file:/opt/knowtrace-ops/运维脚本使用说明.md
 
 ## 7. 日常运维命令
 
+> 注意 `--no-pager` 是 systemctl 的**全局选项，必须放在动词之前**。
+> 写成 `systemctl list-timers ... --no-pager` 会报 `unrecognized option`。
+
 ```bash
 # 看下次什么时候跑
-systemctl list-timers 'knowtrace*' --no-pager
+systemctl --no-pager list-timers 'knowtrace*'
 
 # 手动触发一次（不等到点）
 sudo systemctl start knowtrace-daily-ops.service
 
 # 看最近一次执行
-systemctl status knowtrace-daily-ops.service --no-pager
-journalctl -u knowtrace-daily-ops.service -n 50 --no-pager
+systemctl --no-pager status knowtrace-daily-ops.service
+journalctl -u knowtrace-daily-ops.service -n 50
 
-# 看有没有失败
-systemctl --failed --no-pager
+# 看有没有失败（注意：本机另有一个与巡检无关的 repass.service 长期是 failed 状态）
+systemctl --failed
 
 # 临时停掉定时（排查时）
 sudo systemctl stop knowtrace-daily-ops.timer
+
+# 确认安装是否被改动过（6 个单元都应存在，Documentation 解析结果都不应为空）
+ls -la /etc/systemd/system/knowtrace-*ops* /etc/systemd/system/knowtrace-*check*
+systemctl show -p Documentation knowtrace-daily-ops.service
 ```
 
 `Persistent=true` 的含义：如果机器在触发时刻是关机的，开机后会补跑一次。
 所以停机维护后不会漏掉巡检记录。
+
+**回滚**（要停掉全部巡检定时器）：
+
+```bash
+sudo systemctl disable --now knowtrace-daily-ops.timer knowtrace-weekly-check.timer knowtrace-monthly-ops.timer
+sudo rm -f /etc/systemd/system/knowtrace-{daily-ops,weekly-check,monthly-ops}.{service,timer}
+sudo systemctl daemon-reload
+```
+
 
 ## 8. 日志去向
 
@@ -168,10 +208,22 @@ sudo systemctl stop knowtrace-daily-ops.timer
 - **巡检结论**：`/var/lib/knowtrace/reports/*.json` + `*.md`
 - **运维记录骨架**：`/var/log/knowtrace-logs/<年月>/<日期>.md`（需人工定稿）
 
+**journal 未持久化是个真实短板**：定时任务在 19:34 UTC 跑，如果第二天早上才去看，
+journal 还在（只要没重启）；但一旦重启就查不到执行痕迹了。
+要补的话：`mkdir -p /var/log/journal && systemd-tmpfiles --create --prefix /var/log/journal && systemctl restart systemd-journald`，
+再在 `/etc/systemd/journald.conf` 里设 `Storage=persistent`。
+不过巡检结论本来就会落成 JSON/MD 文件，所以这不是必需的。
+
 ## 9. 相关文件
 
 | 路径 | 说明 |
 | --- | --- |
-| `ops.conf.example` | 配置模板；阈值、路径、`MONTHLY_*` 开关、`MONTHLY_WRITE_WINDOW` 都在这里 |
-| `docs/运维脚本使用说明.md` | 完整手册：安装、用法、安全模型（四道闸） |
+| `knowtrace-{daily-ops,weekly-check,monthly-ops}.timer` | 触发时间定义；改时间改这里，改完 `daemon-reload` |
+| `knowtrace-{daily-ops,weekly-check,monthly-ops}.service` | 执行内容、沙箱设置、`SuccessExitStatus` |
+| `../ops.conf.example` | 配置模板；阈值、路径、`MONTHLY_*` 开关、`MONTHLY_WRITE_WINDOW` 都在这里 |
+| `../docs/运维脚本使用说明.md` | 完整手册：安装、用法、安全模型（四道闸） |
 | `../scripts/monthly-ops.sh` | 唯一会写服务器的脚本，四道闸保护 |
+
+服务器上实际生效的副本在 `/etc/systemd/system/knowtrace-{daily-ops,weekly-check,monthly-ops}.{service,timer}`
+（由本目录的文件 `cp` 过去）。**改单元要改这里、再 `cp` + `daemon-reload`**，别直接改 `/etc/systemd/system/`，
+否则下次同步会被覆盖。
