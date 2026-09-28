@@ -440,7 +440,8 @@ if [[ "$is_root" != "1" ]]; then
 elif ! ops_have_cmd apt-get; then
     ops_info "dep.check" "未使用 apt，跳过"
 else
-    updatable="$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst ' || printf '0')"
+    # `; true` 而不是 `|| printf '0'`：见 weekly-check.sh 同处的说明（0 匹配会让 || 补出 "0\n0"）
+    updatable="$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst ' 2>/dev/null; true)"
     upgradable_list="$(apt-get -s upgrade 2>/dev/null | grep '^Inst ' || printf '')"
     security_list="$(printf '%s' "$upgradable_list" | grep -iE 'security|ubuntu-security' || printf '')"
 
@@ -668,7 +669,8 @@ if action_enabled "archive-logs" MONTHLY_ARCHIVE_LOGS; then
         if mkdir -p -- "$archive_path" 2>/dev/null; then
             if tar --create --gzip --file "$archive_path/reports.tar.gz" \
                     --directory "$(dirname -- "$REPORTS_DIR")" "$(basename -- "$REPORTS_DIR")" 2>/dev/null; then
-                report_count="$(tar --list --gzip --file "$archive_path/reports.tar.gz" 2>/dev/null | grep -c '\.json$' || printf '0')"
+                report_count="$(tar --list --gzip --file "$archive_path/reports.tar.gz" 2>/dev/null | grep -c '\.json$' 2>/dev/null; true)"
+                [[ "$report_count" =~ ^[0-9]+$ ]] || report_count=0
                 ops_ok "apply.archive" "已归档 $report_count 份报告到 $archive_path/reports.tar.gz"
             else
                 ops_fail "apply.archive" "归档失败: $archive_path/reports.tar.gz"

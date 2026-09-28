@@ -112,21 +112,37 @@ ops_json_escape() {
 }
 
 # 整数四舍五入（避免依赖 bc）
+# 入参容错：调用方常写 $(( errors * 100 ))，而 errors 若因历史写法带上了换行
+# （见下面 ops_count_lines 的说明）就会是 "0\n0"，此时 $(( )) 早已报语法错误。
+# 这里再兜一层，保证任何输入都得到一个合法整数。
 ops_int_div() {
     local numerator="${1:-0}" denominator="${2:-1}"
+    [[ "$numerator" =~ ^-?[0-9]+$ ]] || numerator=0
     [[ "$denominator" =~ ^[0-9]+$ ]] || denominator=1
     (( denominator == 0 )) && denominator=1
     printf '%s' "$(awk -v a="$numerator" -v b="$denominator" 'BEGIN{printf "%.0f", a/b}')"
 }
 
-# 从标准输入统计非空行数。总是输出一个合法的十进制整数。
+# 统计非空行数。总是输出一个合法的十进制整数。
+#   管道用法：cmd | ops_count_lines
+#   直接传参：ops_count_lines "$file"      （文件读取失败时输出 0，而不是报错）
 #
-# ⚠ 不要写成 `cmd | grep -c . || printf '0'`：grep -c 在 0 匹配时仍然会打印 "0"，
-#   只是退出码为 1，于是 `||` 分支再打印一个 "0"，结果变成两行 "0\n0"，
-#   后续 `(( count > 0 ))` 会直接语法错误。这就是本函数存在的原因。
+# ⚠ 两种错误写法都会导致「同一行出现两个 0」（"0\n0"），后续 `(( count > 0 ))`
+#   直接语法错误（`error token is "0"`），而且因为 `set -e` 没开，脚本会带着
+#   半错状态继续跑，看起来像正常输出：
+#     1. `cmd | grep -c . || printf '0'` —— grep -c 在 0 匹配时也打印 "0"，只是退出码 1
+#     2. `grep -c PATTERN file || printf '0'` —— 文件不存在/不可读时 grep 什么都不打印，
+#        退出码 2，`||` 补一个 "0"，本意是好的；但一旦 grep 成功匹配 0 行，
+#        它已经打印了 "0" 且退出码 1，于是又变成 "0\n0"
+#   要数「匹配 0 行也算成功」的计数，正确写法是加 `; true` 而不是 `|| printf`：
+#     count="$(grep -c PATTERN file 2>/dev/null; true)"
 ops_count_lines() {
     local n
-    n="$(grep -c . 2>/dev/null)"
+    if (( $# > 0 )); then
+        n="$(grep -c . -- "$1" 2>/dev/null)"
+    else
+        n="$(grep -c . 2>/dev/null)"
+    fi
     [[ "$n" =~ ^[0-9]+$ ]] || n=0
     printf '%s' "$n"
 }

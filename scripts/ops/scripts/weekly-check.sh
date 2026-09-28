@@ -360,7 +360,9 @@ fi
 
 # 待升级包数量（只读：apt-get -s 模拟）
 if ops_have_cmd apt-get && [[ "$is_root" == "1" ]]; then
-    upgradable="$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst ' || printf '0')"
+    # `; true` 而不是 `|| printf '0'`：grep -c 在 0 匹配时也打印 "0"（退出码 1），
+    # 用 || 会再补一个 0，变成 "0\n0" 让 (( )) 语法错误。
+    upgradable="$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst ' 2>/dev/null; true)"
     if [[ "$upgradable" =~ ^[0-9]+$ ]]; then
         if (( upgradable > 0 )); then
             ops_info "patch.upgradable" "有 ${upgradable} 个可升级软件包（升级在 monthly-ops.sh 执行）"

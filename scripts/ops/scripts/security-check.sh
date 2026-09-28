@@ -235,7 +235,7 @@ if ops_have_cmd journalctl && [[ "$is_root" == "1" ]]; then
         || printf '')"
 
     if [[ -n "$failed_lines" ]]; then
-        failed_count="$(printf '%s\n' "$failed_lines" | grep -c . || printf '0')"
+        failed_count="$(printf '%s\n' "$failed_lines" | ops_count_lines)"
         # 提取来源 IP，只保留去重后的前 10 个
         failed_sources="$(printf '%s\n' "$failed_lines" \
             | grep -oE 'from [0-9a-fA-F.:]+' | awk '{print $2}' \
@@ -358,7 +358,7 @@ check_env_file() {
 
     if [[ "$is_root" == "1" ]]; then
         local count
-        count="$(grep -cE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$file" 2>/dev/null || printf '0')"
+        count="$(ops_count_lines "$file")"
         ops_info "env.$label-keys" "包含 ${count} 个配置项（未读取、未输出任何值）"
     fi
 }
@@ -417,10 +417,10 @@ check_access_log() {
 
     local tail_lines total errors
     tail_lines="$(tail -n 2000 "$log" 2>/dev/null || printf '')"
-    total="$(printf '%s\n' "$tail_lines" | grep -c . || printf '0')"
+    total="$(printf '%s\n' "$tail_lines" | ops_count_lines)"
 
     # 统计 4xx / 5xx；日志格式不同，这里用宽松的「状态码字段」匹配
-    errors="$(printf '%s\n' "$tail_lines" | grep -cE '" (4[0-9]{2}|5[0-9]{2}) ' || printf '0')"
+    errors="$(printf '%s\n' "$tail_lines" | grep -cE '" (4[0-9]{2}|5[0-9]{2}) ' 2>/dev/null; true)"
 
     if (( total == 0 )); then
         ops_info "http.$label-access" "$log 为空"
@@ -453,7 +453,8 @@ check_access_log "$CADDY_ACCESS_LOG" "caddy"
 
 for log in "$NGINX_ERROR_LOG"; do
     if [[ -f "$log" && -r "$log" ]]; then
-        recent_errors="$(tail -n 200 "$log" 2>/dev/null | grep -Ei 'error|crit|alert|emerg' | wc -l | tr -d ' ' || printf '0')"
+        recent_errors="$(tail -n 200 "$log" 2>/dev/null | grep -Ei 'error|crit|alert|emerg' | wc -l | tr -d ' ')"
+        [[ "$recent_errors" =~ ^[0-9]+$ ]] || recent_errors=0
         if (( recent_errors > 0 )); then
             ops_warn "http.nginx-error" "$log 尾部 200 行中有 ${recent_errors} 条错误级日志"
         else
