@@ -137,8 +137,11 @@ done <<<"$remote_listing"
 # 全量判断，那么当本地归档数 > keep 时会出现
 #   上传全部 → 裁剪到 keep → 下次又全部重传 → 再裁剪
 # 的循环，每天白传一堆注定被删的归档。
-mapfile -t newest_local < <(printf '%s
-' "${archived[@]}" | sort | tail -n "$keep")
+# $archived 在上面已经按文件名 sort 过，而文件名以 UTC 时间戳开头，
+# 所以字典序即时间序 —— 直接取末尾 $keep 项即可。
+newest_start=$(( ${#archived[@]} - keep ))
+(( newest_start < 0 )) && newest_start=0
+newest_local=("${archived[@]:newest_start}")
 
 pending=()
 for archive in "${newest_local[@]}"; do
