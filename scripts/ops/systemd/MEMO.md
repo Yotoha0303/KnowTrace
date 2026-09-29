@@ -53,6 +53,18 @@ sudo bash /opt/knowtrace-ops/scripts/monthly-ops.sh --apply
 
 ## 3. 安装步骤（已完成，留作重建参考）
 
+> **2026-09-29 起改用脚本**：`systemd/install.sh` 把这套步骤固化了下来，
+> 并强制「先 start 验证再 enable」的顺序（见第 6.1 节：`Documentation=` 的坑
+> `systemd-analyze verify` 查不出来，只有真 start 一次读 journal 才行）。
+> 验证不通过会 `exit 2` 并**中止，不启用定时器**。
+>
+> ```bash
+> bash /opt/knowtrace-ops/systemd/install.sh --dry-run   # 先看计划
+> bash /opt/knowtrace-ops/systemd/install.sh             # 真装
+> ```
+>
+> 脚本幂等，重复运行安全。下面的手工步骤保留作为原理参考——
+
 ```bash
 # 1) 装单元
 sudo cp /opt/knowtrace-ops/systemd/*.service /opt/knowtrace-ops/systemd/*.timer /etc/systemd/system/
