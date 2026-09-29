@@ -217,6 +217,29 @@ REPORT_STALE_FACTOR=2
 REPORT_LOOKBACK_DAYS=40
 
 
+# ----------------------------------------------------------------------------
+# 异地备份（scripts/linux/offsite-backup.sh）
+# ----------------------------------------------------------------------------
+# 目标：把本地备份**加密后**推到异地，满足 3-2-1 的「1 份在异地」。
+#
+# ⚠ 本地备份归档含生产密钥（config/.env 里有 AUTH_JWT_SECRET、
+#   AUTH_DB_PASSWORD、POSTGRES_PASSWORD 等），所以：
+#     - 本机只放 age **公钥**（下面这项指向的文件）
+#     - age **私钥**绝不能留在本机，由人保管（密码管理器 / 离线介质）
+#
+# 例（Cloudflare R2）：
+#   rclone config create r2 s3 #     provider Cloudflare #     access_key_id <ACCESS_KEY> #     secret_access_key <SECRET> #     endpoint https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+#   OFFSITE_REMOTE=r2:knowtrace-backups
+OFFSITE_REMOTE=
+# age 公钥文件（只含公钥，644 即可）
+OFFSITE_AGE_RECIPIENT_FILE=/etc/knowtrace/age-recipient.pub
+# 远端保留多少个最新归档
+OFFSITE_KEEP=30
+# 指标文件（经 node-exporter textfile collector 暴露，供告警用）
+OFFSITE_METRICS_FILE=/opt/knowtrace/runtime/node-exporter/knowtrace-offsite.prom
+# 加密暂存目录（用完即删）
+OFFSITE_STAGING_DIR=/var/tmp/knowtrace-offsite
+
 # ============================================================================
 # 提醒：ops.conf 可能含内网地址、账号名等敏感信息，请
 #   1) chmod 600 ops.conf

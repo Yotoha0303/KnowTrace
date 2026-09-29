@@ -30,7 +30,7 @@ project_directory="$(cd -- "$script_directory/../.." && pwd -P)"
 
 conf_file="${OPS_CONF:-/etc/knowtrace/ops.conf}"
 remote=""
-keep="30"
+keep=""          # 空 = 稍后从 conf 读 OFFSITE_KEEP，最后兜底 30
 dry_run=false
 verify_only=false
 
@@ -63,6 +63,8 @@ recipient_file="$(conf_get OFFSITE_AGE_RECIPIENT_FILE /etc/knowtrace/age-recipie
 [[ -n "$remote" ]] || remote="$(conf_get OFFSITE_REMOTE '')"
 metrics_file="$(conf_get OFFSITE_METRICS_FILE /opt/knowtrace/runtime/node-exporter/knowtrace-offsite.prom)"
 staging_root="$(conf_get OFFSITE_STAGING_DIR /var/tmp/knowtrace-offsite)"
+[[ -n "$keep" ]] || keep="$(conf_get OFFSITE_KEEP 30)"
+[[ "$keep" =~ ^[1-9][0-9]*$ ]] || { echo "错误：保留数必须是正整数，收到：$keep" >&2; exit 3; }
 
 if (( EUID != 0 )); then
   exec sudo -- "$0" "$@"

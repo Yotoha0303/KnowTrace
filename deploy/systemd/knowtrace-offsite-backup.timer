@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the KnowTrace offsite backup upload every day
+
+[Timer]
+# 本地备份在 03:20 (+08) 跑，日巡检在 19:30 UTC。
+# 异地上传排在 04:10 (+08) —— 本地备份完成之后、足够早，白天就能发现失败。
+OnCalendar=*-*-* 04:10:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=10min
+AccuracySec=5min
+Unit=knowtrace-offsite-backup.service
+
+[Install]
+WantedBy=timers.target

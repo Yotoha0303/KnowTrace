@@ -1,0 +1,27 @@
+[Unit]
+Description=KnowTrace offsite encrypted backup upload
+Documentation=file:/opt/knowtrace/docs/15-stage2-vps-reliability.md
+# 依赖本地备份：异地传的是 /var/backups/knowtrace 里的归档
+Requires=knowtrace-backup.service
+After=knowtrace-backup.service network-online.target
+Wants=network-online.target
+# 惰性：没配好就静默跳过，不产生失败记录（否则会天天标 failed，变成"狼来了"）。
+# 判据是 age 公钥存在 —— 它只在真正配置异地备份时才创建，是个可靠的"已配置"标志。
+ConditionPathExists=/etc/knowtrace/age-recipient.pub
+
+[Service]
+Type=oneshot
+Environment=OPS_CONF=/etc/knowtrace/ops.conf
+UMask=0077
+ExecStart=/opt/knowtrace/scripts/linux/offsite-backup.sh
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+# 只读脚本 + 只写暂存区与指标文件，再收紧一层
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/tmp /var/backups/knowtrace /opt/knowtrace/runtime/node-exporter
