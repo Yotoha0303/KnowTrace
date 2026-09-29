@@ -40,6 +40,7 @@ KnowTrace 日常巡检（只读）
 选项:
   --conf <文件>   指定 ops.conf（默认 <仓库根>/ops.conf，其次 /etc/knowtrace/ops.conf）
   --json <文件>   写出 JSON 报告到指定路径
+  --markdown <文件>  写出 Markdown 报告到指定路径（与 daily-ops.sh 格式一致）
   --no-json       不写 JSON 报告
   --quiet, -q     只输出 WARN/FAIL，用于定时任务与告警
   --no-color      关闭彩色输出
@@ -51,6 +52,7 @@ KnowTrace 日常巡检（只读）
 示例:
   ./scripts/daily-check.sh | tee /var/log/knowtrace-daily-check.log
   ./scripts/daily-check.sh --quiet --json /var/lib/knowtrace/reports/daily.json
+  ./scripts/daily-check.sh --quiet --json /var/lib/knowtrace/reports/       --markdown /var/lib/knowtrace/reports/
 EOF
 }
 
