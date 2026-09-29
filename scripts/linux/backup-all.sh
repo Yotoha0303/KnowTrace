@@ -239,7 +239,10 @@ upload_total_bytes="$(find "$PROJECT_DIR/data/uploads" -type f -printf '%s\n' | 
 printf 'file_count=%s\ntotal_bytes=%s\n' "$upload_file_count" "$upload_total_bytes" >"$incomplete_dir/uploads-stats.txt"
 
 log "保存恢复所需配置（包含敏感信息）"
-for config_file in .env compose.yaml compose.production.yaml; do
+# 注意：这份归档含生产密钥（.env 与 .env.observability 里都有），
+# 脚本已在 metadata.txt 标了 contains_secrets=yes。
+# 因此它只应留在服务器本地，**推到异地前必须加密**。
+for config_file in .env .env.observability compose.yaml compose.production.yaml; do
   if [[ -f "$PROJECT_DIR/$config_file" ]]; then
     cp --preserve=mode,timestamps "$PROJECT_DIR/$config_file" "$incomplete_dir/config/$config_file"
   fi
