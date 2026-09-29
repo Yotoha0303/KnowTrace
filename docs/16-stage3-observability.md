@@ -292,6 +292,62 @@ ls -l /opt/knowtrace/runtime/node-exporter/knowtrace-offsite.prom
 SHA-256。**未经恢复验证的备份不能算备份。** 私钥只应存在于人的密码管理器/
 离线介质，**不在服务器上**——排查时不要为了图方便把它拷到服务器。
 
+### Ops check
+
+巡检结论的三个指标由 `scripts/linux/write-ops-metrics.sh` 从
+`REPORTS_DIR` 里最新的报告 JSON 提取，经 node-exporter textfile collector 暴露。
+它由三个巡检单元的 `ExecStartPost` 调用，**指标名带 `script` 标签**区分
+`daily-ops` / `weekly-check` / `monthly-ops`。
+
+先看现场：
+
+```bash
+systemctl list-timers 'knowtrace*' --no-pager
+journalctl -u knowtrace-daily-ops.service -n 40 --no-pager
+ls -t /var/lib/knowtrace/reports/ | head
+cat /opt/knowtrace/runtime/node-exporter/knowtrace-ops.prom
+```
+
+分三种情况：
+
+- **CheckFailed**（`worst_level >= 3`）：报告里有 FAIL。看报告正文定位是哪个
+  `check`：
+
+  ```bash
+  grep -B2 -A2 'FAIL' "$(ls -t /var/lib/knowtrace/reports/*.md | head -1)"
+  ```
+
+- **NeverRan**（`absent(...)`）：报告目录里**一份 JSON 都没有**。常见原因是
+  定时器没 enable，或 `REPORTS_DIR` 被改过。检查
+  `systemctl is-enabled knowtrace-daily-ops.timer`。
+
+- **DailyCheckStale / WeeklyCheckStale / MonthlyCheckStale**：跑过但超过周期。
+  检查 timer 的 `OnCalendar` 与 `Persistent`，以及 service 是否被
+  `ConditionPathExists` 之类跳过。
+
+**排查时注意**：`ExecStartPost` 前缀是 `-`（失败不影响巡检结论），所以
+**指标写失败时巡检报告仍然正常**——别只看到报告就说链路没问题，要
+`cat` 一下 `.prom` 文件确认指标真的写出来了。
+
+### TLS certificate
+
+指标来自 blackbox-exporter 的 https 探测：`probe_ssl_earliest_cert_expiry`，
+不需要额外脚本。当前探测目标是公网 `https://knowtrace.duckdns.org/api/health/ready`。
+
+证书是 Caddy 自动签发与续期的（Let's Encrypt，90 天有效）。**剩不到 21 天
+说明自动续期很可能已经失败**——正常情况应该长期维持在 60–90 天。
+
+```bash
+# 看剩余天数
+curl -s 'http://127.0.0.1:9090/api/v1/query?query=probe_ssl_earliest_cert_expiry'   | python3 -c "import json,sys,datetime;       print([datetime.datetime.fromtimestamp(float(r['value'][1])) for r in json.load(sys.stdin)['data']['result']])"
+
+# 看 Caddy 日志里的续期记录
+docker logs knowtrace-caddy-1 2>&1 | grep -iE "certificate|renew|acme" | tail -20
+```
+
+**不要手工覆盖证书文件**——Caddy 管理自己的存储，手工放进去的证书会在下次
+续期时被覆盖。若续期确实失败，先查 80 端口可达性与 DNS，而不是改证书。
+
 ### Email delivery
 
 检查 Alertmanager `/api/v2/status`、容器日志、SMTP DNS/TCP/STARTTLS 和提供商退信。不要在命令行历史、截图、Git 或故障单中暴露应用专用密码。

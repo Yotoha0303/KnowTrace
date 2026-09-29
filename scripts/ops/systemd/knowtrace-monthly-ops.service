@@ -24,13 +24,17 @@ Environment=OPS_CONF=/etc/knowtrace/ops.conf
 #   这样做是因为月清单里的「隔离恢复演练」「apt 升级」「删旧备份」在生产上
 #   都属于需要人判断的变更，不适合无人值守自动跑。
 ExecStart=/usr/bin/bash /opt/knowtrace-ops/scripts/monthly-ops.sh --quiet --record --json /var/lib/knowtrace/reports/ --markdown /var/lib/knowtrace/reports/
+# 把本次巡检结论写成 textfile 指标，接进告警链路（失败不改变巡检结论）
+ExecStartPost=-/usr/bin/bash /opt/knowtrace/scripts/linux/write-ops-metrics.sh
 SuccessExitStatus=0 1 2
 
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=full
-ReadWritePaths=/var/lib/knowtrace /var/log/knowtrace-logs
+# 指标目录必须在 ReadWritePaths 里 —— 否则 ExecStartPost 会以
+# 「权限不足」的方式静默失败（ProtectSystem=full 把 /opt 挂成只读）。
+ReadWritePaths=/var/lib/knowtrace /var/log/knowtrace-logs /opt/knowtrace/runtime/node-exporter
 
 [Install]
 WantedBy=multi-user.target

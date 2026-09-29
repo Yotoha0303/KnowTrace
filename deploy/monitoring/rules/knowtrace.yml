@@ -149,6 +149,88 @@ groups:
           summary: "The newest offsite backup upload is older than 30 hours"
           runbook: "docs/16-stage3-observability.md#offsite-backup"
 
+  # 巡检结论（scripts/linux/write-ops-metrics.sh 写的指标）
+  # 修的是「最大的传导断裂」：巡检跑完只写报告，没人定时看。
+  - name: knowtrace.ops-check
+    rules:
+      # 巡检报出 FAIL —— 这是整条链路的目的所在
+      - alert: KnowTraceOpsCheckFailed
+        expr: knowtrace_ops_report_worst_level >= 3
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ops check {{ $labels.script }} reported FAIL findings"
+          runbook: "docs/16-stage3-observability.md#ops-check"
+
+      # 「巡检从未运行过」。用 absent() 而不是 < 0，
+      # 因为脚本从未生成报告时不输出样本 —— 这正是静默缺失的形态。
+      # 三个单元装了但定时器没 enable、或报告目录被清空，都会命中这条。
+      - alert: KnowTraceOpsCheckNeverRan
+        expr: absent(knowtrace_ops_report_timestamp_seconds)
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "Ops checks have never produced a report"
+          runbook: "docs/16-stage3-observability.md#ops-check"
+
+      # 「定时器停了」。按各自周期给足余量，避免一次抖动就告警：
+      # 日巡检 26 小时（一天 + 2 小时余量）
+      - alert: KnowTraceOpsDailyCheckStale
+        expr: time() - knowtrace_ops_report_timestamp_seconds{script="daily-ops"} > 93600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The daily ops check has not run for over 26 hours"
+          runbook: "docs/16-stage3-observability.md#ops-check"
+
+      # 周巡检 8 天（周一跑，给一周 + 1 天余量）
+      - alert: KnowTraceOpsWeeklyCheckStale
+        expr: time() - knowtrace_ops_report_timestamp_seconds{script="weekly-check"} > 691200
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "The weekly ops check has not run for over 8 days"
+          runbook: "docs/16-stage3-observability.md#ops-check"
+
+      # 月巡检 35 天
+      - alert: KnowTraceOpsMonthlyCheckStale
+        expr: time() - knowtrace_ops_report_timestamp_seconds{script="monthly-ops"} > 3024000
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "The monthly ops check has not run for over 35 days"
+          runbook: "docs/16-stage3-observability.md#ops-check"
+
+  # TLS 证书到期。
+  # 指标由 blackbox-exporter 的 https 探测直接给出，不需要额外脚本 ——
+  # 周巡检查得到证书剩余天数，但结论进不了告警，这条规则补上。
+  - name: knowtrace.tls
+    rules:
+      # Let's Encrypt 证书 90 天有效，Caddy 在到期前约 30 天自动续期。
+      # 剩不到 21 天说明自动续期很可能已经失败。
+      - alert: KnowTraceCertificateExpiringSoon
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 21
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate expires in under 21 days (auto-renewal may have failed)"
+          runbook: "docs/16-stage3-observability.md#tls-certificate"
+
+      - alert: KnowTraceCertificateCritical
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 7
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TLS certificate expires in under 7 days"
+          runbook: "docs/16-stage3-observability.md#tls-certificate"
+
   - name: knowtrace.auth-http
     rules:
       - alert: GoUserSystemHigh5xxRate

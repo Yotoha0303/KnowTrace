@@ -19,6 +19,8 @@ WorkingDirectory=/opt/knowtrace-ops
 Environment=OPS_CONF=/etc/knowtrace/ops.conf
 # --quiet 只输出 WARN/FAIL；报告写到统一目录供 ops-report.py 汇总
 ExecStart=/usr/bin/bash /opt/knowtrace-ops/scripts/daily-ops.sh --quiet --record --json /var/lib/knowtrace/reports/ --markdown /var/lib/knowtrace/reports/
+# 把本次巡检结论写成 textfile 指标，接进告警链路（失败不改变巡检结论）
+ExecStartPost=-/usr/bin/bash /opt/knowtrace/scripts/linux/write-ops-metrics.sh
 # 退出码 1=WARN 2=FAIL 是「巡检结论」而不是「服务失败」，不要让 systemd 标记 failed。
 # 结论由 JSON 报告与告警链路负责。若要 systemd 因 FAIL 报警，删掉这一行。
 SuccessExitStatus=0 1 2
@@ -28,7 +30,9 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=full
-ReadWritePaths=/var/lib/knowtrace /var/log/knowtrace-logs
+# 指标目录必须在 ReadWritePaths 里 —— 否则 ExecStartPost 会以
+# 「权限不足」的方式静默失败（ProtectSystem=full 把 /opt 挂成只读）。
+ReadWritePaths=/var/lib/knowtrace /var/log/knowtrace-logs /opt/knowtrace/runtime/node-exporter
 
 [Install]
 WantedBy=multi-user.target
