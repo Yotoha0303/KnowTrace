@@ -227,9 +227,21 @@ REPORT_LOOKBACK_DAYS=40
 #     - 本机只放 age **公钥**（下面这项指向的文件）
 #     - age **私钥**绝不能留在本机，由人保管（密码管理器 / 离线介质）
 #
-# 例（Cloudflare R2）：
-#   rclone config create r2 s3 #     provider Cloudflare #     access_key_id <ACCESS_KEY> #     secret_access_key <SECRET> #     endpoint https://<ACCOUNT_ID>.r2.cloudflarestorage.com
-#   OFFSITE_REMOTE=r2:knowtrace-backups
+# 不绑定存储商：任何 rclone 能访问的后端都行（S3 兼容 / SFTP / WebDAV / 网盘…）。
+# 换后端只改这一行，不改代码。
+#
+# 例一，对象存储（S3 兼容，以 Cloudflare R2 为例）：
+#   rclone config create offsite s3 \
+#     provider Cloudflare \
+#     access_key_id <ACCESS_KEY> \
+#     secret_access_key <SECRET> \
+#     endpoint https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+#   OFFSITE_REMOTE=offsite:knowtrace-backups
+#
+# 例二，另一台机器（SFTP）：
+#   rclone config create offsite sftp \
+#     host <目标机IP> user <用户名> key_file /root/.ssh/id_ed25519
+#   OFFSITE_REMOTE=offsite:/path/to/backups
 OFFSITE_REMOTE=
 # age 公钥文件（只含公钥，644 即可）
 OFFSITE_AGE_RECIPIENT_FILE=/etc/knowtrace/age-recipient.pub
