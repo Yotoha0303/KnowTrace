@@ -124,18 +124,31 @@ mapfile -t archived < <(find "$backup_root" -maxdepth 1 -type f -name 'knowtrace
 (( ${#archived[@]} )) || { fail "在 $backup_root 里找不到任何 knowtrace-*.tar.gz"; exit 3; }
 ok "本地共有 ${#archived[@]} 个归档"
 
-# 已上传的（按远端文件名判断，远端存的是 .age）
+# 远端已有的 —— 放进关联数组做精确匹配。
+# 不能用「在整个 listing 字符串里找子串」：那会把一个文件名误配到另一个更长的名字里。
 remote_listing="$(rclone lsf "$remote" 2>/dev/null || true)"
+declare -A remote_set=()
+while IFS= read -r listing_line; do
+  [[ -n "$listing_line" ]] && remote_set["$listing_line"]=1
+done <<<"$remote_listing"
+
+# 只关心**最新 $keep 个**本地归档。
+# 这一点很关键：远端保留策略是「只留最新 $keep 个」，如果待上传按「本地有、远端没有」
+# 全量判断，那么当本地归档数 > keep 时会出现
+#   上传全部 → 裁剪到 keep → 下次又全部重传 → 再裁剪
+# 的循环，每天白传一堆注定被删的归档。
+mapfile -t newest_local < <(printf '%s
+' "${archived[@]}" | sort | tail -n "$keep")
 
 pending=()
-for archive in "${archived[@]}"; do
-  [[ "$remote_listing" == *"${archive}.age"* ]] || pending+=("$archive")
+for archive in "${newest_local[@]}"; do
+  [[ -n "${remote_set["${archive}.age"]:-}" ]] || pending+=("$archive")
 done
 
 if (( ${#pending[@]} == 0 )); then
-  ok "没有待上传的归档（远端已是新的）"
+  ok "没有待上传的归档（最新 $keep 个都已在远端）"
 else
-  ok "待上传 ${#pending[@]} 个（共 ${#archived[@]} 个本地归档）"
+  ok "待上传 ${#pending[@]} 个（最新 $keep 个中缺失的；本地共 ${#archived[@]} 个）"
 fi
 
 # ---- 3. 加密并上传 -----------------------------------------------------------
