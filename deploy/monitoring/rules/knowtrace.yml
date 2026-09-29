@@ -111,6 +111,44 @@ groups:
           summary: "The newest KnowTrace backup is older than 26 hours"
           runbook: "docs/16-stage3-observability.md#backup-freshness"
 
+  # 异地备份（scripts/linux/offsite-backup.sh 写的三个指标）
+  # 与存储商无关：无论后端是 R2 / S3 / OSS / COS / 另一台机器，
+  # 只要走 offsite-backup.sh，这三个指标的名字和语义都一样。
+  - name: knowtrace.offsite-backup
+    rules:
+      # 尚未配置异地备份。用 absent() 表达「这个能力完全不存在」——
+      # 这正是「静默缺失」的形态：不报错、不失败，只是没有。
+      # severity=info 且 Alertmanager 的 local-only 子路由会拦下它，
+      # 所以它进 UI 不进邮箱，不会变成每天一封的噪声。
+      - alert: KnowTraceOffsiteBackupNotConfigured
+        expr: absent(knowtrace_offsite_backup_archive_count)
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "Offsite backup is not configured; all backups are on the same disk"
+          runbook: "docs/16-stage3-observability.md#offsite-backup"
+
+      - alert: KnowTraceOffsiteBackupMissing
+        expr: knowtrace_offsite_backup_archive_count < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No encrypted offsite backup archive is present"
+          runbook: "docs/16-stage3-observability.md#offsite-backup"
+
+      # 阈值 30h：本地备份每天 03:20 一次，异地在 04:10 跟一次。
+      # 给两次完整的日周期余量，避免一次网络抖动就告警。
+      - alert: KnowTraceOffsiteBackupStale
+        expr: time() - knowtrace_offsite_backup_last_success_timestamp_seconds > 108000
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The newest offsite backup upload is older than 30 hours"
+          runbook: "docs/16-stage3-observability.md#offsite-backup"
+
   - name: knowtrace.auth-http
     rules:
       - alert: GoUserSystemHigh5xxRate

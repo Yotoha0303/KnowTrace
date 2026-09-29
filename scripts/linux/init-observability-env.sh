@@ -90,6 +90,22 @@ os.chmod(token_path, 0o400)
 
 email_enabled = values.get("ALERT_EMAIL_ENABLED", "false").lower() == "true"
 receiver_name = "email" if email_enabled else "local-only"
+
+# severity=info 是「事实记录」而非故障（例如「异地备份尚未配置」）。
+# 它必须能在 Alertmanager UI 里看到，但**不该发邮件** —— 否则会每天一封、
+# 标题还像故障，很快就被当成噪声无视。
+# 所以单独分一条子路由把它固定发给 local-only（空 receiver，即只进 UI）。
+# 子路由放在 email 路由之前，Alertmanager 按顺序匹配，命中即停。
+tls_routes: list[dict[str, object]] = [
+    {
+        "matchers": ['severity="info"'],
+        "receiver": "local-only",
+        "repeat_interval": "24h",
+    }
+]
+if email_enabled:
+    tls_routes.append({"receiver": receiver_name})
+
 config: dict[str, object] = {
     "global": {"resolve_timeout": "5m"},
     "route": {
@@ -98,6 +114,7 @@ config: dict[str, object] = {
         "group_wait": "30s",
         "group_interval": "5m",
         "repeat_interval": "4h",
+        "routes": tls_routes,
     },
     "receivers": [{"name": "local-only"}],
     "inhibit_rules": [

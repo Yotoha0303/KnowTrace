@@ -259,6 +259,39 @@ curl -sS http://127.0.0.1:9093/api/v2/status
 
 运行 promtool 检查配置/规则，查看 Prometheus 日志和 `/api/v1/rules` 的 lastError。修复后等待至少一个 15 秒 evaluation 周期。
 
+### Offsite backup
+
+三个指标由 `scripts/linux/offsite-backup.sh` 写入
+`runtime/node-exporter/knowtrace-offsite.prom`，经 node-exporter 的 textfile
+collector 暴露。它们与存储商无关 —— 换后端不改指标名。
+
+先看现场：
+
+```bash
+systemctl status knowtrace-offsite-backup.timer --no-pager
+systemctl status knowtrace-offsite-backup.service --no-pager
+journalctl -u knowtrace-offsite-backup.service -n 50 --no-pager
+ls -l /opt/knowtrace/runtime/node-exporter/knowtrace-offsite.prom
+```
+
+分三种情况：
+
+- **NotConfigured**：`/etc/knowtrace/age-recipient.pub` 不存在 → 单元被
+  `ConditionPathExists` 跳过。按 `docs/2026-09-29-异地备份实施记录与剩余步骤.md`
+  的「剩余 5 步」配置。这是**已知未完成项**，不是故障。
+- **Missing**：归档数为 0。检查 `OFFSITE_REMOTE` 是否可达
+  （`rclone lsd <remote>`）、凭据是否过期、桶是否还在。
+- **Stale**：超过 30 小时没成功上传。先手工跑一次看具体报错：
+
+  ```bash
+  bash /opt/knowtrace/scripts/linux/offsite-backup.sh --dry-run
+  bash /opt/knowtrace/scripts/linux/offsite-backup.sh
+  ```
+
+**恢复前必做的验证**：从异地取一个归档回来，用 age 私钥解密，与原归档比
+SHA-256。**未经恢复验证的备份不能算备份。** 私钥只应存在于人的密码管理器/
+离线介质，**不在服务器上**——排查时不要为了图方便把它拷到服务器。
+
 ### Email delivery
 
 检查 Alertmanager `/api/v2/status`、容器日志、SMTP DNS/TCP/STARTTLS 和提供商退信。不要在命令行历史、截图、Git 或故障单中暴露应用专用密码。
