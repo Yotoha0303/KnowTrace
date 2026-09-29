@@ -57,7 +57,7 @@
 ```bash
 # 1) 部署（不要放进 /opt/knowtrace，避免被部署覆盖）
 sudo mkdir -p /opt/knowtrace-ops
-sudo cp -a lib scripts systemd docs ops.conf.example /opt/knowtrace-ops/
+sudo cp -a lib scripts systemd docs README.md ops.conf.example /opt/knowtrace-ops/
 
 # 2) 配置
 sudo cp /opt/knowtrace-ops/ops.conf.example /opt/knowtrace-ops/ops.conf
