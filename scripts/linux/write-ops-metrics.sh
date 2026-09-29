@@ -148,11 +148,27 @@ emit(
     "Number of WARN findings in the newest report.",
     warn_samples,
 )
+
+# 输出到 stdout（bash 侧重定向进临时文件）。
+# 这一行漏掉的话，脚本会「成功退出但写出空文件」——因为下面的空文件分支
+# 把「没内容」当成了正常情况。2026-09-29 实际踩到过，故留此注释。
+if lines:
+    print("\n".join(lines))
 PY
 
 if [[ ! -s "$temporary_path" ]]; then
-  # 一条样本都没有：写下空文件（清掉旧指标），但仍算成功。
-  # 若报告从未生成，Prometheus 侧的 absent() 会报「巡检从未运行」。
+  # 空输出有两种可能，必须区分开：
+  #   (a) 报告目录里**一份监控中的报告都没有** —— 正常。
+  #       写下空文件（清掉旧指标），Prometheus 侧的 absent() 会报「巡检从未运行」。
+  #   (b) 有报告却什么指标都没产出 —— **这是 bug**。
+  #       2026-09-29 实际踩到：python 段漏了 print，脚本却「成功退出并写出空文件」，
+  #       把真实故障伪装成了正常。所以这里显式报错，不再静默放过。
+  if compgen -G "$reports_directory/*-*.json" >/dev/null; then
+    echo "错误：报告目录里有 JSON，但一条指标都没产出（疑似脚本缺陷）" >&2
+    echo "      报告目录：$reports_directory" >&2
+    ls -1 "$reports_directory"/*.json 2>/dev/null | tail -5 >&2
+    exit 3
+  fi
   : >"$temporary_path"
 fi
 
