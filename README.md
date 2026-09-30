@@ -99,7 +99,7 @@ KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系�
 
 ## 本地启动
 
-推荐要求：Docker Desktop、GNU Make 和 Windows PowerShell。首次启动执行：
+**Windows**：需要 Docker Desktop、GNU Make 和 Windows PowerShell。首次启动执行：
 
 ```bash
 make up
@@ -112,6 +112,25 @@ make up
 ```powershell
 .\scripts\start-all.ps1
 ```
+
+**Linux**：`make up` 走的是 PowerShell（`scripts/start-all.ps1`），**在 Linux 上不可用**。
+用 `scripts/bootstrap/bootstrap.sh`：
+
+```bash
+sudo bash scripts/bootstrap/bootstrap.sh --stage apps      # 生成配置 + 构建并启动
+sudo bash scripts/bootstrap/bootstrap.sh --stage monitoring # 监控栈（可选）
+sudo bash scripts/bootstrap/bootstrap.sh --stage ops        # 巡检定时器（可选）
+sudo bash scripts/bootstrap/bootstrap.sh --stage verify      # 验收
+# 或一次跑完：--all（含构建，2 vCPU 机器上约 3–5 分钟）
+```
+
+它会先做预检（OS / 命令 / 内存 / 磁盘 / 端口），不合格直接拒绝；
+`--dry-run` 只打印将要做什么；`--record <文件>` 把每一步写下来（重建演练时用）。
+
+**未自动化的部分**（需人工）：系统包安装、sshd 加固、UFW、反向代理与证书、DNS。
+这几项有「自锁」风险（例如 `ufw enable` 前未放行 SSH 端口会立即失联），
+因此刻意不默默执行。完整步骤见
+[docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md](docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md)。
 
 数据库迁移会启用 PostgreSQL `pg_trgm` 扩展以支持中文片段检索；受限托管数据库需要管理员预先启用该扩展。
 
