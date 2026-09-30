@@ -76,6 +76,32 @@ echo "[4/5] 启动 Alertmanager、Exporter、Prometheus 和 Grafana"
 "${compose[@]}" up -d --no-build --wait --wait-timeout 600 \
   alertmanager node-exporter blackbox-exporter prometheus grafana
 
+# 规则文件是**绑定挂载**进 Prometheus 的（deploy/monitoring/rules -> /etc/prometheus/rules）。
+# 上面的 `up -d` 对「镜像没变、只有挂载内容变了」的容器是空操作 ——
+# 容器不重启，Prometheus 也就不重读规则。
+# 2026-09-30 实测踩到：新增的 knowtrace.revision 组在宿主机文件里、在容器内都能 grep 到，
+# 但 /api/v1/rules 里就是没有它 —— 因为 Prometheus 容器自 09-08 起就没重启过。
+#
+# HUP 会触发热加载（Prometheus 收到 SIGHUP 重读配置与规则，不重启容器、不丢内存样本）。
+# 这里显式验证规则真的加载了，不靠「应该没问题」。
+echo "  [..] 触发 Prometheus 重载规则"
+docker kill -s HUP knowtrace-prometheus-1 >/dev/null 2>&1 || true
+sleep 8
+rules_seen=false
+for _ in 1 2 3; do
+  if curl -s -m 10 http://127.0.0.1:9090/api/v1/rules | grep -q 'knowtrace\.revision'; then
+    rules_seen=true
+    break
+  fi
+  sleep 5
+done
+if [[ "$rules_seen" == true ]]; then
+  echo "  [ OK ] knowtrace.revision 规则组已加载"
+else
+  echo "  [WARN] knowtrace.revision 组未出现在 Prometheus 里 —— 规则可能没生效。" >&2
+  echo "         人工核对：curl -s http://127.0.0.1:9090/api/v1/rules | grep revision" >&2
+fi
+
 install -m 644 "$project_directory/deploy/systemd/knowtrace-backup.service" /etc/systemd/system/knowtrace-backup.service
 install -m 644 "$project_directory/deploy/systemd/knowtrace-backup.timer" /etc/systemd/system/knowtrace-backup.timer
 systemctl daemon-reload
@@ -101,7 +127,7 @@ echo "[6/6] 断言运行态 revision"
 metrics_token="$(grep -oP '^METRICS_BEARER_TOKEN=\K.*' "$project_directory/.env.observability" 2>/dev/null || true)"
 running_revision=""
 if [[ -n "$metrics_token" ]]; then
-  running_revision="$(curl -sS -m 10 -H "Authorization: Bearer $metrics_token"     http://127.0.0.1:3000/api/metrics 2>/dev/null     | sed -n 's/^knowtrace_build_info{.*revision="\([^"]*\)".*//p' | head -1)"
+  running_revision="$(curl -sS -m 10 -H "Authorization: Bearer $metrics_token" http://127.0.0.1:3000/api/metrics 2>/dev/null | grep -oP '^knowtrace_build_info\{[^}]*revision="\K[^"]*' | head -1)"
 fi
 
 if [[ -z "$running_revision" ]]; then
