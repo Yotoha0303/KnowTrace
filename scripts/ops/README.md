@@ -17,6 +17,23 @@
 | `scripts/security-check.sh` | 被 weekly 调用：异常登录与端口合规 |
 | `lib/` | Bash 与 Python 公共库，两个日巡检脚本都依赖 |
 | `systemd/` | 6 个定时任务单元 + [`MEMO.md`](systemd/MEMO.md)（安装/回滚/退出码语义/踩过的坑）。**2026-09-28 已安装并 enable** |
+| `../deploy/systemd/` | ⚠️ **另一组单元在这里，不在本目录** —— 见下方说明 |
+
+### 为什么 systemd 单元分在两处
+
+仓库里有两组 systemd 单元，**不是重复，是由不同的安装器负责**：
+
+| 位置 | 单元 | 安装者 | 装的是什么 |
+| --- | --- | --- | --- |
+| `scripts/ops/systemd/` | `daily-ops` / `weekly-check` / `monthly-ops`（3 组 service+timer）+ `install.sh` | **本目录的 `systemd/install.sh`**，或 `scripts/bootstrap/bootstrap.sh --stage ops` | **巡检**（只读巡检的定时任务） |
+| `deploy/systemd/` | `knowtrace-backup` / `knowtrace-offsite-backup`（2 组 service+timer） | `scripts/linux/deploy-observability.sh`（第 105 行起） | **备份**（本地一致性备份 + 异地上传） |
+
+**为什么没有合并**：两者的安装时机与归属不同——备份单元随「核心监控部署」一起装
+（`deploy-observability.sh` 的 `[5/5]` 步），巡检单元随「运维工具包」一起装。
+合并到一处需要在两个安装器之间建立依赖，收益不抵改动风险。
+
+**改单元时注意**：改 `scripts/ops/systemd/` 下的要跑 `install.sh`；
+改 `deploy/systemd/` 下的要重跑 `deploy-observability.sh`。**两者都要 `daemon-reload`。**
 | `docs/运维脚本使用说明.md` | 完整手册：安装、用法、安全模型、阈值说明 |
 | `ops.conf.example` | 配置模板。**实际使用的 `ops.conf` 不入库**（含内网地址与账号名，已在 `.gitignore`） |
 
