@@ -106,9 +106,14 @@ b_check_ports() {
   return 0
 }
 
-# 本目录是否已经是一个跑着的部署
+# 本目录是否已经是一个跑着的部署。
+# 注意：必须先有 .env 才能问 compose —— 否则 compose 会因为变量缺失而报错，
+# 那种失败会被误读成「检测不到容器」，也可能被误读成「有容器」。两者都是错的。
 b_detect_existing_deployment() {
-  if docker compose --project-directory "$BOOTSTRAP_DIR" ps -q 2>/dev/null | grep -q .; then
+  [[ -f "$BOOTSTRAP_DIR/.env" ]] || return 0
+  local running
+  running="$(docker compose --project-directory "$BOOTSTRAP_DIR" ps -q 2>/dev/null || true)"
+  if [[ -n "$running" ]]; then
     b_warn "本目录已有容器在运行"
     return 1
   fi
