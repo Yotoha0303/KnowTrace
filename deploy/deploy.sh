@@ -115,9 +115,10 @@ log
 log "== 3/6 构建 =="
 log "  KNOWTRACE_APP_REVISION=${expected_revision:0:12}（烘进镜像，不是运行时注入）"
 
-# 2 vCPU / ~1.8GB 的机器上 next build 容易 OOM（见素材 A8）。
-# 这里给 Node 设一个上限，让它在被 OOM killer 杀掉之前先自己失败、
-# 并留下可读的错误，而不是把整个机器拖进 swap 抖动。
+# 2 vCPU / ~1.8GB 的机器上 next build 容易 OOM。
+# 上限通过 build args 传给 Dockerfile 的 builder 阶段（见 compose.yaml 的 args）。
+# 注意：在**宿主机** export NODE_OPTIONS 是到不了容器里的，所以这里必须 export 成
+# compose 能读到的变量、由 compose 作为 build arg 传进去。
 export KNOWTRACE_APP_REVISION="$expected_revision"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
 

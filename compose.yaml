@@ -128,6 +128,9 @@ services:
       # 核对就永远报一致。原委见 docs/16-stage3-observability.md「运行态版本核对」。
       args:
         KNOWTRACE_APP_REVISION: ${KNOWTRACE_APP_REVISION:-unknown}
+        # 构建期内存上限。在宿主机 export NODE_OPTIONS 是**到不了**容器里的，
+        # 必须作为 build arg 传（Dockerfile 的 builder 阶段用 ARG/ENV 接）。
+        NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=1024}
     environment:
       DATABASE_URL: postgres://knowtrace:${POSTGRES_PASSWORD:-knowtrace}@postgres:5432/knowtrace
       EVIDENCE_UPLOAD_DIR: /app/data/uploads/evidence

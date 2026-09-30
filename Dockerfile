@@ -24,6 +24,13 @@ ENV DATABASE_URL="postgres://knowtrace:knowtrace@postgres:5432/knowtrace"
 ARG KNOWTRACE_APP_REVISION=unknown
 ENV KNOWTRACE_APP_REVISION=$KNOWTRACE_APP_REVISION
 
+# 构建内存上限。宿主机是 2 vCPU / ~1.8GB，next build 在默认堆上限下容易被
+# OOM killer 杀掉（见 docs/2026-09-29-一键部署可行性与设计.md 记录的 OOM 事件）。
+# 给一个明确上限，让它在被杀之前先自己失败并留下可读错误，而不是把整机拖进 swap 抖动。
+# 只在 builder 阶段设置 —— runner 阶段不继承，运行时不受影响。
+ARG NODE_OPTIONS=--max-old-space-size=1024
+ENV NODE_OPTIONS=$NODE_OPTIONS
+
 RUN pnpm build
 RUN pnpm exec esbuild scripts/migrate.mjs \
   --bundle \
