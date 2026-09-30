@@ -329,6 +329,74 @@ cat /opt/knowtrace/runtime/node-exporter/knowtrace-ops.prom
 **指标写失败时巡检报告仍然正常**——别只看到报告就说链路没问题，要
 `cat` 一下 `.prom` 文件确认指标真的写出来了。
 
+### 运行态版本核对
+
+`knowtrace.revision` 组的指标由 `scripts/linux/write-revision-metrics.sh` 写入，
+由 `knowtrace-daily-ops.service` 的第二个 `ExecStartPost` 调用；
+`scripts/linux/deploy-observability.sh` 在部署末尾也会刷新一次。
+
+它回答的是**可用性之外的另一类问题**：服务是否在回答（可用性）与
+回答的是不是这一版代码（**同一性**）是两件事。整套监控原本只覆盖前者。
+
+```bash
+cat /opt/knowtrace/runtime/node-exporter/knowtrace-app-revision.prom
+curl -s 'http://127.0.0.1:9090/api/v1/query?query=knowtrace_app_revision_match'
+```
+
+#### 为什么需要它：一次真实的假成功
+
+2026-09-29 实测：`/opt/knowtrace` 的 HEAD 是 `47a4c20`，而运行中容器自报
+revision 是 `7ce26f7d`（2026-09-08），**差 37 个提交 / 21 天**。
+而当时 4 层健康检查、12 个抓取目标、20+ 条告警规则、整份巡检报告**全部正常**。
+
+**RCA（2026-09-30 实测确认）**：不是「漏了第三个 `-f`」——
+`deploy-observability.sh` 的 compose 数组一直带着三个 `-f`。真正的开关是
+第 `[2/5]` 步的 `--build-app`：
+
+| 调用 | 实际执行 | 结果 |
+| --- | --- | --- |
+| `deploy-observability.sh --build-app` | `up -d --no-deps --build --wait` | 真正重建镜像 |
+| `deploy-observability.sh`（不带） | `up -d --no-deps --no-build --wait` | **只重启旧镜像，却照样打印成功** |
+
+于是每一次「只更新监控配置」的部署都顺手把应用留在原地，**没有任何一步会说出来**。
+容器 label 佐证：`knowtrace-app-1` 创建于 `2026-09-08T03:04:41Z`，
+`com.docker.compose.project.config_files` 带三个 `-f`——说明它正是某次
+`--build-app` 的产物，之后再没被重建过。
+
+#### 部署末尾的断言
+
+`deploy-observability.sh` 的第 `[6/6]` 步会读 `knowtrace_build_info` 与
+`git rev-parse HEAD` 比对，并**区分两种情况**（这一步很重要，否则会天天误报）：
+
+- 两者之间 `src/`、`drizzle/`、`Dockerfile`、`package.json`、`pnpm-lock.yaml`
+  **有变化** → 是真的落后，**退出码 2**，并提示用 `--build-app` 重跑；
+- **没有变化** → 只告警。只改监控配置时不一致是**预期**的。
+
+排查运行态落后：
+
+```bash
+# 容器是哪一组 compose 文件创建的、镜像是哪天建的
+docker inspect knowtrace-app-1 -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+docker inspect knowtrace-app-1 -f '{{.Created}}'
+docker inspect knowtrace-app -f '{{.Created}}'
+
+# 运行态自报
+TOKEN=$(grep -oP '^METRICS_BEARER_TOKEN=\K.*' /opt/knowtrace/.env.observability)
+curl -s -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3000/api/metrics | grep build_info
+```
+
+**`revision="unknown"` 是一个专门的信号**：说明构建时没拿到
+`KNOWTRACE_APP_REVISION`。核对脚本会把它判为
+`knowtrace_app_revision_not_injected` 并写进 `knowtrace_app_revision_undetermined`。
+
+#### 一个必须守住的约束
+
+**`KNOWTRACE_APP_REVISION` 必须是构建时烘进镜像的，不能改成运行时注入。**
+
+它现在是 `compose.yaml` 的 `build.args` → `Dockerfile` 的 `ARG`/`ENV`。
+若改回运行时 `environment` 注入，**重建与不重建会得到同一个值**，
+`knowtrace_app_revision_match` 将永远报 1 —— 那正是它要发现的问题。
+
 ### TLS certificate
 
 指标来自 blackbox-exporter 的 https 探测：`probe_ssl_earliest_cert_expiry`，
