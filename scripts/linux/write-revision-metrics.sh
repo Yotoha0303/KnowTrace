@@ -88,6 +88,35 @@ else
   fi
 fi
 
+# 差异里有没有**应用代码**。
+# 为什么需要：revision 不一致本身不都是问题 —— 只改 docs 的提交也会让两者不等，
+# 而那种情况下应用行为完全相同。若不区分，这条告警会在每次文档提交后误报，
+# 很快就被训练成「忽略它」（参见 KnowTrace-career-assets 素材 A17：
+# 「永久性 WARN 会训练人忽略 WARN」）。
+#   -1 = 无法判断（运行中的 revision 不在本地历史里，例如历史被重写）
+#   >=0 = 差异中触及应用代码的文件数
+app_changed=-1
+if [[ "$determined" == true && "$expected_revision" != "$running_revision" ]]; then
+  if git -C "$project_directory" cat-file -e "${running_revision}^{commit}" 2>/dev/null; then
+    # 这些路径覆盖「改动会改变应用行为」的全部类别：源码、schema、构建、依赖、容器编排。
+    app_affecting_paths=(
+      src/
+      drizzle/
+      Dockerfile
+      package.json
+      pnpm-lock.yaml
+      compose.yaml
+      compose.production.yaml
+      compose.observability.yaml
+    )
+    app_changed="$(git -C "$project_directory" diff --name-only \
+      "${running_revision}..${expected_revision}" -- \
+      "${app_affecting_paths[@]}" 2>/dev/null | wc -l)"
+  fi
+elif [[ "$determined" == true ]]; then
+  app_changed=0
+fi
+
 now_epoch="$(date -u +%s)"
 match=0
 if [[ "$determined" == true && "$expected_revision" == "$running_revision" ]]; then
@@ -108,6 +137,12 @@ fi
   echo '# TYPE knowtrace_app_revision_match gauge'
   if [[ "$determined" == true ]]; then
     echo "knowtrace_app_revision_match $match"
+  fi
+
+  echo '# HELP knowtrace_app_revision_app_changed_files Files under app-affecting paths that differ between the running and expected revision. -1 = unknown.'
+  echo '# TYPE knowtrace_app_revision_app_changed_files gauge'
+  if [[ "$determined" == true ]]; then
+    echo "knowtrace_app_revision_app_changed_files $app_changed"
   fi
 
   echo '# HELP knowtrace_app_expected_revision_info Deploy directory HEAD revision.'
@@ -147,9 +182,14 @@ if [[ "$determined" == true ]]; then
   if (( match == 1 )); then
     echo "运行态版本一致：${expected_revision:0:12}"
   else
-    echo "⚠️ 运行态版本不一致：部署目录 ${expected_revision:0:12} / 运行中 ${running_revision:0:12}"
-    echo "   修法：用带三个 -f 的命令重建 ——"
-    echo "   docker compose -f compose.yaml -f compose.production.yaml -f compose.observability.yaml up -d --build --wait"
+    if (( app_changed == 0 )); then
+      echo "运行态 revision 落后，但差异内**没有应用代码**（只改了 docs 等）："
+      echo "   部署目录 ${expected_revision:0:12} / 运行中 ${running_revision:0:12} —— 不需要重建"
+    else
+      echo "⚠️ 运行态版本不一致，且差异里**有应用代码**（$app_changed 个文件）："
+      echo "   部署目录 ${expected_revision:0:12} / 运行中 ${running_revision:0:12}"
+      echo "   修法：scripts/linux/deploy-observability.sh --build-app"
+    fi
   fi
 else
   echo "运行态版本无法判定（reason=$reason）—— 已写入指标，由告警规则负责"

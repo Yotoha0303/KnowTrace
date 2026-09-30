@@ -363,6 +363,26 @@ revision 是 `7ce26f7d`（2026-09-08），**差 37 个提交 / 21 天**。
 `com.docker.compose.project.config_files` 带三个 `-f`——说明它正是某次
 `--build-app` 的产物，之后再没被重建过。
 
+#### 为什么「不一致」要分成两种
+
+`knowtrace_app_revision_match == 0` **本身不足以判断要不要处理**：
+只改 `docs/` 的提交也会让部署目录与运行态不等，而应用行为完全相同。
+若不加区分，这条告警会在每次文档提交后误报，很快被训练成忽略它
+（参见素材 A17「永久性 WARN 会训练人忽略 WARN」）。
+
+所以 `write-revision-metrics.sh` 额外算一个
+`knowtrace_app_revision_app_changed_files`：用 `git diff` 数出
+「运行中的 revision → 部署目录 HEAD」之间触及**应用路径**的文件数。
+判据路径是 `src/`、`drizzle/`、`Dockerfile`、`package.json`、`pnpm-lock.yaml`
+与三个 compose 文件。值为 `-1` 表示无法判断（运行中的 revision 不在本地历史里）。
+
+于是规则分成两条：
+
+| 告警 | 表达式 | 级别 | 含义 |
+| --- | --- | --- | --- |
+| `KnowTraceAppRevisionMismatch` | `match == 0 and app_changed_files > 0` | warning | **真的要处理**：应用代码变了但没生效 |
+| `KnowTraceAppRevisionBehindDocsOnly` | `match == 0 and app_changed_files == 0` | info | 只是文档/脚本落后，**不需要重建** |
+
 #### 部署末尾的断言
 
 `deploy-observability.sh` 的第 `[6/6]` 步会读 `knowtrace_build_info` 与

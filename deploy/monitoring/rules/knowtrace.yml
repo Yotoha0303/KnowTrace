@@ -161,17 +161,26 @@ groups:
   # 因为整套体系验证的是「可用性」，没有一条验证「同一性」。
   - name: knowtrace.revision
     rules:
-      # 不一致 —— 这是这一组存在的理由。
-      # for: 5m 是给「刚部署完、指标还没被下一次日巡检刷新」留的余量：
-      # 指标只在日巡检时更新，所以部署后到下一次日巡检之间会是旧的（也可能是不一致的）。
-      # 真要不一致，它至少会跨过一个日巡检周期，5m 足够滤掉同一次部署内的瞬时。
+      # 不一致 **且差异里有应用代码** —— 这才是要叫醒人的情况。
+      # 只看 match == 0 会误报：只改 docs 的提交也会让两者不等，而应用行为完全相同。
+      # 每次文档提交都告警，很快就被训练成忽略它（参见素材 A17）。
       - alert: KnowTraceAppRevisionMismatch
-        expr: knowtrace_app_revision_match == 0
+        expr: knowtrace_app_revision_match == 0 and knowtrace_app_revision_app_changed_files > 0
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "The running app revision differs from the deploy directory HEAD"
+          summary: "Running app revision differs from deploy HEAD and app code changed"
+          runbook: "docs/16-stage3-observability.md#revision"
+
+      # 不一致，但差异里**没有**应用代码（只改了 docs/运维脚本等）。事实记录，不打扰。
+      - alert: KnowTraceAppRevisionBehindDocsOnly
+        expr: knowtrace_app_revision_match == 0 and knowtrace_app_revision_app_changed_files == 0
+        for: 26h
+        labels:
+          severity: info
+        annotations:
+          summary: "Running app revision is behind deploy HEAD, but only non-app files changed"
           runbook: "docs/16-stage3-observability.md#revision"
 
       # 「核对再也没跑成功过」。判定失败时不写 match 样本，
