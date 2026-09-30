@@ -55,6 +55,8 @@ b_check_os() {
 
 b_check_resources() {
   local available_kib disk_available_kib
+  # 可用 BOOTSTRAP_MIN_FREE_KIB 覆盖（默认 700 MiB），供「明知后果」的场合使用
+  local min_free_kib="${BOOTSTRAP_MIN_FREE_KIB:-700000}"
   available_kib="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
   disk_available_kib="$(df --output=avail -k "$BOOTSTRAP_DIR" 2>/dev/null | tail -n 1 | tr -d ' ' || echo 0)"
   available_kib="${available_kib:-0}"; disk_available_kib="${disk_available_kib:-0}"
@@ -63,10 +65,15 @@ b_check_resources() {
 
   # 阈值比 deploy-observability.sh 宽，因为本脚本还要跑 docker build。
   # 2026-09-30 的事故证明了在上限附近构建会把机器压死（负载 124 / 可用内存 15 MB）。
-  if (( available_kib < 700000 )); then
-    b_fail "可用内存不足 700 MiB —— 不足以安全完成 docker build"
-    b_info "这台机器上 next build 曾把 2 vCPU/1.8 GB 的实例压到负载 124。"
-    b_info "先从 app 阶段分出 --build-host 或加 swap，不要硬上。"
+  if (( available_kib < min_free_kib )); then
+    b_fail "可用内存不足 $(( min_free_kib / 1024 )) MiB —— 不足以安全完成 docker build"
+    b_info "在这台 2 vCPU / 1.8 GB 的实例上，next build 曾把机器压到负载 124、可用内存 15 MB，"
+    b_info "并造成约 70 分钟的全站不可用（KnowTrace-ops/docs/2026-09-30-全站500事故复盘.md）。"
+    b_info "三种可行做法（本脚本都**不**替你做，需你选）："
+    b_info "  1) 把应用镜像在另一台机器上构建，再 docker save/load 过来"
+    b_info "  2) 临时加 swap，并确保构建期间没有别的重活在跑"
+    b_info "  3) 换一台内存更大的机器"
+    b_info "用 BOOTSTRAP_MIN_FREE_KIB=<数值> 可覆盖本阈值——只在你清楚后果时用。"
     return 1
   fi
   if (( disk_available_kib < 12000000 )); then
