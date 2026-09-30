@@ -68,6 +68,14 @@ sudo /opt/knowtrace/scripts/linux/verify-restore.sh "$archive" \
 
 这项检查验证归档可恢复及数据统计，不等同于完整浏览器业务旅程。灾难恢复演练还需要在隔离环境完成登录、查询一条已知记录和读取一张已知图片。
 
+**真实恢复后必须补一步**：`verify-restore.sh` 把 `uploads.tar.gz` 解到临时目录核对数量，**不写回真实路径**，因此不会暴露属主问题。真正从备份重建 `data/uploads` 时，`tar` 解出的文件属主是解包者（通常是 root），而容器内进程是 `uid=1001`，图片上传会立刻以 `EACCES` 失败。恢复后执行：
+
+```bash
+sudo PROJECT_DIR=/opt/knowtrace bash scripts/linux/fix-uploads-ownership.sh
+```
+
+详细机制见 `docs/11-operations.md` 第 7 节。
+
 ### 3.4 定时执行与保留策略
 
 仓库提供每日备份单元。它在 Asia/Shanghai 03:20 后的五分钟随机窗口执行一致性备份，因此该时段可能短暂返回 502；默认删除超过 14 天的旧备份集，但无论时间如何至少保留最近 7 份。删除器只接受脚本生成的严格文件名，并同时删除对应目录、校验文件和 VPS 上的加密副本。

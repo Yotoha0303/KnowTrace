@@ -84,5 +84,22 @@ docker compose logs --tail=100 app
 1. 执行 `make backup` 并保存三类输出路径。
 2. 运行 `make check`。
 3. 执行 `make up`。
-4. 检查两个 ready 健康端点、两套 Migration 日志和关键 Playwright 流程。
-5. 出现不可兼容问题时，停止应用并从升级前备份恢复。
+4. **执行属主修复**（见第 7 节）：`sudo PROJECT_DIR=/opt/knowtrace bash scripts/linux/fix-uploads-ownership.sh`
+5. 检查两个 ready 健康端点、两套 Migration 日志和关键 Playwright 流程。
+6. 出现不可兼容问题时，停止应用并从升级前备份恢复。
+
+## 7. 证据图片目录属主
+
+`compose.yaml` 把 `./data/uploads` 绑定挂载到 `/app/data/uploads`，**这会盖掉 Dockerfile 中 `chown -R nextjs:nodejs /app/data` 的结果**。宿主机首次 `docker compose up` 时该目录由 root 创建，而容器内进程是 `uid=1001(nextjs) gid=65533(nogroup)`，于是 `writeEvidenceImage` 的 `writeFile(..., {flag:"wx"})` 每次都抛 `EACCES`，图片上传完全不可用。
+
+这个故障在 2026-09-13 与 09-19 静默发生了 42 次（只在图片上传请求层表现为「上传失败」），2026-09-30 定位并修复。
+
+**每次 `docker compose up` 之后、以及从备份重新落地 `data/uploads` 之后，都要执行：**
+
+```bash
+sudo PROJECT_DIR=/opt/knowtrace bash scripts/linux/fix-uploads-ownership.sh
+```
+
+脚本幂等，属主正确时不产生变更，并会以目标 uid 真实写入一个探测文件确认；成功输出 `UPLOADS_OWNERSHIP=PASS`。
+
+应用启动时也会自检该目录：不可写会打印带修复命令的显式告警（见 `src/server/startup-checks.ts`），不会再静默失败。

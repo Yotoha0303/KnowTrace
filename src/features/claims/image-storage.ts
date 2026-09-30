@@ -13,6 +13,8 @@ function uploadRoot(): string {
   );
 }
 
+export { uploadRoot as evidenceUploadRoot };
+
 function resolveStoredPath(storagePath: string): string {
   if (!/^[0-9a-f-]+\.(?:jpg|png|webp|gif)$/.test(storagePath)) {
     throw new AppError("EVIDENCE_IMAGE_PATH_INVALID", "图片存储路径无效。");

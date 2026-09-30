@@ -4,6 +4,9 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { registerMetricsRuntime } = await import("@/server/metrics");
     registerMetricsRuntime();
+
+    const { assertUploadDirectoryWritable } = await import("@/server/startup-checks");
+    await assertUploadDirectoryWritable();
   }
 }
 
