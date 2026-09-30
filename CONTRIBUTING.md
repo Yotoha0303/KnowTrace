@@ -37,19 +37,20 @@ cd services/go-user-system && go test ./...
 
 ### 部署验证
 
-在 VPS 上部署用 `deploy/deploy.sh`（或 `make deploy`）。**不要手写 `docker compose up -d --build`**——
-必须带齐三个 `-f`：
+在 VPS 上部署用 `scripts/linux/deploy-observability.sh --build-app`（或 `make deploy`）。
+**不要手写 `docker compose up -d --build`** —— 必须同时给两个 `--env-file` 和三个 `-f`
+（`scripts/linux/deploy-observability.sh:48` 是唯一的权威写法）：
 
 ```bash
-docker compose -f compose.yaml -f compose.production.yaml -f compose.observability.yaml up -d --build --wait
+docker compose --project-directory .   --env-file .env --env-file .env.observability   -f compose.yaml -f compose.production.yaml -f compose.observability.yaml   up -d --no-deps --build --wait app
 ```
 
-漏掉第三个 `-f` 时 `METRICS_BEARER_TOKEN` 与 `KNOWTRACE_APP_REVISION` 都不会注入，
-指标端点会失效、版本核对会失去判据——**而部署看起来仍然是成功的**。
+**`--build-app` 是关键开关**：不带它时脚本走 `--no-build`，只重启旧镜像却照样报成功。
+2026-09-29 观察到的「部署目录 HEAD 47a4c20 / 运行中 7ce26f7d，差 37 个提交」就是这么来的。
 
-`deploy/deploy.sh` 在最后一步断言「运行中的 revision == 部署目录 HEAD」，
-不一致就以退出码 2 失败。这条断言是必要的：
-`git pull` 成功、`HEAD` 对得上、容器 healthy、探针 200，
+脚本在最后一步断言运行态：不一致时，若两者之间 `src/`、`drizzle/` 或构建相关文件
+**有变化**则以退出码 2 失败；**没有变化**则只告警（只改监控配置时不一致是预期的）。
+这条断言是必要的：`git pull` 成功、`HEAD` 对得上、容器 healthy、探针 200，
 **都不能证明跑的是新代码**。
 
 ## Pull Request

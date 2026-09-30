@@ -121,7 +121,8 @@ services:
   app:
     build:
       context: .
-      # 部署脚本会导出 KNOWTRACE_APP_REVISION=$(git rev-parse HEAD) 再构建。
+      # scripts/linux/deploy-observability.sh 会导出
+      # KNOWTRACE_APP_REVISION=$(git rev-parse HEAD) 再构建。
       # 手工构建若忘记导出，镜像里的值会是 "unknown"，
       # 核对脚本会判定为 knowtrace_app_revision_not_injected 并写进指标。
       # **不要改成运行时 environment 注入** —— 那样重建与不重建会得到同一个值，
