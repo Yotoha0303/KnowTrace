@@ -3,8 +3,9 @@ import "server-only";
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 
-import { isAuthEnabled } from "./go-user-system";
+import { isAuthEnabled, getGoAuthorization, getGoUser } from "./go-user-system";
 import { currentAuthContext } from "./session";
+import { ACCESS_TOKEN_HEADER, WORKSPACE_ID_HEADER } from "./client-mode";
 import { AppError } from "@/shared/errors/app-error";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { db } from "@/server/db/client";
@@ -61,9 +62,14 @@ async function applyAdminSharingPolicy(
 
 async function resolveDataAccessScope(
   identity: ActorAccessIdentity,
+  workspaceContext?: { preferredWorkspaceId: string | null; trusted: boolean },
 ): Promise<DataAccessScope> {
+  // 客户端显式提交的 Workspace 只是“优先项”，服务端始终回落到该身份真实拥有的成员关系。
   const preferredWorkspaceId =
-    (await cookies()).get(CURRENT_WORKSPACE_COOKIE)?.value ?? null;
+    workspaceContext?.preferredWorkspaceId ??
+    (workspaceContext?.trusted === false
+      ? null
+      : ((await cookies()).get(CURRENT_WORKSPACE_COOKIE)?.value ?? null));
   const workspace = await resolveActorWorkspace(identity, preferredWorkspaceId);
   return applyAdminSharingPolicy({
     ...identity,
@@ -72,6 +78,35 @@ async function resolveDataAccessScope(
     workspaceSlug: workspace.workspaceSlug,
     workspaceRole: workspace.role,
   });
+}
+
+async function resolveNativeDataAccessScope(): Promise<DataAccessScope> {
+  // 浏览器客户端由 proxy 注入可信身份头；原生 App 不能注入请求头，改为回带自己的访问令牌，
+  // 由服务端重新向认证后端校验，并重新取角色，不信任任何客户端提交的身份或 Workspace。
+  const requestHeaders = await headers();
+  const accessToken = requestHeaders.get(ACCESS_TOKEN_HEADER);
+  if (!accessToken) {
+    throw new AppError("AUTH_REQUIRED", "请先登录。");
+  }
+  const [user, authorization] = await Promise.all([
+    getGoUser(accessToken),
+    getGoAuthorization(accessToken),
+  ]);
+  if (!user.ok || !authorization.ok) {
+    throw new AppError("AUTH_REQUIRED", "登录会话已失效，请重新登录。");
+  }
+  return resolveDataAccessScope(
+    scopeFromIdentity({
+      id: user.data.id,
+      username: user.data.username,
+      nickname: user.data.nickname,
+      roleCodes: authorization.data.role_codes,
+    }),
+    {
+      preferredWorkspaceId: requestHeaders.get(WORKSPACE_ID_HEADER),
+      trusted: false,
+    },
+  );
 }
 
 export const currentDataAccessScope = cache(async (): Promise<DataAccessScope> => {
@@ -99,6 +134,11 @@ export const currentDataAccessScope = cache(async (): Promise<DataAccessScope> =
     );
   }
 
+  if (requestHeaders.get(ACCESS_TOKEN_HEADER)) {
+    return resolveNativeDataAccessScope();
+  }
+
+  // 服务端渲染的页面和 Server Action 从 Cookie 读取会话。
   const context = await currentAuthContext();
   if (!context) {
     throw new AppError("AUTH_REQUIRED", "登录会话已失效，请重新登录。");

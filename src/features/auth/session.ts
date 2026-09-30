@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 import {
   ACCESS_TOKEN_COOKIE,
@@ -11,6 +11,7 @@ import {
   type AuthorizationInfo,
   type AuthUser,
 } from "./go-user-system";
+import { ACCESS_TOKEN_HEADER } from "./client-mode";
 
 export type AuthContext = {
   accessToken: string;
@@ -20,7 +21,10 @@ export type AuthContext = {
 
 export async function currentAccessToken(): Promise<string | null> {
   if (!isAuthEnabled()) return null;
-  return (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value ?? null;
+  const cookieToken = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+  if (cookieToken) return cookieToken;
+  // 原生客户端没有 Cookie：回带的访问令牌已经由 proxy 校验过，这里只负责取值。
+  return (await headers()).get(ACCESS_TOKEN_HEADER);
 }
 
 export async function currentAuthContext(): Promise<AuthContext | null> {

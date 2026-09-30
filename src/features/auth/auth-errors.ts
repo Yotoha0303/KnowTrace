@@ -1,0 +1,104 @@
+export const AUTH_ERROR_CODES = {
+  invalidCredentials: "AUTH_INVALID_CREDENTIALS",
+  loginRateLimited: "AUTH_LOGIN_RATE_LIMITED",
+  accountDisabled: "AUTH_ACCOUNT_DISABLED",
+  accountNotFound: "AUTH_ACCOUNT_NOT_FOUND",
+  serviceUnavailable: "AUTH_SERVICE_UNAVAILABLE",
+  contractInvalid: "AUTH_CONTRACT_INVALID",
+  sessionExpired: "AUTH_SESSION_EXPIRED",
+  refreshRejected: "AUTH_REFRESH_REJECTED",
+  required: "AUTH_REQUIRED",
+} as const;
+
+export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES];
+
+/**
+ * go-user-system 的业务错误码，见 services/go-user-system/internal/response/code.go。
+ */
+const UPSTREAM_CODE = {
+  invalidParams: 1001,
+  registerFailed: 2002,
+  userNotFound: 2003,
+  userDisabled: 2004,
+  loginFailed: 2005,
+  loginRateLimited: 2008,
+  refreshTokenInvalid: 3011,
+  refreshTokenExpired: 3012,
+  refreshTokenRevoked: 3013,
+  permissionDenied: 5003,
+  internalError: 6001,
+  requestTimeout: 6002,
+} as const;
+
+const REFRESH_REJECTED_CODES: number[] = [
+  UPSTREAM_CODE.refreshTokenInvalid,
+  UPSTREAM_CODE.refreshTokenExpired,
+  UPSTREAM_CODE.refreshTokenRevoked,
+];
+
+/**
+ * 把「上游业务码 + HTTP 状态」翻译成客户端可区分的语义错误码。
+ *
+ * 修复前这一步不存在：上游业务码被直接塞进 `error.code` 后又在客户端被忽略，
+ * 于是限流（2008）、账号停用（2004）和真正的密码错误（2005）都表现为同一句
+ * 「账号或密码错误」。见 docs/17-mobile-client-bugs-and-features.md 的 BUG-002。
+ *
+ * 客户端只依赖这里返回的语义码，不依赖上游数字码；上游换号不会破坏客户端分支。
+ */
+export function classifyAuthError(
+  upstreamCode: number | null,
+  status: number,
+): { code: AuthErrorCode; message: string } {
+  if (status === 503) {
+    return {
+      code: AUTH_ERROR_CODES.serviceUnavailable,
+      message: "登录服务暂时不可用，请稍后重试。",
+    };
+  }
+  if (upstreamCode === null) {
+    return {
+      code: AUTH_ERROR_CODES.contractInvalid,
+      message: "登录服务返回了无法识别的响应。",
+    };
+  }
+  switch (upstreamCode) {
+    case UPSTREAM_CODE.loginRateLimited:
+      return {
+        code: AUTH_ERROR_CODES.loginRateLimited,
+        message: "登录尝试过于频繁，请稍后再试。",
+      };
+    case UPSTREAM_CODE.userDisabled:
+      return {
+        code: AUTH_ERROR_CODES.accountDisabled,
+        message: "该账号已被停用，请联系管理员。",
+      };
+    case UPSTREAM_CODE.userNotFound:
+      return {
+        code: AUTH_ERROR_CODES.accountNotFound,
+        message: "账号不存在，请确认用户名。",
+      };
+    case UPSTREAM_CODE.loginFailed:
+      return {
+        code: AUTH_ERROR_CODES.invalidCredentials,
+        message: "账号或密码错误。",
+      };
+    case UPSTREAM_CODE.requestTimeout:
+    case UPSTREAM_CODE.internalError:
+      return {
+        code: AUTH_ERROR_CODES.serviceUnavailable,
+        message: "登录服务暂时不可用，请稍后重试。",
+      };
+    default:
+      break;
+  }
+  if (REFRESH_REJECTED_CODES.includes(upstreamCode)) {
+    return {
+      code: AUTH_ERROR_CODES.refreshRejected,
+      message: "登录会话已过期，请重新登录。",
+    };
+  }
+  return {
+    code: AUTH_ERROR_CODES.contractInvalid,
+    message: "登录服务返回了无法识别的响应。",
+  };
+}
