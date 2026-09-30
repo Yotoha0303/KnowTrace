@@ -69,3 +69,27 @@ jobs:
 
       - name: Build production bundle
         run: pnpm build
+
+  go:
+    name: Go authentication service tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/go-user-system
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: services/go-user-system/go.mod
+          cache-dependency-path: services/go-user-system/go.sum
+
+      # 与 Makefile 的 check 目标、CONTRIBUTING 的「提交前验证」保持一致。
+      # 这个 job 之前缺失，导致认证服务的 26 个测试文件不在任何自动化门里。
+      # 不配 TEST_DATABASE_DSN：集成测试会 t.Skipf（见 internal/testutil/mysql.go:91），
+      # 单元测试照常执行。要跑集成测试需要另配 MySQL service。
+      - name: Run Go tests
+        run: go test ./...

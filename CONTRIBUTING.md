@@ -35,6 +35,23 @@ cd services/go-user-system && go test ./...
 
 涉及迁移、鉴权、Workspace、导入导出或附件的改动，还应补充对应的真实数据库或端到端验证，并在 Pull Request 中区分单元测试、本地集成测试和部署验证。
 
+### 部署验证
+
+在 VPS 上部署用 `deploy/deploy.sh`（或 `make deploy`）。**不要手写 `docker compose up -d --build`**——
+必须带齐三个 `-f`：
+
+```bash
+docker compose -f compose.yaml -f compose.production.yaml -f compose.observability.yaml up -d --build --wait
+```
+
+漏掉第三个 `-f` 时 `METRICS_BEARER_TOKEN` 与 `KNOWTRACE_APP_REVISION` 都不会注入，
+指标端点会失效、版本核对会失去判据——**而部署看起来仍然是成功的**。
+
+`deploy/deploy.sh` 在最后一步断言「运行中的 revision == 部署目录 HEAD」，
+不一致就以退出码 2 失败。这条断言是必要的：
+`git pull` 成功、`HEAD` 对得上、容器 healthy、探针 200，
+**都不能证明跑的是新代码**。
+
 ## Pull Request
 
 - 说明问题、解决方案、风险和回滚方式。

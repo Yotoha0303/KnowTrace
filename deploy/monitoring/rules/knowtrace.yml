@@ -151,6 +151,50 @@ groups:
 
   # 巡检结论（scripts/linux/write-ops-metrics.sh 写的指标）
   # 修的是「最大的传导断裂」：巡检跑完只写报告，没人定时看。
+  # 运行态版本一致性。
+  # 指标由 scripts/linux/write-revision-metrics.sh 写入，由 knowtrace-daily-ops.service
+  # 的第二个 ExecStartPost 调用（在 write-ops-metrics.sh 之后）。
+  #
+  # 修的是 2026-09-29 生态观察的 F-01：部署目录 HEAD 是 47a4c20，
+  # 而运行中容器自报 revision 是 7ce26f7d（差 37 提交），
+  # 当时 4 层健康检查 / 12 个抓取目标 / 20+ 条规则 / 整份巡检报告**全部正常** ——
+  # 因为整套体系验证的是「可用性」，没有一条验证「同一性」。
+  - name: knowtrace.revision
+    rules:
+      # 不一致 —— 这是这一组存在的理由。
+      # for: 5m 是给「刚部署完、指标还没被下一次日巡检刷新」留的余量：
+      # 指标只在日巡检时更新，所以部署后到下一次日巡检之间会是旧的（也可能是不一致的）。
+      # 真要不一致，它至少会跨过一个日巡检周期，5m 足够滤掉同一次部署内的瞬时。
+      - alert: KnowTraceAppRevisionMismatch
+        expr: knowtrace_app_revision_match == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The running app revision differs from the deploy directory HEAD"
+          runbook: "docs/16-stage3-observability.md#revision"
+
+      # 「核对再也没跑成功过」。判定失败时不写 match 样本，
+      # 这个 absent 就会命中 —— 与 KnowTraceOpsCheckNeverRan 同一手法。
+      - alert: KnowTraceAppRevisionCheckNotRunning
+        expr: absent(knowtrace_app_revision_match)
+        for: 26h
+        labels:
+          severity: info
+        annotations:
+          summary: "The running-app revision check has not produced a result"
+          runbook: "docs/16-stage3-observability.md#revision"
+
+      # 「跑了但判定不了」。用 max by (reason) 只留被置为 1 的那一个原因。
+      - alert: KnowTraceAppRevisionUndetermined
+        expr: max by (reason) (knowtrace_app_revision_undetermined) == 1
+        for: 26h
+        labels:
+          severity: info
+        annotations:
+          summary: "Running-app revision could not be determined (reason={{ $labels.reason }})"
+          runbook: "docs/16-stage3-observability.md#revision"
+
   - name: knowtrace.ops-check
     rules:
       # 巡检报出 FAIL —— 这是整条链路的目的所在

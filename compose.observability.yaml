@@ -8,7 +8,12 @@ services:
   app:
     environment:
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?Run scripts/linux/init-observability-env.sh first}
-      KNOWTRACE_APP_REVISION: ${KNOWTRACE_APP_REVISION:-unknown}
+      # 注意：这里**不要**再设 KNOWTRACE_APP_REVISION。
+      # 它的值必须是「构建这个镜像时的 git HEAD」，由 Dockerfile 的
+      # ARG/ENV 在构建阶段烘进去（见 Dockerfile 的 builder 与 runner 阶段）。
+      # 若在此处用运行时环境变量注入，重建与不重建会得到同一个值，
+      # 「运行态版本核对」就永远报一致 —— 那正是它要发现的问题。
+      # 2026-09-30 修正；原委见 docs/16-stage3-observability.md「运行态版本核对」。
     logging: *observability-logging
 
   node-exporter:

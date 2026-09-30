@@ -21,6 +21,10 @@ Environment=OPS_CONF=/etc/knowtrace/ops.conf
 ExecStart=/usr/bin/bash /opt/knowtrace-ops/scripts/daily-ops.sh --quiet --record --json /var/lib/knowtrace/reports/ --markdown /var/lib/knowtrace/reports/
 # 把本次巡检结论写成 textfile 指标，接进告警链路（失败不改变巡检结论）
 ExecStartPost=-/usr/bin/bash /opt/knowtrace/scripts/linux/write-ops-metrics.sh
+# 把「运行态 revision vs 部署目录 HEAD」写成指标，由 knowtrace.revision 组告警。
+# 修的是 2026-09-29 观察到的 F-01：可用性全绿，但没人验证「跑的是不是这一版代码」。
+# 两个 ExecStartPost 有顺序：先写巡检结论，再核对 revision（互不依赖，但便于阅读 journal）。
+ExecStartPost=-/usr/bin/bash /opt/knowtrace/scripts/linux/write-revision-metrics.sh
 # 退出码 1=WARN 2=FAIL 是「巡检结论」而不是「服务失败」，不要让 systemd 标记 failed。
 # 结论由 JSON 报告与告警链路负责。若要 systemd 因 FAIL 报警，删掉这一行。
 SuccessExitStatus=0 1 2

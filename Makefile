@@ -1,6 +1,6 @@
 POWERSHELL ?= powershell
 
-.PHONY: help init up start down stop restart ps logs auth-logs test auth-test check build backup
+.PHONY: help init up start down stop restart ps logs auth-logs test auth-test check build backup deploy
 
 help:
 	@echo KnowTrace commands:
@@ -12,6 +12,7 @@ help:
 	@echo   make logs       Follow KnowTrace and authentication logs
 	@echo   make check      Run frontend and Go backend quality gates
 	@echo   make backup     Back up KnowTrace PostgreSQL and go-user-system MySQL
+	@echo   make deploy     Run the VPS deploy chain and assert the running revision matches HEAD
 
 init:
 	$(POWERSHELL) -NoProfile -ExecutionPolicy Bypass -File scripts/init-env.ps1
@@ -51,3 +52,9 @@ check:
 
 backup:
 	$(POWERSHELL) -NoProfile -ExecutionPolicy Bypass -File scripts/backup-all.ps1
+
+# 在 VPS 上以 root 执行（deploy/deploy.sh 会自己 sudo）。
+# 之所以做成脚本而不是一行 docker compose：一行命令无法断言
+# 「运行态真的换成了新代码」，而那正是这里最容易假成功的地方。
+deploy:
+	sudo bash deploy/deploy.sh
