@@ -23,7 +23,6 @@
     "@ai-sdk/openai": "^4.0.41",
     "@ai-sdk/openai-compatible": "^3.0.30",
     "ai": "^7.0.64",
-    "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "exceljs": "4.4.0",
     "jszip": "3.10.1",
@@ -34,7 +33,6 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
-    "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
