@@ -292,6 +292,11 @@ function EvidenceItem({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // spinner 由它驱动，不由 isPending —— 后者会被 router.refresh() 拖长。
+  // 范式见 docs/changes/2026-10-01-剩余refresh站点.md 的 5.2：
+  // **isPending 保留在 disabled 上**（回填期间不该重复提交），
+  // **spinner 脱钩**（提交一结束就该停）。
+  const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState("");
   const [sourceUrl, setSourceUrl] = useState(evidence.sourceUrl);
@@ -341,19 +346,24 @@ function EvidenceItem({
     if (!file) return;
     setMessage("");
     startTransition(async () => {
-      const formData = new FormData();
-      formData.set("evidenceId", evidence.id);
-      formData.set("file", file);
-      const result = await uploadEvidenceImageAction(formData);
-      if (!result.ok) {
-        setMessage(
-          result.error.fieldErrors
-            ? Object.values(result.error.fieldErrors).flat()[0] ?? result.error.message
-            : result.error.message,
-        );
-        return;
+      setUploading(true);
+      try {
+        const formData = new FormData();
+        formData.set("evidenceId", evidence.id);
+        formData.set("file", file);
+        const result = await uploadEvidenceImageAction(formData);
+        if (!result.ok) {
+          setMessage(
+            result.error.fieldErrors
+              ? Object.values(result.error.fieldErrors).flat()[0] ?? result.error.message
+              : result.error.message,
+          );
+          return; // 失败不刷新；finally 会清掉 uploading
+        }
+        setFile(null);
+      } finally {
+        setUploading(false);
       }
-      setFile(null);
       router.refresh();
     });
   }
@@ -416,7 +426,7 @@ function EvidenceItem({
             <ImagePlus size={14} /> {file ? file.name : "选择证据图片"}
             <input accept="image/jpeg,image/png,image/webp,image/gif" disabled={busy} onChange={(event) => setFile(event.target.files?.[0] ?? null)} type="file" />
           </label>
-          <button className="button button-quiet" disabled={busy || !file} onClick={uploadImage} type="button">{isPending ? <LoaderCircle className="processing-spinner" size={14} /> : <ImagePlus size={14} />} {isPending ? "正在上传" : "上传图片"}</button>
+          <button className="button button-quiet" disabled={busy || !file} onClick={uploadImage} type="button">{uploading ? <LoaderCircle className="processing-spinner" size={14} /> : <ImagePlus size={14} />} {uploading ? "正在上传" : "上传图片"}</button>
           <small>JPEG / PNG / WebP / GIF，单张不超过 10 MB，最多 5 张。</small>
         </div>
       ) : null}

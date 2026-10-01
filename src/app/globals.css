@@ -84,7 +84,7 @@ a { color: inherit; text-decoration: none; }
 .sidebar-user-link small { color: #839088; font-size: 9px; }
 .sidebar-logout { grid-row: 1 / 3; grid-column: 2; display: inline-flex; align-items: center; gap: 4px; padding: 6px 7px; color: #aeb9b2; background: transparent; border: 1px solid rgb(255 255 255 / 10%); border-radius: 7px; font-size: 9px; cursor: pointer; }
 .sidebar-logout:hover:not(:disabled) { color: white; border-color: rgb(255 255 255 / 20%); }
-.sidebar-logout:disabled { opacity: .5; cursor: wait; }
+.sidebar-logout:disabled { opacity: .5; cursor: not-allowed; }
 .mobile-nav-drawer { display: none; }
 
 .workspace-switcher { display: grid; gap: 7px; margin: 0 0 14px; padding: 10px; color: #dfe7e1; background: rgb(255 255 255 / 5%); border: 1px solid rgb(255 255 255 / 8%); border-radius: 10px; }
@@ -101,7 +101,7 @@ a { color: inherit; text-decoration: none; }
 .workspace-switcher-meta button, .workspace-create-form button, .workspace-delete-form button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: #b9c5bd; background: transparent; border: 0; border-radius: 6px; font-size: 9px; font-weight: 800; cursor: pointer; }
 .workspace-switcher-meta button { padding: 4px 5px; }
 .workspace-switcher-meta button:hover:not(:disabled) { color: white; background: rgb(255 255 255 / 7%); }
-.workspace-switcher-meta button:disabled, .workspace-create-form button:disabled, .workspace-delete-form button:disabled { opacity: .45; cursor: wait; }
+.workspace-switcher-meta button:disabled, .workspace-create-form button:disabled, .workspace-delete-form button:disabled { opacity: .45; cursor: not-allowed; }
 .workspace-create-form, .workspace-delete-form { display: grid; gap: 6px; padding-top: 7px; border-top: 1px solid rgb(255 255 255 / 7%); }
 .workspace-create-form input, .workspace-delete-form input { min-height: 34px; padding: 0 8px; font-size: 10px; }
 .workspace-create-form button, .workspace-delete-form button { min-height: 31px; color: var(--dark); background: var(--accent); }
@@ -167,7 +167,12 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 
 .button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 39px; padding: 8px 14px; border: 1px solid transparent; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform .15s ease, background .15s ease, opacity .15s ease; }
 .button:hover:not(:disabled) { transform: translateY(-1px); }
-.button:disabled { opacity: .5; cursor: wait; }
+/* cursor: wait 是**操作系统级的旋转等待光标** —— 悬浮在 disabled 按钮上时
+   光标自己就在转，看起来就是「循环加载动画」。
+   而多数 disabled 状态等的是**数据回填**，不是「请稍候」；
+   用 not-allowed 表达「现在不能点」，既不带动画，语义也更准。
+   见 docs/changes/2026-10-01-会话续期回归与hover转圈.md。 */
+.button:disabled { opacity: .5; cursor: not-allowed; }
 .button-primary { color: var(--dark); background: var(--accent); border-color: #b8e95d; }
 .button-primary:hover:not(:disabled) { background: #d4ff81; }
 .button-dark { color: white; background: var(--dark); }
@@ -560,7 +565,10 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .review-submit-status { color: #625a75; }
 .claim-review-form .button { justify-self: end; }
 .claim-review-form .button:disabled { cursor: not-allowed; }
-.claim-review-form .button[aria-busy="true"] { cursor: wait; }
+/* 同上：aria-busy 期间也不该用会转的等待光标。
+   按钮自身已有 spinner 表达「正在进行」，光标再转一次是重复且会误导
+   （它读起来像「等一会儿」而不是「这次提交正在处理」）。 */
+.claim-review-form .button[aria-busy="true"] { cursor: progress; }
 .claim-conclusion { padding: 14px; margin-top: 14px; color: #51486e; background: #f4f1fb; border: 1px solid #d9d1ed; border-radius: 10px; }
 .claim-conclusion.is-supported { color: #46653a; background: #eff7e9; border-color: #c8ddb9; }
 .claim-conclusion.is-refuted { color: #84483f; background: #fff0ed; border-color: #e9c3bd; }

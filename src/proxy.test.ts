@@ -191,6 +191,53 @@ describe("authentication proxy", () => {
     expect(response.headers.get("x-middleware-request-x-knowtrace-username")).toBe("yotoha");
   });
 
+  // ---- 2026-10-01 新增：状态 A（**只有 refresh cookie**）----
+  //
+  // 这是**真实场景**：access cookie 的 maxAge 就是它的有效期（900 秒），
+  // 15 分钟一到浏览器**直接删掉它**，于是请求里只有 refresh cookie。
+  //
+  // 早先的守卫写的是 `if (accessToken)`，状态 A 下不成立 → 续期从不触发
+  // → 用户在线一会儿就被踢到登录页。而原有测试只覆盖了「access 在但失效」，
+  // **恰恰掩盖了这个 bug**。见 docs/changes/2026-10-01-会话续期回归与hover转圈.md。
+  it("renews when only the refresh cookie is present (the real 15-minute state)", async () => {
+    const okUser = new Response(JSON.stringify(validUserEnvelope), { status: 200 });
+    const okAuth = new Response(JSON.stringify(validAuthorizationEnvelope), { status: 200 });
+    const refreshed = new Response(
+      JSON.stringify({
+        code: 0,
+        msg: "ok",
+        data: {
+          access_token: "renewed.jwt",
+          access_token_expires_in: 900,
+          refresh_token_expires_in: 604800,
+        },
+      }),
+      { status: 200, headers: { "set-cookie": "refresh_token=rotated.jwt; Path=/" } },
+    );
+
+    // 注意：这里**没有** getGoUser(旧令牌) 那两次调用 ——
+    // 状态 A 下 access cookie 根本不存在，所以不会先去校验它。
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => {
+        call += 1;
+        if (call === 1) return Promise.resolve(refreshed);
+        return Promise.resolve(call === 2 ? okUser : okAuth);
+      }),
+    );
+
+    // 关键：**没有** knowtrace_access_token
+    const request = new NextRequest("http://localhost/", {
+      headers: { cookie: "refresh_token=valid-refresh.jwt" },
+    });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie") ?? "").toContain("knowtrace_access_token=renewed.jwt");
+  });
+
   it("falls back to rejecting when the refresh token is also invalid", async () => {
     vi.stubGlobal(
       "fetch",

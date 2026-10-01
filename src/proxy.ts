@@ -203,7 +203,22 @@ export async function proxy(request: NextRequest) {
 
   if (!user?.ok || !authorization?.ok) {
     // ① Access Token 失效时，先尝试用 Refresh Token 续期。
-    if (accessToken) {
+    //
+    // ⚠️ 守卫必须看 **refresh token**，不能看 access token。
+    //
+    // 「access 过期」在浏览器里有**两种表现**：
+    //   (a) cookie 还在、但令牌已失效
+    //   (b) **cookie 已被浏览器删掉** —— access cookie 的 maxAge 就是
+    //       access_token_expires_in（900 秒），15 分钟一到它直接消失
+    //
+    // (b) 才是**真实场景**。早先这里写的是 `if (accessToken)`，
+    // 于是 (b) 下守卫不成立、**续期从不触发** —— 用户在线一会儿就被踢到登录页。
+    // 而 `renewSession` 本身根本不用 access token（它只读 refresh cookie），
+    // 那个守卫写错了对象。见 docs/changes/2026-10-01-会话续期回归与hover转圈.md。
+    //
+    // `renewSession` 内部会自己读 refresh cookie，读不到就返回 null，
+    // 所以这里只负责决定「要不要尝试」。
+    if (request.cookies.get(REFRESH_TOKEN_COOKIE)?.value) {
       const renewed = await renewSession(request);
       if (renewed) return renewed;
     }
