@@ -1187,3 +1187,14 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) {
   .nav-pending-dot { animation: none; opacity: .55; }
 }
+
+/* 「添加证据」表单顶部的说明（2026-10-01）
+   这个表单只在主张进入 investigating 后才渲染，而此前界面没说这一步是前置，
+   用户保存主张后会去找「添加证据」但找不到。见
+   docs/changes/2026-10-01-手动主张流程与按钮动画.md。 */
+.evidence-form-hint {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}

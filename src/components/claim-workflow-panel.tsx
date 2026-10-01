@@ -170,7 +170,10 @@ function firstActionError(result: Awaited<ReturnType<typeof updateClaimEvidenceA
     : result.error.message;
 }
 
-function ManualClaimForm({
+// 导出以便单测 —— 它承载一个已修复的缺陷（按钮转不停 / 流程不清晰），
+// 没有回归测试的话，下次改动很容易把它带回来。
+// 见 docs/changes/2026-10-01-手动主张流程与按钮动画.md。
+export function ManualClaimForm({
   captureId,
   captureVersion,
   captureContent,
@@ -184,7 +187,14 @@ function ManualClaimForm({
   const [sourceExcerpt, setSourceExcerpt] = useState("");
   const [falsificationCriteria, setFalsificationCriteria] = useState("");
   const [message, setMessage] = useState("");
-  const [isPending, startTransition] = useTransition();
+  // submitting 只表示「这次提交动作在飞」，不包含后续的页面重渲染。
+  //
+  // 为什么不用 useTransition：`router.refresh()` 原先写在 startTransition 里，
+  // 于是 isPending 要等 **Server Action + force-dynamic 页面重渲染** 都完成才收敛
+  // —— 按钮会一直转，看起来像「循环刷新的动画」。
+  // pending 该表示的是「提交在进行」，不该被拽上「页面在刷新」。
+  // 见 docs/changes/2026-10-01-手动主张流程与按钮动画.md。
+  const [submitting, setSubmitting] = useState(false);
   const excerptMatches = Boolean(
     sourceExcerpt.trim() && captureContent.includes(sourceExcerpt.trim()),
   );
@@ -193,10 +203,11 @@ function ManualClaimForm({
     excerptMatches &&
     falsificationCriteria.trim().length >= FALSIFICATION_MIN_LENGTH;
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
-    startTransition(async () => {
+    setSubmitting(true);
+    try {
       const result = await createManualClaimAction({
         captureId,
         expectedCaptureVersion: captureVersion,
@@ -215,9 +226,17 @@ function ManualClaimForm({
       setStatement("");
       setSourceExcerpt("");
       setFalsificationCriteria("");
-      setMessage("主张已保存为候选，可继续开始调查和补充证据。");
-      router.refresh();
-    });
+      // 提示里点明**下一步要做什么**，而不是把两件事并列。
+      // 原先写「可继续开始调查和补充证据」，读起来像两个并列选项，
+      // 但证据表单要等主张进入 investigating 才渲染 —— 中间那步是硬前置。
+      setMessage("已保存为候选主张。下一步：点这条主张上的「开始调查」，然后才能添加证据。");
+    } finally {
+      // 先解除按钮的等待态：提交动作到此为止。
+      setSubmitting(false);
+    }
+    // refresh 放在状态更新之后、且不在任何 transition 里 ——
+    // 它只是让服务端数据回填，不该让按钮继续转。
+    router.refresh();
   }
 
   return (
@@ -246,9 +265,9 @@ function ManualClaimForm({
         <small>{falsificationCriteria.trim().length} / 1,000</small>
       </label>
       {message ? <p className={message.startsWith("主张已保存") ? "form-success" : "form-error"} role="status">{message}</p> : null}
-      <button className="button button-primary" disabled={isPending || !canSubmit} type="submit">
-        {isPending ? <LoaderCircle className="processing-spinner" size={15} /> : <Save size={15} />}
-        {isPending ? "正在保存…" : "保存为候选主张"}
+      <button className="button button-primary" disabled={submitting || !canSubmit} type="submit">
+        {submitting ? <LoaderCircle className="processing-spinner" size={15} /> : <Save size={15} />}
+        {submitting ? "正在保存…" : "保存为候选主张"}
       </button>
     </form>
   );
@@ -621,6 +640,12 @@ function ClaimCard({ claim, readOnly }: { claim: ClaimDTO; readOnly: boolean }) 
           </div>
           <div className="evidence-form">
             <h4><Plus size={14} /> 添加证据</h4>
+            {/* 这个表单只在 status === "investigating" 时渲染，而这一步是有前置的。
+                原界面没有说明，用户保存主张后会去找「添加证据」但找不到。
+                这里点明「为什么它现在才出现」，避免流程看起来像两个并列入口。 */}
+            <p className="evidence-form-hint">
+              这条主张已在调查中，所以可以添加证据。证据采纳前会先做来源检查。
+            </p>
             <div className="evidence-form-grid">
               <label><span>来源标题</span><input aria-label={`${claim.statement} 来源标题`} maxLength={300} onChange={(event) => setSourceTitle(event.target.value)} value={sourceTitle} /></label>
               <label><span>来源 URL（可选）</span><input aria-label={`${claim.statement} 来源 URL`} maxLength={2000} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://…" type="url" value={sourceUrl} /></label>

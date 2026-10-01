@@ -197,6 +197,7 @@ make backup
 | 技术架构与依赖方向 | [技术架构](docs/06-architecture.md) |
 | 现在实际做到哪一步 | [产品缺陷与体验问题清单](docs/19-product-defect-inventory.md)、[走向 100% 的路径](docs/21-path-to-100-percent.md) |
 | 接 `/api/v1` 写客户端 | [移动端 API](docs/12-mobile-api.md) |
+| 从**团队/使用者**角度快速了解 | [团队视角](docs/22-团队视角-接手与协作.md)、[用户视角](docs/23-用户视角-使用与信任边界.md) |
 | 为什么这样选 | [架构决策记录](docs/adr/README.md) |
 | 要改代码或配置 | [变更记录约定](docs/changes/README.md)（变动前先写） |
 | 部署与运行 | [运行、备份与恢复](docs/11-operations.md)、[贡献指南的部署验证](CONTRIBUTING.md) |
