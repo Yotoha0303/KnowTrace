@@ -45,6 +45,13 @@ export function QuickCaptureForm({
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  // 「能不能提交」的**唯一判据**，按钮与快捷键共用。
+  //
+  // 为什么必须共用：`form.requestSubmit()` 不带参数时**会绕过提交按钮的 disabled**，
+  // 所以空内容按快捷键也会触发提交——这是 2026-10-01 写测试时才抓到的真实缺陷
+  // （测试「空内容不提交」失败）。把条件抽出来，两处引用同一个值就不会再漂移。
+  const canSubmit = !isPending && content.trim().length > 0;
+
   function toggleCategory(id: string) {
     setCategoryIds((current) =>
       current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
@@ -107,7 +114,7 @@ export function QuickCaptureForm({
         onKeyDown={(event) => {
           if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
             event.preventDefault();
-            event.currentTarget.form?.requestSubmit();
+            if (canSubmit) event.currentTarget.form?.requestSubmit();
           }
         }}
         placeholder="输入关键词、想法片段、一次经历，或者一个还没想清楚的问题……"
@@ -178,7 +185,7 @@ export function QuickCaptureForm({
         <span className={message ? "form-error" : "composer-hint"}>
           {message || `${content.length.toLocaleString()} / 20,000 · Ctrl/⌘ + Enter 保存`}
         </span>
-        <button className="button button-primary" disabled={isPending || !content.trim()} type="submit">
+        <button className="button button-primary" disabled={!canSubmit} type="submit">
           {isPending ? "保存中…" : "保存并整理"} <ArrowUpRight size={16} />
         </button>
       </div>
