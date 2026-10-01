@@ -40,7 +40,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await loginWithGoUserSystem(parsed.data);
+  // 把真实客户端 IP 传给认证服务，供其登录限流按来源计数。
+  //
+  // 为什么取 x-forwarded-for：nginx 会用 `$remote_addr` **覆盖**该头
+  // （见 deploy/nginx/knowtrace-vps.conf），而 `$remote_addr` 已被 Caddy 的
+  // real_ip_header 还原为真实客户端。所以到这里这个值是可采信的——
+  // 外部伪造的 XFF 到不了这里。
+  //
+  // 不传的后果见 docs/19 D-08：认证服务只能看到应用容器地址，
+  // 所有用户共用一个限流桶，任一来源失败 20 次会让全站登不进去。
+  const clientIp =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip")?.trim() ||
+    null;
+
+  const result = await loginWithGoUserSystem(parsed.data, clientIp);
   if (!result.ok) {
     // 保留上游状态码，但把上游数字业务码翻译成客户端可区分的语义错误码。
     // 直接把上游码透传会让限流、停用和密码错误在客户端无法分辨（BUG-002）。

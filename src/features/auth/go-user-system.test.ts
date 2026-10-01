@@ -61,6 +61,38 @@ describe("go-user-system client", () => {
     );
   });
 
+  // ---- 2026-10-01 新增：登录必须转发真实客户端 IP（docs/19 的 D-08）----
+  // 不转发时认证服务只能看到应用容器地址，所有用户共用一个限流桶，
+  // 任一来源失败 20 次会让全站 15 分钟内都登不进去。
+
+  it("forwards the real client IP so login rate limiting is per-source", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ code: 0, msg: "ok", data: loginData }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loginWithGoUserSystem({ username: "yotoha", password: "secret" }, "203.0.113.9");
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>)["x-forwarded-for"]).toBe("203.0.113.9");
+  });
+
+  it("omits the forwarding header when no client IP is known", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ code: 0, msg: "ok", data: loginData }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loginWithGoUserSystem({ username: "yotoha", password: "secret" });
+    await loginWithGoUserSystem({ username: "yotoha", password: "secret" }, "   ");
+
+    for (const call of fetchMock.mock.calls) {
+      const headers = ((call[1] as RequestInit).headers ?? {}) as Record<string, string>;
+      // 空值不能变成空串头 —— 那会让下游把「未知」当成一个具体来源
+      expect(headers["x-forwarded-for"]).toBeUndefined();
+    }
+  });
+
   it("fails closed on malformed upstream responses", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true }), { status: 200 }),

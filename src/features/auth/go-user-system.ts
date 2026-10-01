@@ -156,14 +156,34 @@ async function requestGoUserSystem<T>(
   };
 }
 
-export function loginWithGoUserSystem(input: {
-  username: string;
-  password: string;
-}): Promise<GoAuthResult<LoginSession>> {
+export function loginWithGoUserSystem(
+  input: {
+    username: string;
+    password: string;
+  },
+  /**
+   * 真实客户端 IP，由调用方从入站请求取得。
+   *
+   * 为什么必须转发：认证服务的登录限流是**按 IP 计数**的
+   * （`accountLimit: 5` / `ipLimit: 20`）。不转发时认证服务只能看到
+   * **应用容器的地址**，于是所有用户共用一个桶 ——
+   * 任一来源失败 20 次会让全站 15 分钟内都登不进去，包括密码正确的用户。
+   * 见 docs/19-product-defect-inventory.md 的 D-08。
+   *
+   * 注意：认证侧只有在本服务被列进 `trustedProxies` 时才会采信这个头
+   * （见 `.env` 的 `AUTH_TRUSTED_PROXIES`）。两处必须同时成立。
+   */
+  clientIp?: string | null,
+): Promise<GoAuthResult<LoginSession>> {
+  const forwardedIp = clientIp?.trim();
   return requestGoUserSystem(
     "/api/v1/auth/login",
     loginSessionSchema,
-    { method: "POST", body: JSON.stringify(input) },
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+      ...(forwardedIp ? { headers: { "x-forwarded-for": forwardedIp } } : {}),
+    },
   );
 }
 
