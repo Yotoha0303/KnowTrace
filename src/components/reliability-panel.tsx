@@ -50,22 +50,37 @@ function AuthorityForm({
   const [rationale, setRationale] = useState(evidence.authority?.rationale ?? "");
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  // spinner 由它驱动，而不是 isPending。
+  //
+  // 为什么分开：isPending 要等 router.refresh() 期间的重渲染也结束才收敛，
+  // 于是按钮「承诺了正在保存却不收尾」，看起来像一直在转（用户报告的
+  // 「循环刷新的动画」）。isPending 保留在 disabled 上 —— refresh 期间
+  // **本来就该不可点**（否则用户会在旧数据上重复提交）。
+  // 见 docs/changes/2026-10-01-剩余refresh站点.md。
+  const [submitting, setSubmitting] = useState(false);
   const canSave = publisher.trim().length >= 2 && rationale.trim().length >= 10;
 
   function save() {
     setMessage("");
     startTransition(async () => {
-      const result = await assessSourceAuthorityAction({
-        evidenceId: evidence.id,
-        level,
-        publisher,
-        rationale,
-      });
-      if (!result.ok) {
-        setMessage(result.error.message);
-        return;
+      setSubmitting(true);
+      try {
+        const result = await assessSourceAuthorityAction({
+          evidenceId: evidence.id,
+          level,
+          publisher,
+          rationale,
+        });
+        if (!result.ok) {
+          setMessage(result.error.message);
+          return; // finally 会清掉 submitting；失败不刷新
+        }
+        setMessage("已保存当前证据版本的来源权威性评估。");
+      } finally {
+        setSubmitting(false);
       }
-      setMessage("已保存当前证据版本的来源权威性评估。");
+      // 刷新仍留在 transition 内：它继续维持 isPending（按钮不可点），
+      // 但**不再拖住 spinner**。
       router.refresh();
     });
   }
@@ -75,7 +90,7 @@ function AuthorityForm({
       <label><span>来源层级（必填）</span><select disabled={isPending} onChange={(event) => setLevel(event.target.value as SourceAuthorityLevel)} value={level}>{Object.entries(authorityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label><span>发布主体（必填，2–300 字）</span><input maxLength={300} onChange={(event) => setPublisher(event.target.value)} placeholder="机构、作者、当事人或材料出具方" value={publisher} /></label>
       <label className="wide"><span>权威性依据（必填，10–1,000 字）</span><textarea maxLength={1_000} onChange={(event) => setRationale(event.target.value)} placeholder="说明它为何属于该层级、可能存在何种利益关系或局限。" rows={3} value={rationale} /><small>{rationale.trim().length} / 1,000</small></label>
-      <button className="button button-quiet" disabled={isPending || !canSave} onClick={save} type="button">{isPending ? <LoaderCircle className="processing-spinner" size={14} /> : <FileCheck2 size={14} />}{isPending ? "正在保存…" : evidence.authority ? "更新评估" : "保存评估"}</button>
+      <button className="button button-quiet" disabled={isPending || !canSave} onClick={save} type="button">{submitting ? <LoaderCircle className="processing-spinner" size={14} /> : <FileCheck2 size={14} />}{submitting ? "正在保存…" : evidence.authority ? "更新评估" : "保存评估"}</button>
       {message ? <p className="authority-message">{message}</p> : null}
     </div>
   );
@@ -93,6 +108,13 @@ export function ReliabilityPanel({
   const [reviewRationale, setReviewRationale] = useState("");
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  // 两个操作共用 pending 语义（disabled），但**各自**有独立的 submitting 驱动 spinner。
+  // 理由同 AuthorityForm：isPending 会被 router.refresh() 拖长，
+  // 拿它驱动 spinner 会变成「转不停的圈」。
+  // 这里刻意分成两个而不是一个 —— 独立复核与发布是两个不同动作，
+  // 共用一个会让「发布」时「独立复核」按钮也转。
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [submittingPublish, setSubmittingPublish] = useState(false);
   const review = dossier.review;
   const isConclusionAuthor = review?.reviewerId === actor.id;
   const alreadyReviewedByActor = dossier.independentReviews.some(
@@ -109,17 +131,22 @@ export function ReliabilityPanel({
     if (!review) return;
     setMessage("");
     startTransition(async () => {
-      const result = await submitIndependentReviewAction({
-        claimReviewId: review.id,
-        decision,
-        rationale: reviewRationale,
-      });
-      if (!result.ok) {
-        setMessage(result.error.message);
-        return;
+      setSubmittingReview(true);
+      try {
+        const result = await submitIndependentReviewAction({
+          claimReviewId: review.id,
+          decision,
+          rationale: reviewRationale,
+        });
+        if (!result.ok) {
+          setMessage(result.error.message);
+          return;
+        }
+        setReviewRationale("");
+        setMessage("独立复核已保存；发布门槛已重新计算。");
+      } finally {
+        setSubmittingReview(false);
       }
-      setReviewRationale("");
-      setMessage("独立复核已保存；发布门槛已重新计算。");
       router.refresh();
     });
   }
@@ -127,12 +154,17 @@ export function ReliabilityPanel({
   function publish() {
     setMessage("");
     startTransition(async () => {
-      const result = await publishReliableKnowledgeAction({ claimId: dossier.claim.id });
-      if (!result.ok) {
-        setMessage(result.error.message);
-        return;
+      setSubmittingPublish(true);
+      try {
+        const result = await publishReliableKnowledgeAction({ claimId: dossier.claim.id });
+        if (!result.ok) {
+          setMessage(result.error.message);
+          return;
+        }
+        setMessage(`可靠知识版本 v${result.data.releaseNumber} 已冻结发布。`);
+      } finally {
+        setSubmittingPublish(false);
       }
-      setMessage(`可靠知识版本 v${result.data.releaseNumber} 已冻结发布。`);
       router.refresh();
     });
   }
@@ -179,14 +211,14 @@ export function ReliabilityPanel({
           {!actor.authenticated ? <p className="reliability-blocker"><CircleAlert size={14} />请先启用 go-user-system 登录，再由另一个账号复核。</p> : isConclusionAuthor ? <p className="reliability-blocker"><CircleAlert size={14} />当前账号是结论作者，不能复核自己的结论。</p> : alreadyReviewedByActor ? <p className="reliability-blocker"><ShieldCheck size={14} />当前账号已经复核过此结论版本；需要修改时应退回调查并形成新结论。</p> : null}
           <label><span>复核决定（必填）</span><select disabled={isPending || !actor.authenticated || isConclusionAuthor || alreadyReviewedByActor} onChange={(event) => setDecision(event.target.value as typeof decision)} value={decision}><option value="approved">批准进入可靠发布</option><option value="changes_requested">要求退回修改</option></select></label>
           <label><span>复核依据（必填，10–2,000 字）</span><textarea disabled={!actor.authenticated || isConclusionAuthor || alreadyReviewedByActor} maxLength={2_000} onChange={(event) => setReviewRationale(event.target.value)} placeholder="说明是否检查了证伪条件、来源独立性、权威性、反例与适用范围。" rows={4} value={reviewRationale} /><small>{reviewRationale.trim().length} / 2,000</small></label>
-          <button className="button button-dark" disabled={isPending || !canSubmitIndependent} onClick={submitIndependent} type="button">{isPending ? <LoaderCircle className="processing-spinner" size={15} /> : <Scale size={15} />}保存独立复核</button>
+          <button className="button button-dark" disabled={isPending || !canSubmitIndependent} onClick={submitIndependent} type="button">{submittingReview ? <LoaderCircle className="processing-spinner" size={15} /> : <Scale size={15} />}保存独立复核</button>
         </div>
       </section>
 
       <section className="reliability-section release-readiness-section">
         <div className="section-title"><div><p className="eyebrow">Release gates</p><h2>可靠发布门槛</h2></div><span>{dossier.readiness.filter((item) => item.passed).length} / {dossier.readiness.length}</span></div>
         <ul className="release-checklist">{dossier.readiness.map((item) => <li className={item.passed ? "is-passed" : "is-blocked"} key={item.code}>{item.passed ? <Check size={14} /> : <CircleDot size={14} />}<span>{item.label}</span></li>)}</ul>
-        <button className="button button-primary release-button" disabled={isPending || !dossier.readyToPublish} onClick={publish} type="button">{isPending ? <LoaderCircle className="processing-spinner" size={16} /> : <BadgeCheck size={16} />}{isPending ? "正在冻结发布快照…" : "冻结并发布可靠知识版本"}</button>
+        <button className="button button-primary release-button" disabled={isPending || !dossier.readyToPublish} onClick={publish} type="button">{submittingPublish ? <LoaderCircle className="processing-spinner" size={16} /> : <BadgeCheck size={16} />}{submittingPublish ? "正在冻结发布快照…" : "冻结并发布可靠知识版本"}</button>
         {message ? <p className="reliability-action-message">{message}</p> : null}
         {dossier.releases.length ? <div className="release-history"><h3>不可变发布历史</h3>{dossier.releases.map((release) => <article key={release.id}><div><strong>可靠知识 v{release.releaseNumber}</strong><span>{release.publishedByName} · {new Date(release.createdAt).toLocaleString("zh-CN")}</span></div><code>{release.snapshotHash}</code></article>)}</div> : null}
       </section>
