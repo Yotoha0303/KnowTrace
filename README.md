@@ -187,24 +187,21 @@ make backup
 
 ## 文档导航
 
-1. [产品范围](docs/00-product-brief.md)
-2. [业务需求](docs/01-requirements.md)
-3. [用户流程](docs/02-user-flows.md)
-4. [领域模型](docs/03-domain-model.md)
-5. [数据库设计](docs/04-database-design.md)
-6. [服务端操作契约](docs/05-api-contract.md)
-7. [技术架构](docs/06-architecture.md)
-8. [AI 处理规范](docs/07-ai-processing.md)
-9. [测试与验收](docs/08-test-and-acceptance.md)
-10. [开发计划](docs/09-delivery-plan.md)
-11. [风险清单](docs/10-risk-register.md)
-12. [架构决策记录](docs/adr/README.md)
-13. [运行、备份与恢复](docs/11-operations.md)
-14. [移动端 API](docs/12-mobile-api.md)
-15. [产品愿景完成度审计](docs/13-product-completion-audit.md)
-16. [延期问题清单](docs/14-deferred-issues.md)
-17. [VPS 阶段二：备份、恢复、压测与故障迭代](docs/15-stage2-vps-reliability.md)
-18. [VPS 阶段三：指标、可视化、集中日志与邮件告警](docs/16-stage3-observability.md)
+完整索引见 **[docs/README.md](docs/README.md)**（按「契约 / 决策 / 状态 / 变更 / 专题」分层，并给出按读者类型的入口）。
+
+核心入口：
+
+| 想知道什么 | 读 |
+| --- | --- |
+| 产品是什么、明确不做什么 | [产品范围](docs/00-product-brief.md) |
+| 技术架构与依赖方向 | [技术架构](docs/06-architecture.md) |
+| 现在实际做到哪一步 | [产品缺陷与体验问题清单](docs/19-product-defect-inventory.md)、[走向 100% 的路径](docs/21-path-to-100-percent.md) |
+| 接 `/api/v1` 写客户端 | [移动端 API](docs/12-mobile-api.md) |
+| 为什么这样选 | [架构决策记录](docs/adr/README.md) |
+| 要改代码或配置 | [变更记录约定](docs/changes/README.md)（变动前先写） |
+| 部署与运行 | [运行、备份与恢复](docs/11-operations.md)、[贡献指南的部署验证](CONTRIBUTING.md) |
+
+其余文档（需求、流程、领域、库表、接口契约、AI 规范、验收、计划、风险、VPS 阶段二/三、多平台客户端）见 [完整索引](docs/README.md)。
 
 ## 首版完成定义
 

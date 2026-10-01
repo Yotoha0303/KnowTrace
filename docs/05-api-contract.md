@@ -213,6 +213,14 @@ GET /api/health/ready
 当前版本化 API：
 
 ```text
+POST               /api/v1/auth/login
+POST               /api/v1/auth/refresh
+POST               /api/v1/auth/logout
+GET                /api/v1/auth/session
+
+GET, POST, DELETE  /api/v1/workspaces
+POST               /api/v1/workspaces/current
+
 GET, POST          /api/v1/captures
 GET, PATCH, DELETE /api/v1/captures/:id
 GET                /api/v1/categories
@@ -220,9 +228,12 @@ GET                /api/v1/subjects
 GET                /api/v1/subjects/:subject
 GET                /api/v1/claims
 GET                /api/v1/knowledge-releases
+
+GET, POST          /api/v1/ai-runs
+GET                /api/v1/ai-runs/:runId
 ```
 
-这些 Route Handler 复用同一 Application Service，不重新实现业务规则。统一响应、分页、幂等键、`If-Match` 删除前置条件和示例见 [移动端 API](12-mobile-api.md)。AI 整理和审核写操作暂不开放给 App，避免在认证与权限边界尚未稳定时扩大高影响接口。
+这些 Route Handler 复用同一 Application Service，不重新实现业务规则。统一响应、分页、幂等键、`If-Match` 删除前置条件、认证与客户端头、Workspace 上下文和示例见 [移动端 API](12-mobile-api.md)。证据审核、独立复核和发布写操作仍只在 Web 中完成，避免在权限边界之外扩大高影响接口；AI 整理目前开放的是同步触发与运行读取。
 
 所有业务端点都从 go-user-system 会话解析数据范围：`admin` 可访问全部创建者的资源，普通成员仅可访问 `created_by_id` 与本人匹配的资源。跨成员详情与写操作按不存在处理，列表、搜索、统计、导出和图片读取必须应用同一过滤条件。
 

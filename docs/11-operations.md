@@ -103,3 +103,22 @@ sudo PROJECT_DIR=/opt/knowtrace bash scripts/linux/fix-uploads-ownership.sh
 脚本幂等，属主正确时不产生变更，并会以目标 uid 真实写入一个探测文件确认；成功输出 `UPLOADS_OWNERSHIP=PASS`。
 
 应用启动时也会自检该目录：不可写会打印带修复命令的显式告警（见 `src/server/startup-checks.ts`），不会再静默失败。
+
+## 8. 本节之外：运维总入口
+
+本文件只覆盖**应用侧**的部署边界、容器运行、备份恢复与属主修复。监控告警、巡检
+定时器、异地备份和事故复盘不在本文件内，入口如下：
+
+| 要做什么 | 去哪里 |
+| --- | --- |
+| 运维全局索引、VPS 连接方式、脚本体系 | `../KnowTrace-ops/notes/`（先读 `04-文档索引与任务.md`） |
+| 运维执行记录与事故复盘 | `../KnowTrace-ops/docs/` |
+| 监控栈部署与告警链路 | [`16-stage3-observability.md`](16-stage3-observability.md) |
+| 备份、恢复、压测与故障迭代 | [`15-stage2-vps-reliability.md`](15-stage2-vps-reliability.md) |
+| 从零部署的完整实操 | [`KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/`](KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/) |
+| 运维脚本用法与说明 | `../scripts/ops/README.md`、`../scripts/bootstrap/README.md` |
+
+> [!IMPORTANT]
+> 部署命令的**权威写法**在 [`../CONTRIBUTING.md`](../CONTRIBUTING.md) 的「部署验证」一节：
+> 用 `scripts/linux/deploy-observability.sh --build-app`，**不要手写 `docker compose up -d --build`**。
+> 漏掉 `--build-app` 会只重启旧镜像却报成功。

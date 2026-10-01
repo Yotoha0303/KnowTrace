@@ -1,0 +1,87 @@
+# KnowTrace 文档索引
+
+`docs/` 下的文档分五层。**先确认你要的是哪一类**，再读对应的那一层——这是本目录唯一的入口规则。
+
+| 层 | 位置 | 回答什么问题 | 什么时候写 |
+| --- | --- | --- | --- |
+| **契约** | `00`–`08` | 产品**应该**是什么样：范围、需求、流程、领域、库表、接口、架构、AI 规范、验收标准 | 需求或设计变化时 |
+| **决策** | [`adr/`](adr/README.md) | 为什么**这样选**而不是那样选 | 做出架构决策时 |
+| **状态** | `13`、`19`、`21` | 现在**实际**到哪一步：完成度、缺陷清单、真实进度重估 | 状态变化时 |
+| **变更** | [`changes/`](changes/README.md) | 产品侧**每一次改动的变动前记录**：改什么、为什么、验收、回滚 | **变动前** |
+| **专题** | `09`–`12`、`14`–`18` | 计划、风险、运维、移动端与阶段推进 | 相关主题推进时 |
+
+> **契约层写「应该」，状态层写「实际」。两者不一致时，以状态层为准。**
+> 这是本仓库最容易踩的坑：`docs/13` 报 90 分（建成完成度），
+> `docs/21` 指出真实验证只有约 40 分。原因见 `docs/21` 第 0 节。
+
+## 按读者找入口
+
+- **第一次接触这个项目** → [`00-product-brief.md`](00-product-brief.md) → [`06-architecture.md`](06-architecture.md) → [`13-product-completion-audit.md`](13-product-completion-audit.md)
+- **想接 `/api/v1` 写客户端** → [`12-mobile-api.md`](12-mobile-api.md)（认证、Workspace 上下文、端点与错误码都在这里）
+- **想知道现在有什么是坏的** → [`19-product-defect-inventory.md`](19-product-defect-inventory.md)
+- **要动代码/配置** → 先按 [`changes/README.md`](changes/README.md) 的约定在 `changes/` 写变动前记录
+- **要上服务器** → [`11-operations.md`](11-operations.md)，以及仓库外的运维工作区 `KnowTrace-ops/notes/04-文档索引与任务.md`
+- **想做架构决策** → [`adr/README.md`](adr/README.md)
+
+## 契约层
+
+| 文档 | 内容 |
+| --- | --- |
+| [`00-product-brief.md`](00-product-brief.md) | 产品范围、原则与明确不做的部分 |
+| [`01-requirements.md`](01-requirements.md) | 业务需求与用户故事 |
+| [`02-user-flows.md`](02-user-flows.md) | 用户流程 |
+| [`03-domain-model.md`](03-domain-model.md) | 领域模型与状态机 |
+| [`04-database-design.md`](04-database-design.md) | 数据库设计与迁移 |
+| [`05-api-contract.md`](05-api-contract.md) | 服务端操作契约与错误码 |
+| [`06-architecture.md`](06-architecture.md) | 技术架构、依赖方向、部署形态 |
+| [`07-ai-processing.md`](07-ai-processing.md) | AI 处理规范与供应商适配 |
+| [`08-test-and-acceptance.md`](08-test-and-acceptance.md) | 测试策略与验收场景 |
+
+> `06-architecture.md` 第 4 节的目录树写于实施之前，是**规划态**，与当前实际目录
+> （`src/features/` 下已有 13 个域）不完全一致；读它时应关注分层与依赖方向，而不是逐条核对路径。
+
+## 决策层
+
+[`adr/`](adr/README.md)：ADR-0001 至 ADR-0016，含已被替代的决策及其替代关系。
+
+## 计划与专题
+
+| 文档 | 内容 |
+| --- | --- |
+| [`09-delivery-plan.md`](09-delivery-plan.md) | 开发计划与阶段划分 |
+| [`10-risk-register.md`](10-risk-register.md) | 风险清单 |
+| [`11-operations.md`](11-operations.md) | 运行、备份与恢复 |
+| [`12-mobile-api.md`](12-mobile-api.md) | `/api/v1` 契约：认证、Workspace、端点、错误码 |
+| [`14-deferred-issues.md`](14-deferred-issues.md) | 暂缓问题与后续迭代清单 |
+| [`15-stage2-vps-reliability.md`](15-stage2-vps-reliability.md) | VPS 阶段二：备份、恢复、压测与故障迭代 |
+| [`16-stage3-observability.md`](16-stage3-observability.md) | VPS 阶段三：指标、可视化、集中日志与邮件告警 |
+| [`17-mobile-client-bugs-and-features.md`](17-mobile-client-bugs-and-features.md) | 多平台客户端阶段的待修问题 |
+| [`18-mobile-client-plan.md`](18-mobile-client-plan.md) | 多平台应用开发方案 |
+
+## 状态层
+
+| 文档 | 内容 |
+| --- | --- |
+| [`13-product-completion-audit.md`](13-product-completion-audit.md) | 按能力域加权的**建成**完成度（90/100） |
+| [`19-product-defect-inventory.md`](19-product-defect-inventory.md) | 缺陷与体验问题清单，按 P0/P1 分级，含实测证据与修复状态 |
+| [`20-incident-2026-09-30-causation.md`](20-incident-2026-09-30-causation.md) | 2026-09-30 全站 500 事故的成因 |
+| [`21-path-to-100-percent.md`](21-path-to-100-percent.md) | 把「建成」重估为「**被真实验证过**」的进度（约 40 分）与补齐路径 |
+
+## 其他目录
+
+| 目录 | 内容 |
+| --- | --- |
+| [`changes/`](changes/README.md) | 产品侧变动前记录。**改代码或配置前先来这里** |
+| [`日常运维/`](日常运维/README.md) | 巡检记录与运维回顾 |
+| [`KnowTrace-VPS-部署学习-2026-09-06/`](KnowTrace-VPS-部署学习-2026-09-06/README.md) | 阶段一至三的真实 VPS 学习档案：部署命令、故障记录、迁移清单 |
+
+## 仓库外
+
+以下内容不在本目录，但和上面的文档是同一套体系：
+
+| 位置 | 内容 |
+| --- | --- |
+| `../KnowTrace-ops/notes/` | 运维侧总索引与 VPS 连接说明 |
+| `../KnowTrace-ops/docs/` | 运维执行记录与事故复盘 |
+| `../CONTRIBUTING.md` | 提交前验证与**部署验证**的权威写法 |
+| `../SECURITY.md` | 安全策略与漏洞报告方式 |

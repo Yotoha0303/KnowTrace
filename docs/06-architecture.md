@@ -50,6 +50,21 @@ flowchart LR
 
 ## 4. 推荐目录
 
+> [!NOTE]
+> **以下目录树写于实施之前，是规划态，不是当前实际结构。**保留它是为了记录当初的
+> 分层意图（Page → Server Action → Feature → Repository 的依赖方向），**不要逐条核对路径**。
+>
+> 实际结构与它的主要差异：
+>
+> - 没有 route group，`src/app/` 下是 `captures/`、`categories/`、`claims/`、`subjects/`、
+>   `search/`、`account/`、`archived/`、`data-transfer/`、`login/`、`register/` 等直接路由。
+> - `src/features/` 实际有 13 个域：`ai-processing`、`api`、`auth`、`capture`、`claims`、
+>   `classification`、`data-transfer`、`reliability`、`search`、`similarity`、`subjects`、
+>   `topic-synthesis`、`workspace`，比规划多出 `reliability`、`similarity`、
+>   `topic-synthesis`、`workspace`、`api`、`auth` 等。
+> - `src/server/` 只有 `ai/` 与 `db/`，规划中的 `config/`、`observability/` 没有落地为独立目录。
+> - `tests/` 未集中在顶层，测试与源码同目录或置于各域内。
+
 ```text
 src/
 ├── app/
