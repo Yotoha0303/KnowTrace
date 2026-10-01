@@ -282,6 +282,89 @@ workspaces：2 个，成员都是同一个 go-user:1
 
 ---
 
+### D-08 登录限流按「容器 IP」计数 → 所有人共用一个桶（✅ 2026-10-01 实测定位）
+
+**用户现象**：「即使密码和账号正确，仍然可能触发『账号或密码错误』」。
+
+#### 决定性证据
+
+```text
+$ docker logs knowtrace-auth-1 | grep auth/login   →  每次成功后紧接一串失败
+  time=10:28:41 status=429 latency=108026301 ip=172.18.0.9
+  time=10:28:43 status=429 latency=1545578   ip=172.18.0.9
+  time=10:28:43 status=429 latency=1813593   ip=172.18.0.9
+```
+
+**`ip=172.18.0.9` 是 Docker 容器的地址，不是任何真实用户。**
+
+#### 转发链为什么断在这里
+
+| 跳 | 是否传递真实 IP |
+| --- | --- |
+| Caddy → nginx | ✅ Caddy 自动设 `X-Forwarded-For` |
+| nginx | ✅ `real_ip_header X-Forwarded-For` + `real_ip_recursive on`（`/etc/nginx/sites-enabled/knowtrace.conf:17-19`），**ngnix 自己的 `$remote_addr` 已是真实 IP** |
+| nginx → app | ❌ 转发的是 `$http_x_forwarded_for`（**入站头**），而真实 IP 在 `$remote_addr`。出站链变成 `<真实IP>, 172.18.0.2` |
+| **app → auth** | ❌ **KnowTrace 的 BFF 完全不转发任何 XFF**（`src/app/api/v1/auth/login/route.ts` → `loginWithGoUserSystem`） |
+
+**结果**：认证服务看到的 `c.RemoteAddr` = 应用容器 IP。
+又因为 `config.yml` 里 **`trustedProxies: []`**（空），Gin 不信任任何代理，
+`c.ClientIP()` 直接返回该容器地址。
+
+#### 后果（比"显示错误"更严重）
+
+限流是**双维度**的：
+
+```yaml
+loginRateLimit:
+  accountLimit: 5     # 同一账号 5 次失败
+  ipLimit: 20         # 同一 IP 20 次失败
+  window: 15m
+```
+
+因为所有请求共享同一个"IP"，**ipLimit 退化成全站总配额**：
+
+> **任一用户累计失败 20 次，会让这台服务器上所有人的登录在 15 分钟内全部失败**，
+> 包括密码完全正确的用户。
+
+**已实测复现**（用不存在的账号，避免锁住真实账号）：
+
+```text
+第1~4 次  → {"code":"AUTH_INVALID_CREDENTIALS","message":"账号或密码错误。"}
+第5次     → {"code":"AUTH_LOGIN_RATE_LIMITED","message":"登录尝试过于频繁，请稍后再试。"}
+第6次     → 同上
+```
+
+#### 一个容易搞错的地方（记录以免误改）
+
+`src/features/auth/auth-errors.ts` **已经**把 2008 正确翻译成「登录尝试过于频繁」，
+且前端会显示它。所以**限流路径给出的文案是正确的**。
+
+真正的坑是：**用户必须先把失败次数堆到 `ipLimit`（20）才会看到那句正确文案**。
+在 5–20 次之间，别人失败造成的限流会以「账号或密码错误」的形式出现。
+
+#### 另一处更隐蔽的同形问题（多标签页）
+
+连续成功登录时，若某些请求带的是**已失效的 access cookie**，
+Proxy 会先走续期；续期若失败则**清空会话 cookie**。某个标签页清空后，
+另一个仍在轮询的标签页会变成未认证 → **被登出**。
+现行机制无法区分「refresh 真的失效」与「另一个标签页刚把它换走了」。
+
+#### 怎么验证修好了
+
+- `docker logs knowtrace-auth-1 | grep auth/login` 中 `ip=` 字段应是**真实客户端 IP**，不再是 `172.18.0.x`；
+- 用一个来源的 20 次失败**不应**影响另一个来源的正确登录。
+
+#### 修法方向（**本次未实施**）
+
+| # | 方向 | 说明 |
+| --- | --- | --- |
+| 1 | **恢复真实 IP 传递** | nginx 改传 `$remote_addr`；BFF 转发 `X-Forwarded-For`；auth 侧设 `trustedProxies` 为**该容器网段**并启用 Gin 的信任链 |
+| 2 | 或改用账号维度为主 | 削弱/去掉 IP 维度，避免共享桶 |
+| — | **明确不做** | 不加 `X-Forwarded-For` 而不配 `trustedProxies` —— 那会**信任客户端伪造的头**，比现在还糟（可被用来绕过限流） |
+
+**本次只定位与记录，未改代码** —— 限流是认证边界，改动需要单独记录并按流程走。
+
+
 ## 三、逐条对照报告人提出的问题
 
 | 报告人的说法 | 实测结论 | 详见 |
