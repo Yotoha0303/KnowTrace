@@ -59,20 +59,20 @@ docker run --rm --entrypoint /bin/amtool \
   quay.io/prometheus/alertmanager:v0.28.1 \
   check-config /etc/alertmanager/alertmanager.json
 
-echo "[1/5] 拉取固定版本的核心监控镜像"
+echo "[1/6] 拉取固定版本的核心监控镜像"
 "${compose[@]}" pull node-exporter blackbox-exporter alertmanager prometheus grafana
 
-echo "[2/5] 让主应用加载私有 metrics token"
+echo "[2/6] 让主应用加载私有 metrics token"
 if [[ "$build_app" == true ]]; then
   "${compose[@]}" up -d --no-deps --build --wait --wait-timeout 900 app
 else
   "${compose[@]}" up -d --no-deps --no-build --wait --wait-timeout 300 app
 fi
 
-echo "[3/5] 安装 Nginx metrics 公网阻断并保留原配置"
+echo "[3/6] 安装 Nginx metrics 公网阻断并保留原配置"
 "$script_directory/install-observability-nginx.sh"
 
-echo "[4/5] 启动 Alertmanager、Exporter、Prometheus 和 Grafana"
+echo "[4/6] 启动 Alertmanager、Exporter、Prometheus 和 Grafana"
 "${compose[@]}" up -d --no-build --wait --wait-timeout 600 \
   alertmanager node-exporter blackbox-exporter prometheus grafana
 
@@ -108,22 +108,7 @@ systemctl daemon-reload
 systemctl enable --now knowtrace-backup.timer >/dev/null
 "$script_directory/write-backup-metrics.sh"
 
-echo "[5/5] 执行端点、target、PromQL、Alertmanager 和 Grafana provisioning 验收"
-python3 "$script_directory/verify-observability.py" --core
-
-# ---- 6. 断言运行态 revision == HEAD ----------------------------------------
-# 2026-09-29 的生态观察发现：部署目录 HEAD 是 47a4c20，而运行中容器自报
-# 7ce26f7d（2026-09-08），差 37 个提交 / 21 天，而所有健康检查与巡检报告全绿。
-#
-# RCA（2026-09-30 实测确认）：应用重建被 `--build-app` 这个**可选开关**把着。
-# 不带该开关时，第 [2/5] 步走的是 `up -d --no-deps --no-build` ——
-# 它只是重启旧镜像，脚本却照样打印成功。于是后续每一次「只更新监控配置」的部署，
-# 都顺手把应用也留在了原地，而没有任何一步会说出来。
-#
-# 这里把「跑的是不是这一版代码」变成每次部署的显式结论。
-# 分两种情况，因为「监控配置变了但应用代码没变」时不一致是**正常**的：
-echo
-echo "[6/6] 断言运行态 revision"
+echo "[5/6] 断言运行态 revision"
 metrics_token="$(grep -oP '^METRICS_BEARER_TOKEN=\K.*' "$project_directory/.env.observability" 2>/dev/null || true)"
 running_revision=""
 if [[ -n "$metrics_token" ]]; then
@@ -163,3 +148,19 @@ fi
 "$script_directory/write-revision-metrics.sh" >/dev/null 2>&1 || true
 
 echo "核心监控已部署；所有管理端口只绑定 127.0.0.1。"
+
+echo "[6/6] 执行端点、target、PromQL、Alertmanager 和 Grafana provisioning 验收"
+python3 "$script_directory/verify-observability.py" --core
+
+# ---- 6. 断言运行态 revision == HEAD ----------------------------------------
+# 2026-09-29 的生态观察发现：部署目录 HEAD 是 47a4c20，而运行中容器自报
+# 7ce26f7d（2026-09-08），差 37 个提交 / 21 天，而所有健康检查与巡检报告全绿。
+#
+# RCA（2026-09-30 实测确认）：应用重建被 `--build-app` 这个**可选开关**把着。
+# 不带该开关时，第 [2/5] 步走的是 `up -d --no-deps --no-build` ——
+# 它只是重启旧镜像，脚本却照样打印成功。于是后续每一次「只更新监控配置」的部署，
+# 都顺手把应用也留在了原地，而没有任何一步会说出来。
+#
+# 这里把「跑的是不是这一版代码」变成每次部署的显式结论。
+# 分两种情况，因为「监控配置变了但应用代码没变」时不一致是**正常**的：
+echo
