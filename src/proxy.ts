@@ -6,8 +6,10 @@ import {
   getGoUser,
   isAuthEnabled,
   isRegistrationEnabled,
+  refreshWithGoUserSystem,
+  REFRESH_TOKEN_COOKIE,
 } from "@/features/auth/go-user-system";
-import { clearSessionCookies } from "@/features/auth/response";
+import { clearSessionCookies, setSessionCookies } from "@/features/auth/response";
 import {
   ACCESS_TOKEN_HEADER,
   isNativeClientRequest,
@@ -37,6 +39,49 @@ function authRequired(request: NextRequest, message: string) {
     );
   }
   return loginRedirect(request);
+}
+
+/**
+ * Server Action 请求带 `Next-Action` 头。
+ *
+ * 为什么需要它：Server Action 期待**结构化结果**，而 Proxy 对未认证的非 API 请求
+ * 会 307 到登录页 HTML —— Server Action 拿到 HTML 就解析失败，客户端反而看不到
+ * `runAction` 本来准备好的 `{ ok:false, error:{ code:"AUTH_REQUIRED" } }`。
+ * 那个结构化错误是**可读的**；HTML 不是。
+ */
+function isServerActionRequest(request: NextRequest) {
+  return request.headers.has("next-action");
+}
+
+/** 把已经确认可用的身份写进下游请求头。 */
+function withIdentityHeaders(
+  request: NextRequest,
+  identity: {
+    id: number;
+    username: string;
+    nickname: string;
+    roleCodes: string[];
+  },
+) {
+  const headers = new Headers(request.headers);
+  headers.set("x-knowtrace-user-id", String(identity.id));
+  headers.set("x-knowtrace-username", encodeURIComponent(identity.username));
+  headers.set("x-knowtrace-nickname", encodeURIComponent(identity.nickname));
+  headers.set("x-knowtrace-role-codes", identity.roleCodes.join(","));
+  headers.delete("x-knowtrace-auth-page");
+  return headers;
+}
+
+/** 清除一切身份头。用于「未认证但必须放行」的路径——伪造的头绝不能存活。 */
+function withoutIdentityHeaders(request: NextRequest) {
+  const headers = new Headers(request.headers);
+  headers.delete("x-knowtrace-user-id");
+  headers.delete("x-knowtrace-username");
+  headers.delete("x-knowtrace-nickname");
+  headers.delete("x-knowtrace-role-codes");
+  headers.delete(ACCESS_TOKEN_HEADER);
+  headers.delete(WORKSPACE_ID_HEADER);
+  return headers;
 }
 
 /**
@@ -75,6 +120,47 @@ async function nativeRequest(request: NextRequest): Promise<NextResponse> {
   }
   if (workspaceId) requestHeaders.set(WORKSPACE_ID_HEADER, workspaceId);
   return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+/**
+ * Cookie 客户端的 Access Token 失效时，用 Refresh Token 换一枚新的。
+ *
+ * 成功：返回一个已带上新 Cookie 与身份头的响应。
+ * 失败：返回 null，调用方走未认证分支。
+ *
+ * 为什么放在 Proxy 而不是客户端定时续期：
+ *   客户端的定时器在标签页休眠、多标签页、长时间不操作时都不可靠；
+ *   而「令牌失效的那一刻按需续期」只有服务端知道。
+ *   Access Token 只有 15 分钟，而用户完全可能开着页面想很久再保存——
+ *   这正是 2026-10-01 之前「保存后报数据库错误」根因链的第 2、3 环。
+ */
+async function renewSession(request: NextRequest): Promise<NextResponse | null> {
+  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
+  if (!refreshToken) return null;
+
+  const refreshed = await refreshWithGoUserSystem(refreshToken);
+  if (!refreshed.ok || !refreshed.refreshToken) return null;
+
+  const accessToken = refreshed.data.access_token;
+  const [user, authorization] = await Promise.all([
+    getGoUser(accessToken),
+    getGoAuthorization(accessToken),
+  ]);
+  if (!user.ok || !authorization.ok) return null;
+
+  // 重新校验通过后才下发新 Cookie —— 避免把一枚换来了却不可用的令牌写进浏览器。
+  const response = NextResponse.next({
+    request: {
+      headers: withIdentityHeaders(request, {
+        id: user.data.id,
+        username: user.data.username,
+        nickname: user.data.nickname,
+        roleCodes: authorization.data.role_codes,
+      }),
+    },
+  });
+  setSessionCookies(response, refreshed.data, refreshed.refreshToken);
+  return response;
 }
 
 export async function proxy(request: NextRequest) {
@@ -116,6 +202,23 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!user?.ok || !authorization?.ok) {
+    // ① Access Token 失效时，先尝试用 Refresh Token 续期。
+    if (accessToken) {
+      const renewed = await renewSession(request);
+      if (renewed) return renewed;
+    }
+
+    // ② Server Action 不能被 307 成登录页 HTML，否则它拿不到结构化结果。
+    //    放行并**显式清除上游身份头**——伪造的头绝不能存活；
+    //    下游会用 Cookie 里的令牌重新校验，拿不到有效身份就返回 AUTH_REQUIRED。
+    if (isServerActionRequest(request)) {
+      const response = NextResponse.next({
+        request: { headers: withoutIdentityHeaders(request) },
+      });
+      if (accessToken) clearSessionCookies(response);
+      return response;
+    }
+
     const response = authRequired(
       request,
       accessToken ? "登录会话已失效，请重新登录。" : "请先登录。",
@@ -124,13 +227,16 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-knowtrace-user-id", String(user.data.id));
-  requestHeaders.set("x-knowtrace-username", encodeURIComponent(user.data.username));
-  requestHeaders.set("x-knowtrace-nickname", encodeURIComponent(user.data.nickname));
-  requestHeaders.set("x-knowtrace-role-codes", authorization.data.role_codes.join(","));
-  requestHeaders.delete("x-knowtrace-auth-page");
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  return NextResponse.next({
+    request: {
+      headers: withIdentityHeaders(request, {
+        id: user.data.id,
+        username: user.data.username,
+        nickname: user.data.nickname,
+        roleCodes: authorization.data.role_codes,
+      }),
+    },
+  });
 }
 
 export const config = {

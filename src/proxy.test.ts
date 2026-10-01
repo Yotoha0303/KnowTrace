@@ -138,6 +138,114 @@ describe("authentication proxy", () => {
     );
   });
 
+  // ---- 2026-10-01 新增：会话续期与 Server Action 不再收 HTML ----
+  // 依据 docs/changes/2026-10-01-体验三项修复.md 的 1.1。
+  // 改前：Access Token 一过期就直接判未认证，而用户看到的却是「数据库未启动」。
+
+  it("renews an expired access token with the refresh token instead of rejecting", async () => {
+    const expired = new Response(JSON.stringify({ code: 3007, msg: "expired", data: null }), {
+      status: 401,
+    });
+    const okUser = new Response(JSON.stringify(validUserEnvelope), { status: 200 });
+    const okAuth = new Response(JSON.stringify(validAuthorizationEnvelope), { status: 200 });
+    const refreshed = new Response(
+      JSON.stringify({
+        code: 0,
+        msg: "ok",
+        data: {
+          access_token: "renewed.jwt",
+          access_token_expires_in: 900,
+          refresh_token_expires_in: 604800,
+        },
+      }),
+      { status: 200, headers: { "set-cookie": "refresh_token=rotated.jwt; Path=/" } },
+    );
+
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => {
+        call += 1;
+        // 1: getGoUser(旧令牌) → 过期；2: getGoAuthorization(旧) → 过期
+        if (call <= 2) return Promise.resolve(expired);
+        // 3: refresh → 成功；4/5: getGoUser/getGoAuthorization(新令牌) → 成功
+        if (call === 3) return Promise.resolve(refreshed);
+        return Promise.resolve(call === 4 ? okUser : okAuth);
+      }),
+    );
+
+    const request = new NextRequest("http://localhost/search", {
+      headers: {
+        cookie:
+          "knowtrace_access_token=expired.jwt; refresh_token=valid-refresh.jwt",
+      },
+    });
+
+    const response = await proxy(request);
+
+    // 续期成功 → 放行，并把新的 access token 写回 Cookie
+    expect(response.status).toBe(200);
+    const setCookie = response.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("knowtrace_access_token=renewed.jwt");
+    // 身份头由**服务端重新校验**后的结果写入，不是从客户端抄来的
+    expect(response.headers.get("x-middleware-request-x-knowtrace-username")).toBe("yotoha");
+  });
+
+  it("falls back to rejecting when the refresh token is also invalid", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ code: 3007, msg: "expired", data: null }), {
+          status: 401,
+        }),
+      ),
+    );
+    const request = new NextRequest("http://localhost/api/v1/captures", {
+      headers: {
+        cookie:
+          "knowtrace_access_token=expired.jwt; refresh_token=dead.jwt",
+      },
+    });
+
+    const response = await proxy(request);
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "AUTH_REQUIRED" },
+    });
+  });
+
+  it("lets an unauthenticated server action through with identity headers stripped", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ code: 3007, msg: "expired", data: null }), {
+          status: 401,
+        }),
+      ),
+    );
+
+    const request = new NextRequest("http://localhost/", {
+      method: "POST",
+      headers: {
+        "next-action": "abc123",
+        // 伪造的身份头必须被清掉，否则下游可能误信
+        "x-knowtrace-user-id": "999",
+        "x-knowtrace-role-codes": "admin",
+        cookie: "knowtrace_access_token=expired.jwt",
+      },
+    });
+
+    const response = await proxy(request);
+
+    // 不再 307 成登录页 HTML —— Server Action 才能拿到结构化结果
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    // 伪造身份已被清除（Next 用 x-middleware-request-* 传递改写后的头）
+    const spoofed = response.headers.get("x-middleware-request-x-knowtrace-user-id");
+    expect(spoofed === null || spoofed === "").toBe(true);
+  });
+
   it("keeps the application open when auth is explicitly disabled", async () => {
     vi.stubEnv("AUTH_ENABLED", "false");
 

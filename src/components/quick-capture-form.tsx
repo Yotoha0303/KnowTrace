@@ -98,6 +98,18 @@ export function QuickCaptureForm({
         autoFocus
         maxLength={20_000}
         onChange={(event) => setContent(event.target.value)}
+        // Ctrl/Cmd + Enter 提交。用 requestSubmit 而不是直接调 submit()，
+        // 这样走的是与点按钮**完全相同**的路径（含原生校验与 disabled 状态）。
+        //
+        // 为什么加：docs/02-user-flows.md:20 一直写着「点击保存/使用快捷键」，
+        // 但 2026-10-01 全仓库检索确认**没有任何快捷键实现**。
+        // 「先保存，后整理」是产品原则第 1 条，入口越省力越符合定位。
+        onKeyDown={(event) => {
+          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+          }
+        }}
         placeholder="输入关键词、想法片段、一次经历，或者一个还没想清楚的问题……"
         rows={6}
         value={content}
@@ -164,7 +176,7 @@ export function QuickCaptureForm({
 
       <div className="composer-footer">
         <span className={message ? "form-error" : "composer-hint"}>
-          {message || `${content.length.toLocaleString()} / 20,000`}
+          {message || `${content.length.toLocaleString()} / 20,000 · Ctrl/⌘ + Enter 保存`}
         </span>
         <button className="button button-primary" disabled={isPending || !content.trim()} type="submit">
           {isPending ? "保存中…" : "保存并整理"} <ArrowUpRight size={16} />

@@ -615,6 +615,9 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .collection-header > svg { color: #75817a; }
 .center-state { display: grid; justify-items: center; align-content: center; min-height: 75vh; padding: 40px; text-align: center; }
 .center-state p:not(.eyebrow) { margin: 15px 0 22px; color: var(--muted); }
+/* 错误编号：让用户能把它贴给维护者，而不是去猜病因。
+   与 .center-state p 的默认样式区分开——它不该抢正文的注意力。 */
+.center-state .error-digest { margin: 6px 0 0; color: var(--muted); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .75; }
 .category-create-card { display: grid; grid-template-columns: 180px minmax(260px, 460px); align-items: center; gap: 20px; padding: 20px; margin-bottom: 14px; color: white; background: var(--dark); border-radius: 14px; }
 .category-create-card h2 { margin: 0; font: 650 20px Georgia, "Songti SC", serif; }
 .category-create-card .category-create { margin: 0; }
