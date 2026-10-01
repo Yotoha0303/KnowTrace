@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Archive, ArrowLeftRight, BookMarked, ContactRound, Inbox, Scale, Search, Settings2, UserRound } from "lucide-react";
+import { BookMarked, Settings2, UserRound } from "lucide-react";
 
 import type { CategoryDTO } from "@/features/capture/queries";
 import type { WorkspaceAccess } from "@/features/workspace/service";
@@ -7,6 +7,7 @@ import { CategoryCreator } from "@/components/category-creator";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { SidebarNav } from "@/components/sidebar-nav";
 
 export function AppShell({
   categories,
@@ -43,26 +44,9 @@ export function AppShell({
           workspaces={workspaces}
         />
 
-        <nav className="nav-list" aria-label="主要导航">
-          <Link href="/">
-            <Inbox size={17} /> 收集箱
-          </Link>
-          <Link href="/archived">
-            <Archive size={17} /> 已归档
-          </Link>
-          <Link href="/claims">
-            <Scale size={17} /> 主张库
-          </Link>
-          <Link href="/search">
-            <Search size={17} /> 知识检索
-          </Link>
-          <Link href="/subjects">
-            <ContactRound size={17} /> 对象时间线
-          </Link>
-          <Link href="/data-transfer">
-            <ArrowLeftRight size={17} /> 数据迁移
-          </Link>
-        </nav>
+        {/* 导航抽成客户端组件，为了给出 pending 态。
+            这里仍是服务端组件，其余内容不受影响。 */}
+        <SidebarNav />
 
         <section className="sidebar-section">
           <div className="sidebar-heading">

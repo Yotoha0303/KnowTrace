@@ -1095,3 +1095,95 @@ h1, h2, h3, p { overflow-wrap: anywhere; }
 .manual-claim-form textarea {
   width: 100%;
 }
+
+/* ==========================================================================
+   导航骨架屏（2026-10-01）
+   ==========================================================================
+   背景：14 个页面里 10 个是 force-dynamic，每次导航都要一次完整的服务端
+   往返；而项目原先**没有任何 loading.tsx**，那段往返对用户是完全不可见的
+   空白 —— 点击后界面纹丝不动，像是卡住了。见 docs/changes/2026-10-01-导航加载态.md。
+
+   设计约束：
+   1. **只做形状，不做内容** —— 不出现任何像真实数据的文字，避免被误读成
+      "加载出来了但是空的"。
+   2. **复用既有布局类**（page-shell / page-header / content-section /
+      capture-grid），骨架与真实页面的位置要接近，内容到达时不明显跳变。
+   3. 动效遵循 prefers-reduced-motion。
+   ========================================================================== */
+
+.skeleton-block {
+  background: linear-gradient(90deg, #e9ece7 25%, #f2f4f0 37%, #e9ece7 63%);
+  background-size: 400% 100%;
+  border-radius: 8px;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+    background: #e9ece7;
+  }
+}
+
+/* 标题类骨架：高度贴近真实字号，避免到达时的高度跳变 */
+.skeleton-eyebrow { width: 96px; height: 12px; margin-bottom: 14px; }
+.skeleton-title { width: min(420px, 70%); height: 44px; margin-bottom: 12px; }
+.skeleton-line { height: 14px; margin-bottom: 10px; }
+.skeleton-line.is-short { width: 42%; }
+
+/* 卡片骨架：与 .capture-card 同为 226px 最小高、14px 间距，网格列数一致 */
+.skeleton-card { min-height: 226px; padding: 21px; }
+.skeleton-card .skeleton-block { margin-bottom: 12px; }
+.skeleton-card-title { width: 62%; height: 20px; }
+.skeleton-card-meta { width: 38%; height: 11px; }
+
+/* 列表行骨架：用于 /claims、/search 这类纵向列表 */
+.skeleton-row {
+  padding: 18px 20px;
+  margin-bottom: 10px;
+  background: rgb(255 255 255 / 62%);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+/* 仅供屏幕阅读器：视觉隐藏但可被辅助技术读出。
+   用于骨架屏的 `role="status"` 文案 —— 视觉上是色块，语义上要说明"正在加载"。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 导航 pending 指示（2026-10-01）
+   点击导航后立刻给出反馈，而不是让界面看起来卡住。
+   用一个小圆点而不是改文字/换图标 —— 位移最小，不引起布局跳动。 */
+.nav-item { display: inline-flex; align-items: center; gap: 8px; width: 100%; }
+.nav-pending-dot {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  background: currentColor;
+  border-radius: 50%;
+  opacity: .55;
+  animation: nav-pending-pulse .9s ease-in-out infinite;
+}
+
+@keyframes nav-pending-pulse {
+  0%, 100% { opacity: .25; }
+  50% { opacity: .8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-pending-dot { animation: none; opacity: .55; }
+}
