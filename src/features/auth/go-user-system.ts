@@ -64,7 +64,21 @@ export const GO_PERMISSION = {
 
 export type GoAuthResult<T> =
   | { ok: true; data: T; refreshToken: string | null }
-  | { ok: false; status: number; code: number | null; message: string };
+  | {
+      ok: false;
+      status: number;
+      code: number | null;
+      message: string;
+      /**
+       * 上游在触发登录限流时给出的 `Retry-After`（秒）。
+       * 其它失败为 null。
+       *
+       * 为什么要带出来：BFF 原先**完全没接**这个头，前端因此不知道要等多久，
+       * 只能说一句「请稍后再试」——用户于是反复重试，**每次重试都在延长自己的锁**。
+       * 见 docs/changes/2026-10-01-登录锁定可辨别性.md。
+       */
+      retryAfterSeconds?: number | null;
+    };
 
 export function isAuthEnabled(): boolean {
   return process.env.AUTH_ENABLED === "true";
@@ -126,11 +140,18 @@ async function requestGoUserSystem<T>(
     };
   }
   if (!response.ok || parsedEnvelope.data.code !== 0) {
+    // 上游只在限流时设 Retry-After；解析失败当 null，不要因为一个头把整次请求判死。
+    const retryAfterRaw = response.headers.get("retry-after");
+    const retryAfterSeconds = retryAfterRaw ? Number.parseInt(retryAfterRaw, 10) : null;
     return {
       ok: false,
       status: response.status,
       code: parsedEnvelope.data.code,
       message: parsedEnvelope.data.msg || "登录服务请求失败。",
+      retryAfterSeconds:
+        retryAfterSeconds !== null && Number.isFinite(retryAfterSeconds)
+          ? retryAfterSeconds
+          : null,
     };
   }
 

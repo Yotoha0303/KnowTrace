@@ -23,6 +23,14 @@ export function LoginForm({ registrationEnabled }: { registrationEnabled: boolea
           : "正在检查已有会话……",
   );
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * 被限流时的剩余秒数。null = 没被锁。
+   *
+   * 为什么要它：原先锁定时只有一句静态的「请稍后再试」——
+   * 用户不知道要等多久，于是反复重试，**而每次重试都在延长自己的锁**。
+   * 见 docs/changes/2026-10-01-登录锁定可辨别性.md。
+   */
+  const [retryAfter, setRetryAfter] = useState<number | null>(null);
   const nextPath = searchParams.get("next");
   const destination = nextPath?.startsWith("/") && !nextPath.startsWith("//")
     ? nextPath
@@ -53,6 +61,13 @@ export function LoginForm({ registrationEnabled }: { registrationEnabled: boolea
     };
   }, [destination, passwordChanged, registered, registrationDisabled, router]);
 
+  // 倒计时：每秒减一，到 0 就解除锁定态。
+  useEffect(() => {
+    if (retryAfter === null || retryAfter <= 0) return;
+    const timer = setTimeout(() => setRetryAfter((current) => (current ?? 1) - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [retryAfter]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!username.trim() || !password) return;
@@ -65,12 +80,15 @@ export function LoginForm({ registrationEnabled }: { registrationEnabled: boolea
         body: JSON.stringify({ username, password }),
       });
       const payload = (await response.json().catch(() => null)) as
-        | { error?: { message?: string } }
+        | { error?: { message?: string; retryAfterSeconds?: number } }
         | null;
       if (!response.ok) {
         setMessage(payload?.error?.message || "登录失败，请检查账号和密码。");
+        // 结构化地拿剩余秒数（不解析文案），用于倒计时
+        setRetryAfter(payload?.error?.retryAfterSeconds ?? null);
         return;
       }
+      setRetryAfter(null);
       router.replace(destination);
       router.refresh();
     } catch {
@@ -97,9 +115,13 @@ export function LoginForm({ registrationEnabled }: { registrationEnabled: boolea
           <input autoComplete="current-password" maxLength={72} onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
         </span>
       </label>
-      <button className="button button-primary" disabled={submitting} type="submit">
+      <button
+        className="button button-primary"
+        disabled={submitting || retryAfter !== null}
+        type="submit"
+      >
         {submitting ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}
-        {submitting ? "正在登录…" : "登录"}
+        {retryAfter !== null ? `已锁定 · ${retryAfter}s` : submitting ? "正在登录…" : "登录"}
       </button>
       <p aria-live="polite" className="login-message">{message}</p>
       {registrationEnabled ? (

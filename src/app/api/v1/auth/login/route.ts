@@ -58,10 +58,28 @@ export async function POST(request: NextRequest) {
   if (!result.ok) {
     // 保留上游状态码，但把上游数字业务码翻译成客户端可区分的语义错误码。
     // 直接把上游码透传会让限流、停用和密码错误在客户端无法分辨（BUG-002）。
-    const classified = classifyAuthError(result.code, result.status);
+    const classified = classifyAuthError(
+      result.code,
+      result.status,
+      result.retryAfterSeconds,
+    );
+    const headers = new Headers();
+    // 把上游的 Retry-After 原样透传：浏览器/客户端可据此自行退避，
+    // 而不是靠读我们拼出来的文案去猜。
+    if (result.retryAfterSeconds && result.retryAfterSeconds > 0) {
+      headers.set("Retry-After", String(result.retryAfterSeconds));
+    }
     return NextResponse.json(
-      { ok: false, error: { code: classified.code, message: classified.message } },
-      { status: result.status },
+      {
+        ok: false,
+        error: {
+          code: classified.code,
+          message: classified.message,
+          // 结构化地给出剩余秒数，前端做倒计时不必解析文案
+          ...(result.retryAfterSeconds ? { retryAfterSeconds: result.retryAfterSeconds } : {}),
+        },
+      },
+      { status: result.status, headers },
     );
   }
   if (!result.refreshToken) {

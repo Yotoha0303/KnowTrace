@@ -45,9 +45,26 @@ const REFRESH_REJECTED_CODES: number[] = [
  *
  * 客户端只依赖这里返回的语义码，不依赖上游数字码；上游换号不会破坏客户端分支。
  */
+/** 把「还要等多少秒」说成人话。取整到分钟，避免给出虚假的精度。 */
+function formatRetryAfter(seconds: number | null | undefined): string {
+  if (!seconds || seconds <= 0) return "";
+  if (seconds < 60) return `请在 ${seconds} 秒后重试。`;
+  const minutes = Math.ceil(seconds / 60);
+  return `请在约 ${minutes} 分钟后重试。`;
+}
+
 export function classifyAuthError(
   upstreamCode: number | null,
   status: number,
+  /**
+   * 上游在限流时给出的剩余秒数（来自 `Retry-After`）。
+   *
+   * 为什么需要它：原先锁定文案只写「请稍后再试」——既**没说明这是锁定**
+   * （读起来像「慢一点」），也**没告诉用户要等多久**，于是用户反复重试，
+   * 而每次重试都在延长自己的锁。
+   * 见 docs/changes/2026-10-01-登录锁定可辨别性.md。
+   */
+  retryAfterSeconds?: number | null,
 ): { code: AuthErrorCode; message: string } {
   if (status === 503) {
     return {
@@ -65,7 +82,8 @@ export function classifyAuthError(
     case UPSTREAM_CODE.loginRateLimited:
       return {
         code: AUTH_ERROR_CODES.loginRateLimited,
-        message: "登录尝试过于频繁，请稍后再试。",
+        // 明确「这是锁定」而不是「慢一点」，并给出剩余时间。
+        message: `因连续登录失败，登录已被临时锁定。${formatRetryAfter(retryAfterSeconds)}`.trim(),
       };
     case UPSTREAM_CODE.userDisabled:
       return {
