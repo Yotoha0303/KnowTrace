@@ -103,6 +103,53 @@ def wait_for_prometheus_targets(attempts: int = 30, delay: float = 3.0) -> None:
     raise RuntimeError(f"Prometheus target 未全部 UP：{json.dumps(details, ensure_ascii=False)}")
 
 
+def grafana_auth_headers(values: dict[str, str]) -> dict[str, str]:
+    """用 .env.observability 里的管理员凭据构造 Basic Auth。"""
+    basic = base64.b64encode(
+        f"{values.get('GRAFANA_ADMIN_USER', 'admin')}:{values.get('GRAFANA_ADMIN_PASSWORD', '')}".encode()
+    ).decode()
+    return {"Authorization": f"Basic {basic}"}
+
+
+GRAFANA_AUTH_HINT = """Grafana 拒绝了 .env.observability 里的管理员凭据（HTTP {code}）。
+这几乎总是**凭据漂移**，而不是 Grafana 坏了：
+  Grafana 的 GF_SECURITY_ADMIN_PASSWORD **只在数据卷为空时生效**；
+  一旦 grafana.db 存在，密码就以库里的值为准，环境变量不再覆盖它。
+  所以如果 .env.observability 是**后来**重新生成的（例如重跑
+  init-observability-env.sh），它的密码与容器里的就永远不会一致。
+
+  注意：Dashboard 与 Datasource 的 provisioning 是**文件驱动**的，
+  不受此影响——「验不了」不等于「坏了」。
+
+  诊断：python3 scripts/linux/verify-observability.py --check-grafana-auth
+  修复（会重置 grafana.db，先确认卷里没有要保留的手工面板）：
+    docker compose ... stop grafana
+    docker volume rm knowtrace_grafana_data
+    docker compose ... up -d grafana
+"""
+
+
+def grafana_auth_failure_message(error: urllib.error.HTTPError) -> str:
+    if error.code in (401, 403):
+        return GRAFANA_AUTH_HINT.format(code=error.code)
+    return f"Grafana API 请求失败：HTTP {error.code}"
+
+
+def check_grafana_auth(values: dict[str, str]) -> int:
+    """只检查 Grafana 凭据，不改动任何东西。"""
+    headers = grafana_auth_headers(values)
+    try:
+        status, _ = get_json("http://127.0.0.1:3001/api/search?query=KnowTrace", headers=headers)
+    except urllib.error.HTTPError as error:
+        print(f"FAIL {grafana_auth_failure_message(error)}", file=sys.stderr)
+        return 1
+    except urllib.error.URLError as error:
+        print(f"FAIL Grafana 不可达：{error}", file=sys.stderr)
+        return 1
+    print(f"PASS Grafana admin 凭据可用（HTTP {status}）")
+    return 0
+
+
 def verify_core(values: dict[str, str]) -> None:
     wait_http("KnowTrace liveness", "http://127.0.0.1:3000/api/health/live")
     wait_http("KnowTrace readiness", "http://127.0.0.1:3000/api/health/ready")
@@ -150,22 +197,25 @@ def verify_core(values: dict[str, str]) -> None:
         raise RuntimeError("Prometheus 未发现 active Alertmanager")
     print(f"PASS Prometheus to Alertmanager discovery: active={len(active)}")
 
-    basic = base64.b64encode(
-        f"{values.get('GRAFANA_ADMIN_USER', 'admin')}:{values.get('GRAFANA_ADMIN_PASSWORD', '')}".encode()
-    ).decode()
-    grafana_headers = {"Authorization": f"Basic {basic}"}
-    _, dashboards = get_json(
-        "http://127.0.0.1:3001/api/search?query=KnowTrace%20VPS",
-        headers=grafana_headers,
-    )
+    grafana_headers = grafana_auth_headers(values)
+    try:
+        _, dashboards = get_json(
+            "http://127.0.0.1:3001/api/search?query=KnowTrace%20VPS",
+            headers=grafana_headers,
+        )
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(grafana_auth_failure_message(error)) from error
     if not any(item.get("uid") == "knowtrace-vps-overview" for item in dashboards):
         raise RuntimeError("Grafana 没有加载 KnowTrace VPS dashboard")
     print("PASS Grafana provisioned dashboard: knowtrace-vps-overview")
 
-    _, datasource = get_json(
-        "http://127.0.0.1:3001/api/datasources/uid/prometheus",
-        headers=grafana_headers,
-    )
+    try:
+        _, datasource = get_json(
+            "http://127.0.0.1:3001/api/datasources/uid/prometheus",
+            headers=grafana_headers,
+        )
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(grafana_auth_failure_message(error)) from error
     if datasource.get("url") != "http://prometheus:9090":
         raise RuntimeError("Grafana Prometheus datasource 配置不正确")
     print("PASS Grafana provisioned Prometheus datasource")
@@ -224,7 +274,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Verify KnowTrace stage-three observability")
     parser.add_argument("--core", action="store_true", help="verify metrics, Grafana and Alertmanager")
     parser.add_argument("--elk", action="store_true", help="verify on-demand ELK pipeline")
+    parser.add_argument(
+        "--check-grafana-auth",
+        action="store_true",
+        help="只检查 Grafana 管理员凭据是否可用，不做任何改动",
+    )
     args = parser.parse_args()
+    if args.check_grafana_auth:
+        # 单独模式：不做其它检查，只回答「凭据能不能用」。
+        environment = PROJECT_DIRECTORY / ".env.observability"
+        if not environment.exists():
+            print(f"FAIL 缺少 {environment}", file=sys.stderr)
+            return 1
+        return check_grafana_auth(read_env(environment))
+
     if not args.core and not args.elk:
         parser.error("至少指定 --core 或 --elk")
 
