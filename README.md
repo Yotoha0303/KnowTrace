@@ -122,7 +122,7 @@ make up
 ```bash
 sudo bash scripts/install.sh --domain knowtrace.example.org
 # 或不先 clone：
-curl -fsSL https://raw.githubusercontent.com/Yotoha0303/KnowTrace/main/scripts/install.sh   | sudo bash -s -- --domain knowtrace.example.org
+curl -fsSL https://raw.githubusercontent.com/Yotoha0303/KnowTrace/refs/heads/main/scripts/install.sh   | sudo bash -s -- --domain knowtrace.example.org
 ```
 
 它依次：**装系统依赖 → clone/更新仓库 → 建 external 数据卷 → 写 Caddyfile（按 `--domain` 生成）

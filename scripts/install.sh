@@ -17,7 +17,7 @@ set -Eeuo pipefail
 #   sudo bash /opt/knowtrace/scripts/install.sh --domain knowtrace.example.org
 #
 #   # 方式二：一条命令（不先 clone）
-#   curl -fsSL https://raw.githubusercontent.com/Yotoha0303/KnowTrace/main/scripts/install.sh \
+#   curl -fsSL https://raw.githubusercontent.com/Yotoha0303/KnowTrace/refs/heads/main/scripts/install.sh \
 #     | sudo bash -s -- --domain knowtrace.example.org
 #
 # 它做四件事，然后交给 bootstrap：
