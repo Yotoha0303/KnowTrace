@@ -117,14 +117,36 @@ make up
 ```
 
 **Linux**：`make up` 走的是 PowerShell（`scripts/start-all.ps1`），**在 Linux 上不可用**。
-用 `scripts/bootstrap/bootstrap.sh`：
+用 `scripts/install.sh` —— 从一台只有 sshd 的机器开始，一条命令：
 
 ```bash
-sudo bash scripts/bootstrap/bootstrap.sh --stage apps      # 生成配置 + 构建并启动
-sudo bash scripts/bootstrap/bootstrap.sh --stage monitoring # 监控栈（可选）
-sudo bash scripts/bootstrap/bootstrap.sh --stage ops        # 巡检定时器（可选）
-sudo bash scripts/bootstrap/bootstrap.sh --stage verify      # 验收
-# 或一次跑完：--all（含构建，2 vCPU 机器上约 3–5 分钟）
+sudo bash scripts/install.sh --domain knowtrace.example.org
+# 或不先 clone：
+curl -fsSL https://raw.githubusercontent.com/Yotoha0303/KnowTrace/main/scripts/install.sh   | sudo bash -s -- --domain knowtrace.example.org
+```
+
+它依次：**装系统依赖 → clone/更新仓库 → 建 external 数据卷 → 写 Caddyfile（按 `--domain` 生成）
+→ 交给 `bootstrap.sh --all`**（host → apps → monitoring → ops → verify，含镜像构建）。
+
+再加 `--yes` 自动确认；`--dry-run` 只打印将做什么。**先跑 `--dry-run` 是个好习惯。**
+
+**刻意仍不自动化的两件事**（脚本会在结束时打印命令）：
+
+| 不做 | 原因 |
+| --- | --- |
+| UFW 防火墙 | **自锁风险**：`ufw enable` 前未放行 SSH 端口会立即失联，且无法远程改回 |
+| sshd 加固 | 同上；且改完必须**另开一个窗口**验证密钥能登录，才可关密码登录 |
+
+异地备份后端、告警邮箱授权码、AI key 属外部凭据，同样只提示不代做。
+
+也可以只用 `scripts/bootstrap/bootstrap.sh` 的单个阶段：
+
+```bash
+sudo bash scripts/bootstrap/bootstrap.sh --stage host        # 建卷 + 放 nginx 站点配置
+sudo bash scripts/bootstrap/bootstrap.sh --stage apps        # 生成配置 + 构建并启动
+sudo bash scripts/bootstrap/bootstrap.sh --stage monitoring  # 监控栈
+sudo bash scripts/bootstrap/bootstrap.sh --stage ops         # 巡检定时器
+sudo bash scripts/bootstrap/bootstrap.sh --stage verify      # 全链路验收
 ```
 
 它会先做预检（OS / 命令 / 内存 / 磁盘 / 端口），不合格直接拒绝；
