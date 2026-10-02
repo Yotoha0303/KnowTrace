@@ -76,7 +76,7 @@ if (( ${#OPS_REMAINING_ARGS[@]} > 0 )); then
     exit 3
 fi
 
-ops_require_cmds date hostname awk sed grep stat find df head tail
+ops_require_cmds date hostname awk sed grep stat find df head tail jq
 ops_load_conf
 
 # ----------------------------------------------------------------------------

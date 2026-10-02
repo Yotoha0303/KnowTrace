@@ -38,6 +38,33 @@ sudo bash scripts/bootstrap/bootstrap.sh --all --record /tmp/rebuild.md   # 记�
 | `BOOTSTRAP_MIN_FREE_KIB` | `700000` | 内存预检阈值。**只在你清楚后果时下调** |
 | `NODE_OPTIONS` | `--max-old-space-size=1024` | 构建期 Node 内存上限 |
 
+## 依赖的外部命令（按用途分档）
+
+| 命令 | 谁在用 | 缺了会怎样 |
+| --- | --- | --- |
+| `git`、`docker`（含 compose v2） | `apps` 阶段 | 无法继续 |
+| `openssl`、`python3`、`curl`、`awk`、`sed`、`grep` | 各阶段 | 无法继续 |
+| **`jq`** | **巡检**：`ops-monitor.sh`(14 处)、`weekly-check.sh`(11 处)、`monthly-ops.sh`(1 处) | **静默降级**：报告字段为空。调用点普遍带 `2>/dev/null`，错误被吞 |
+| **`flock`** | **备份链路**：`backup-all.sh`、`prune-backups.sh` | 备份的并发保护失效 |
+| `ss`、`systemctl`、`ufw` | 巡检的只读检查 | 少几项检查，不阻断 |
+| `make`、`bc` | 仓库脚本里 **0 处调用** | 真可选（`make` 只在 PowerShell 侧的 Makefile 用） |
+
+**为什么 `jq` / `flock` 归在"必需"**：2026-10-02 之前它们被列在"可选"，
+而缺了并不是"少个功能"——是巡检**产出不完整报告却仍然退出 0**，
+与本项目最贵的故障形状（"看起来成功了"）完全一致。
+
+Debian / Ubuntu 一条装齐：
+
+```bash
+apt-get install -y git curl openssl python3 jq util-linux ca-certificates
+```
+
+> ⚠️ `jq` 在 Ubuntu 上可能因 **`fwupd` 的依赖而碰巧存在**
+> （`apt-mark showauto` 里有它、`showmanual` 里没有）——
+> 所以"这台机器能跑"不代表"下一台也能"。预检因此显式要求它。
+
+---
+
 ## 预检为什么比 `deploy-observability.sh` 严
 
 本脚本要跑 `docker build`，而那个脚本只起容器。
