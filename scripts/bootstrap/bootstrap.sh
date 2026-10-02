@@ -31,11 +31,14 @@
 #
 # 用法
 # ----
-#   bootstrap.sh --stage <apps|monitoring|ops|verify> [选项]
+#   bootstrap.sh --stage <host|apps|monitoring|ops|verify> [选项]
 #   bootstrap.sh --all [--yes]
 #
 # 阶段
+#   host        宿主机准备：建 external 数据卷 + 放 Nginx 站点配置 + 移除 default 站点
+#               （幂等，可重复跑；全新机器上必须先跑它，否则 apps 连构建都开始不了）
 #   apps        拉代码 + 生成 .env + 起应用栈（会构建镜像，耗时最长）
+#               结束后会自动修一次上传目录属主（见 prepare-host.sh 的说明）
 #   monitoring  调 deploy-observability.sh（监控栈 + Nginx 阻断）
 #   ops         装运维巡检的 systemd 单元
 #   verify      全链路验收
@@ -87,11 +90,11 @@ while (( $# )); do
     --stage)
       [[ -n "${2:-}" ]] || { echo "错误：--stage 需要一个值" >&2; exit "$BOOTSTRAP_USAGE"; }
       case "$2" in
-        apps|monitoring|ops|verify) BOOTSTRAP_STAGES+=("$2") ;;
-        *) echo "错误：未知阶段 $2（可选 apps|monitoring|ops|verify）" >&2; exit "$BOOTSTRAP_USAGE" ;;
+        host|apps|monitoring|ops|verify) BOOTSTRAP_STAGES+=("$2") ;;
+        *) echo "错误：未知阶段 $2（可选 host|apps|monitoring|ops|verify）" >&2; exit "$BOOTSTRAP_USAGE" ;;
       esac
       shift 2 ;;
-    --all)     BOOTSTRAP_STAGES=(apps monitoring ops verify); shift ;;
+    --all)     BOOTSTRAP_STAGES=(host apps monitoring ops verify); shift ;;
     --dir)     BOOTSTRAP_DIR="$(cd -- "$2" && pwd -P)"; shift 2 ;;
     --record)  BOOTSTRAP_RECORD_FILE="$2"; shift 2 ;;
     --yes)     BOOTSTRAP_ASSUME_YES=true; shift ;;
@@ -127,6 +130,26 @@ compose=(
 )
 
 b_record "=== bootstrap 开始 $(date -u '+%Y-%m-%dT%H:%M:%SZ') dir=$BOOTSTRAP_DIR stages=${BOOTSTRAP_STAGES[*]} ==="
+
+# ---------------------------------------------------------------------------
+b_stage_host() {
+  b_step "阶段：host —— 宿主机准备（建数据卷 / 边缘配置）"
+  # 为什么必须在这里：compose.yaml 的两个数据卷是 external: true，
+  # 而唯一创建它们的是 scripts/start-all.ps1（PowerShell）—— Linux 侧没有对应实现。
+  # 2026-10-02 实测：不建卷时 `compose up` 直接报 external volume not found，
+  # 连镜像构建都不会开始。
+  local prepare="$BOOTSTRAP_DIR/scripts/linux/prepare-host.sh"
+  if [[ ! -f "$prepare" ]]; then
+    b_fail "缺少 $prepare"
+    return "$BOOTSTRAP_FAIL"
+  fi
+  if [[ "$BOOTSTRAP_DRY_RUN" == true ]]; then
+    bash "$prepare" --dry-run
+  else
+    bash "$prepare"
+    b_record "RUN: scripts/linux/prepare-host.sh"
+  fi
+}
 
 # ---------------------------------------------------------------------------
 b_stage_apps() {
@@ -178,6 +201,13 @@ b_stage_apps() {
   "${compose[@]}" up -d --build --wait --wait-timeout 1200
   b_record "RUN: compose up -d --build --wait（revision=${KNOWTRACE_APP_REVISION:0:12}）"
   b_ok "应用栈已启动"
+
+  # 属主修复必须紧跟 up：compose.yaml 把 ./data/uploads 作为绑定挂载，
+  # up 会重建该目录并由 root 创建，盖掉镜像里的 chown —— 不修则图片上传 100% EACCES
+  # （2026-09-13 与 09-19 曾静默发生 42 次）。
+  # 2026-10-02 实测：修复前该目录确实是 root:root。
+  bash "$BOOTSTRAP_DIR/scripts/linux/prepare-host.sh" --fix-uploads
+  b_record "RUN: prepare-host.sh --fix-uploads（绑定挂载属主修复）"
 }
 
 # ---------------------------------------------------------------------------
@@ -200,12 +230,21 @@ b_stage_ops() {
   local conf="/etc/knowtrace/ops.conf"
 
   if [[ "$BOOTSTRAP_DRY_RUN" == true ]]; then
+    b_info "(dry-run) install -d -m 700 /etc/knowtrace"
     b_info "(dry-run) cp -a scripts/ops/{lib,scripts,systemd,docs,ops.conf.example} $ops_root/"
     b_info "(dry-run) bash $ops_root/systemd/install.sh --source $ops_root/systemd"
     return 0
   fi
 
   install -d -m 755 "$ops_root"
+  # 缺口：ops.conf 要写进 /etc/knowtrace/，而该目录在老机上是手工建的，
+  # 全新机器上不存在 —— 2026-10-02 实测 ops 阶段因此报
+  # `install: cannot create regular file '/etc/knowtrace/ops.conf': No such file or directory`
+  # 并以 set -Eeuo pipefail 中止，单元一个都没装。
+  #
+  # 为什么不交给 install.sh：它把"配置文件存在"当预检前提（`[ OK ] 配置文件存在`），
+  # 所以必须在调它之前就把目录建好。
+  install -d -m 700 /etc/knowtrace
   # cp -a 而不是 cp -r：cp -r 不修正已存在目标的权限位，
   # 某文件第一次以错误模式拷进去后每次重拷都不会自愈（见 09-29 文档 N3）。
   cp -a scripts/ops/lib scripts/ops/scripts scripts/ops/systemd scripts/ops/docs scripts/ops/ops.conf.example "$ops_root/"
@@ -222,6 +261,54 @@ b_stage_ops() {
   bash "$ops_root/systemd/install.sh" --source "$ops_root/systemd"
   b_record "RUN: systemd/install.sh（先 start 验证，再 enable 定时器）"
   b_ok "巡检定时器已安装"
+}
+
+# ---------------------------------------------------------------------------
+# 明确列出「脚本刻意不做、必须人来做」的事，并给出可直接复制的命令。
+#
+# 为什么要有这个：本项目最贵的教训是「部署看起来成功了」——
+# 脚本跑完 ALL GREEN，而实际上 Caddyfile 没有、UFW 没启、口令还是默认值。
+# 与其让这些躺在文档第 4 节里，不如在结束时当面列出来。
+b_report_remaining_manual() {
+  local domain="${BOOTSTRAP_DOMAIN:-knowtrace.duckdns.org}"
+  local pending=()
+
+  [[ -f /etc/caddy/Caddyfile ]] || pending+=("caddyfile")
+  [[ "$(systemctl is-active ufw 2>/dev/null)" == "active" ]] || pending+=("ufw")
+  if [[ -f "$BOOTSTRAP_DIR/.env" ]] && grep -qE '^POSTGRES_PASSWORD=knowtrace$' "$BOOTSTRAP_DIR/.env"; then
+    pending+=("postgres_password")
+  fi
+  [[ -f /etc/knowtrace/age-recipient.pub ]] || pending+=("offsite")
+
+  if (( ${#pending[@]} == 0 )); then
+    b_ok "没有遗留的人工项"
+    return 0
+  fi
+
+  b_step "还需要你做的（脚本刻意不代做，理由见 §4 边界）"
+  for item in "${pending[@]}"; do
+    case "$item" in
+      caddyfile)
+        b_warn "反向代理与证书 —— 仓库不提供 Caddyfile（与域名强相关）"
+        b_info "    写入 /etc/caddy/Caddyfile 后：caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy"
+        b_info "    模板见 docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/服务器配置样例/Caddyfile"
+        ;;
+      ufw)
+        b_warn "防火墙 —— 有自锁风险，脚本绝不代启"
+        b_info "    ⚠️ 先把 SSH 端口放行，否则会立即失联："
+        b_info "    ufw allow <你的SSH端口>/tcp && ufw allow 80/tcp && ufw allow 443/tcp"
+        b_info "    ufw default deny incoming && ufw default allow outgoing && ufw --force enable"
+        ;;
+      postgres_password)
+        b_warn "POSTGRES_PASSWORD 仍是 .env.example 的字面量 knowtrace"
+        b_info "    注意：改它要同时改容器与数据卷，**有丢数据风险**，请在维护窗口做"
+        ;;
+      offsite)
+        b_warn "异地备份未配置 —— 单元会因缺 age 公钥被 ConditionPathExists 静默跳过"
+        b_info "    需先选后端，再写 /etc/knowtrace/age-recipient.pub 与 OFFSITE_REMOTE"
+        ;;
+    esac
+  done
 }
 
 # ---------------------------------------------------------------------------
@@ -253,6 +340,58 @@ b_stage_verify() {
 
   b_info "容器状态："
   docker ps --format '    {{.Names}}\t{{.Status}}' 2>/dev/null | sort | head -12
+
+  # ---------------------------------------------------------------------------
+  # 以下三项是 2026-10-02 真机演练才暴露出来的判据。
+  # 教训（2026-09-30 事故）：**"部署成功"不能只看命令返回 0**，
+  # 也不能只看端点 200 —— 必须断言「运行态 == 期望态」。
+  # ---------------------------------------------------------------------------
+
+  # (a) 运行态 revision 是否等于部署目录的 HEAD。
+  #     镜像里烘进了 KNOWTRACE_APP_REVISION，这是唯一能证明
+  #     "线上跑的就是这份代码"的判据。09-30 那次事故正是缺这个断言。
+  local expect_revision actual_revision
+  expect_revision="$(git -C "$BOOTSTRAP_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+  actual_revision="$(docker inspect knowtrace-app-1 --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | awk -F= '/^KNOWTRACE_APP_REVISION=/{print $2}' | tr -d '\r')"
+  if [[ -z "$actual_revision" ]]; then
+    b_warn "取不到运行态 revision（容器可能不叫 knowtrace-app-1）—— 跳过该项"
+  elif [[ "$actual_revision" == "$expect_revision" ]]; then
+    b_ok "运行态 revision 与 HEAD 一致 → ${actual_revision:0:12}"
+  else
+    b_fail "运行态 revision 不一致 → 运行 ${actual_revision:0:12} / HEAD ${expect_revision:0:12}"
+    failures=$(( failures + 1 ))
+  fi
+
+  # (b) 证据图片目录是否真的可写。
+  #     这是"命令返回 0 但功能坏掉"的典型：compose 起得来、端点 200，
+  #     但绑定挂载属主是 root 时上传 100% EACCES（曾静默 42 次）。
+  #     所以这里做**真实写入探测**，而不是看属主数字。
+  local uploads_probe="$BOOTSTRAP_DIR/data/uploads/evidence/.bootstrap-write-probe"
+  if [[ ! -d "$BOOTSTRAP_DIR/data/uploads/evidence" ]]; then
+    b_warn "证据目录不存在（应用尚未初始化？）—— 跳过可写断言"
+  elif ( umask 077; : > "$uploads_probe" ) 2>/dev/null; then
+    rm -f -- "$uploads_probe"
+    b_ok "证据图片目录可写"
+  else
+    b_fail "证据图片目录不可写 —— 图片上传会以 EACCES 失败"
+    b_info "  修法：bash scripts/linux/prepare-host.sh --fix-uploads"
+    failures=$(( failures + 1 ))
+  fi
+
+  # (c) 5 个定时器是否都已 enable。
+  #     ops 阶段曾因 /etc/knowtrace 缺失而静默中止，单元一个都没装。
+  local timer missing_timers=()
+  for timer in backup offsite-backup daily-ops weekly-check monthly-ops; do
+    if [[ "$(systemctl is-enabled "knowtrace-$timer.timer" 2>/dev/null)" != "enabled" ]]; then
+      missing_timers+=("$timer")
+    fi
+  done
+  if (( ${#missing_timers[@]} == 0 )); then
+    b_ok "5 个定时器均已启用"
+  else
+    b_fail "未启用的定时器：${missing_timers[*]}"
+    failures=$(( failures + 1 ))
+  fi
 
   if (( failures == 0 )); then
     b_ok "验收通过"
@@ -292,5 +431,6 @@ if [[ -n "$BOOTSTRAP_RECORD_FILE" ]]; then
   b_info "步骤记录：$BOOTSTRAP_RECORD_FILE"
 fi
 b_info "未自动化的部分（需人工）：系统包安装、sshd 加固、UFW、反向代理与证书、DNS。"
+b_report_remaining_manual
 b_info "指引见 docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md"
 b_record "=== bootstrap 结束 $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="
