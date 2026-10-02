@@ -42,6 +42,7 @@ DOMAIN=""
 SKIP_DEPS=false
 ASSUME_YES=false
 DRY_RUN=false
+RECORD_FILE=""
 
 usage() {
   # 为什么内嵌而不是 `sed -n` 读 $0：
@@ -63,6 +64,7 @@ KnowTrace 从零安装入口（Linux，root）
   --skip-deps       跳过 apt 装包（依赖已就绪时用）
   --yes             自动确认（bootstrap 询问「已有部署是否继续」时）
   --dry-run         只打印将做什么，不修改任何东西
+  --record <文件>   把每一步追加写入该文件（重建演练用，透传给 bootstrap）
   --help, -h        显示本帮助
 
 它做的事：装依赖 → clone/更新仓库 → 建 external 数据卷 → 写 Caddyfile
@@ -84,6 +86,7 @@ while (( $# )); do
     --skip-deps) SKIP_DEPS=true; shift ;;
     --yes)       ASSUME_YES=true; shift ;;
     --dry-run)   DRY_RUN=true; shift ;;
+    --record)    RECORD_FILE="${2:?--record 需要值}"; shift 2 ;;
     --help|-h)   usage 0 ;;
     *) echo "错误：未知参数 $1" >&2; usage 3 ;;
   esac
@@ -261,6 +264,8 @@ bootstrap="$TARGET_DIR/scripts/bootstrap/bootstrap.sh"
 ARGS=(--all)
 [[ "$ASSUME_YES" == true ]] && ARGS+=(--yes)
 [[ "$DRY_RUN" == true ]] && ARGS+=(--dry-run)
+# --record 透传给 bootstrap：重建演练时那份「每一步都记下来」的产物就是规格说明书
+[[ -n "$RECORD_FILE" ]] && ARGS+=(--record "$RECORD_FILE")
 if [[ "$DRY_RUN" == true ]]; then
   # dry-run 下 clone 只被打印、没有真的执行，所以这里**不能**检查文件是否存在 ——
   # 否则「全新机器 dry-run」会以一个假故障收尾（2026-10-02 实测踩到）。
