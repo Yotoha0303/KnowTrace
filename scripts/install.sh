@@ -151,7 +151,15 @@ step "系统依赖"
 # 其中 jq 与 flock 是**必需**而非可选：巡检脚本里有 26 处 jq 调用，
 # 缺了不是"少个功能"，是**静默产出空字段的报告**（调用点带 2>/dev/null）。
 # 注意 jq 在 Ubuntu 上可能因 fwupd 依赖碰巧存在，不能指望。
-DEPS=(docker.io docker-compose-v2 nginx caddy rclone age fail2ban git curl ca-certificates jq util-linux)
+# openssl 与 python3 是**硬要求**，不是"有就用"：
+#   scripts/linux/init-env.sh:58-59  `command -v python3 || exit 3`（同理 openssl）
+#   scripts/linux/write-ops-metrics.sh:49 同样硬要求 python3
+#   scripts/bootstrap/lib/preflight.sh    把 openssl / python3 列为必需命令
+# 它们在 Ubuntu 上常因基础包或依赖**碰巧存在**（实测这台机上 openssl 是 fwupd 的
+# auto 依赖、python3 来自 python3-minimal），所以"本机能跑"不等于"下一台也能"。
+# 2026-10-02 写本脚本时正是漏了这两个 —— 补上。
+# （tar / sha256sum / find 等属 Ubuntu essential 或 coreutils，必然存在，不列。）
+DEPS=(docker.io docker-compose-v2 nginx caddy rclone age fail2ban git curl ca-certificates jq util-linux openssl python3)
 if [[ "$SKIP_DEPS" == true ]]; then
   info "已按 --skip-deps 跳过"
 else
