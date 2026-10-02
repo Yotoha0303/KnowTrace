@@ -103,6 +103,24 @@ def wait_for_prometheus_targets(attempts: int = 30, delay: float = 3.0) -> None:
     raise RuntimeError(f"Prometheus target 未全部 UP：{json.dumps(details, ensure_ascii=False)}")
 
 
+def wait_for_prometheus_query(expression: str, attempts: int = 30, delay: float = 3.0) -> bool:
+    """等到某个 PromQL 有有效样本为止。
+
+    为什么需要（2026-10-02 裸机演练实测）：
+      容器刚重启时，"target 抓取成功"与"就绪指标已是 1"之间有时延 ——
+      首次抓取可能拿到 readiness=0。原先直接取瞬时值，于是报出
+        FAIL Prometheus 查询没有有效样本：go_user_system_readiness == 1
+      而同一时刻 "Auth readiness: HTTP 200"。那是时序竞争，不是故障。
+
+    断言语义不变（这一项确实必须成立），只是**等它成立**而不是抓瞬间。
+    """
+    for _ in range(attempts):
+        if prometheus_query(expression):
+            return True
+        time.sleep(delay)
+    return False
+
+
 def grafana_auth_headers(values: dict[str, str]) -> dict[str, str]:
     """用 .env.observability 里的管理员凭据构造 Basic Auth。"""
     basic = base64.b64encode(
@@ -180,14 +198,25 @@ def verify_core(values: dict[str, str]) -> None:
     print("PASS Nginx blocks public metrics path with 404")
 
     wait_for_prometheus_targets()
+    # 前三项取瞬时值即可（它们不随容器重启而短暂为 0）；
+    # 后两项依赖容器内部状态 —— 容器刚重启时可能还没到就绪，故等到成立为止。
     for expression in (
         "knowtrace_build_info",
         "knowtrace_database_ready == 1",
-        "go_user_system_readiness == 1",
-        'probe_success{job="knowtrace-http-public"} == 1',
     ):
         if not prometheus_query(expression):
             raise RuntimeError(f"Prometheus 查询没有有效样本：{expression}")
+        print(f"PASS PromQL: {expression}")
+
+    for expression in (
+        "go_user_system_readiness == 1",
+        'probe_success{job="knowtrace-http-public"} == 1',
+    ):
+        if not wait_for_prometheus_query(expression):
+            raise RuntimeError(
+                f"Prometheus 查询在等待 90 秒后仍无有效样本：{expression}"
+                "（若 HTTP 端点已 200，多半是抓取间隔或指标写入未完成）"
+            )
         print(f"PASS PromQL: {expression}")
 
     # 备份指标单独判：**首次部署时它必然为 0**（备份 timer 要到当晚才跑），
