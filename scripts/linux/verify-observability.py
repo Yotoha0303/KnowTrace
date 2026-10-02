@@ -184,12 +184,36 @@ def verify_core(values: dict[str, str]) -> None:
         "knowtrace_build_info",
         "knowtrace_database_ready == 1",
         "go_user_system_readiness == 1",
-        "knowtrace_backup_archive_count >= 1",
         'probe_success{job="knowtrace-http-public"} == 1',
     ):
         if not prometheus_query(expression):
             raise RuntimeError(f"Prometheus 查询没有有效样本：{expression}")
         print(f"PASS PromQL: {expression}")
+
+    # 备份指标单独判：**首次部署时它必然为 0**（备份 timer 要到当晚才跑），
+    # 那不是故障。真正的故障是「本地有归档、而指标仍是 0」——指标准入坏了。
+    # 2026-10-02 裸机演练实测：原先无条件要求 >= 1，新机器上直接假失败，
+    # 把整条一键部署链卡在 monitoring 阶段。
+    if prometheus_query("knowtrace_backup_archive_count >= 1"):
+        print("PASS PromQL: knowtrace_backup_archive_count >= 1")
+    else:
+        backup_root = os.environ.get("BACKUP_ROOT", "/var/backups/knowtrace")
+        archives = []
+        try:
+            archives = [
+                name for name in os.listdir(backup_root) if name.endswith(".tar.gz")
+            ]
+        except OSError:
+            archives = []
+        if archives:
+            raise RuntimeError(
+                f"本地有 {len(archives)} 个备份归档，但 knowtrace_backup_archive_count 为 0"
+                " —— 备份指标写入链路有问题（检查 write-backup-metrics.sh 与 node-exporter 的 textfile 目录）"
+            )
+        print(
+            "PASS PromQL: 尚无备份归档（首次部署的正常状态；"
+            "knowtrace-backup.timer 触发后本项会转为 >= 1）"
+        )
 
     _, alertmanagers = get_json("http://127.0.0.1:9090/api/v1/alertmanagers")
     active = alertmanagers.get("data", {}).get("activeAlertmanagers", [])

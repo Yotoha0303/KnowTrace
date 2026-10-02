@@ -407,17 +407,25 @@ b_stage_verify() {
 
   # (c) 5 个定时器是否都已 enable。
   #     ops 阶段曾因 /etc/knowtrace 缺失而静默中止，单元一个都没装。
+  # 4 个是**必需**的；offsite-backup 是**可选**的（它需要 age 公钥 + rclone 远端，
+  # 属"刻意不自动化"那一类）。2026-10-02 裸机演练实测：把 offsite 也当必需，
+  # 新机器上直接报 FAIL，把整条链的结论污染成失败 —— 那是假失败。
   local timer missing_timers=()
-  for timer in backup offsite-backup daily-ops weekly-check monthly-ops; do
+  for timer in backup daily-ops weekly-check monthly-ops; do
     if [[ "$(systemctl is-enabled "knowtrace-$timer.timer" 2>/dev/null)" != "enabled" ]]; then
       missing_timers+=("$timer")
     fi
   done
   if (( ${#missing_timers[@]} == 0 )); then
-    b_ok "5 个定时器均已启用"
+    b_ok "4 个必需定时器均已启用"
   else
     b_fail "未启用的定时器：${missing_timers[*]}"
     failures=$(( failures + 1 ))
+  fi
+  if [[ "$(systemctl is-enabled "knowtrace-offsite-backup.timer" 2>/dev/null)" == "enabled" ]]; then
+    b_ok "offsite-backup 定时器已启用（异地备份，可选）"
+  else
+    b_info "offsite-backup 未启用 —— 可选，需 age 公钥与 rclone 远端后才能工作"
   fi
 
   if (( failures == 0 )); then
