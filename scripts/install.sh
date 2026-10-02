@@ -102,6 +102,12 @@ run() {
   if [[ "$DRY_RUN" == true ]]; then printf '    (dry-run) %s\n' "$*"; else "$@"; fi
 }
 
+# 不依赖调用者的工作目录：`curl … | bash` 时 cwd 是任意的，而调用者所在目录
+# 可能已被删除（实测：清理脚本 cd 进去后又 rm -rf 它，随后 git 报
+# `fatal: Unable to read current working directory`）。本脚本全程用绝对路径，
+# 先切到一个必然存在的目录即可。
+cd / 2>/dev/null || true
+
 if (( EUID != 0 )); then
   # 用 sudo 重启自己：注意要原样带上所有参数（包括 --yes / --dry-run）。
   #
