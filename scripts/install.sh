@@ -167,11 +167,27 @@ if [[ "$SKIP_DEPS" == true ]]; then
   info "已按 --skip-deps 跳过"
 else
   if [[ "$DRY_RUN" == true ]]; then
-    printf '    (dry-run) apt-get update && apt-get install -y %s\n' "${DEPS[*]}"
+    printf '    (dry-run) apt-get -o DPkg::Lock::Timeout=900 update && install -y %s\n' "${DEPS[*]}"
   else
     export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a
-    apt-get update -qq
-    apt-get install -y -qq "${DEPS[@]}" >/dev/null
+
+    # dpkg 锁：新装 Ubuntu 开机后 unattended-upgrades 会申请 /var/lib/dpkg/lock-frontend，
+    # 此时 apt-get install 会**立刻失败**（退出码 100）。
+    # 2026-10-02 裸机演练实测踩到，而本机当时有 **329 个包**待升级 ——
+    # 它 download-only 阶段会占锁数分钟。已部署的机器遇不到（早过了开机窗口）。
+    #
+    # 所以：先告诉用户在等谁（免得以为卡死），再用 apt 自带的锁等待选项等它。
+    # 超时给 15 分钟：2 vCPU 上下载 329 个包通常几分钟，留足余量胜过中途失败。
+    if command -v fuser >/dev/null 2>&1 && fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+      holder="$(fuser -v /var/lib/dpkg/lock-frontend 2>&1 | awk 'NR>2 && $0 ~ /[0-9]/ {print $1" (pid "$2")"; exit}')"
+      warn "dpkg 锁被占用${holder:+：$holder}"
+      info "新装系统开机后常由 unattended-upgrades 触发（可能它在下载大量安全更新）。"
+      info "本步骤会等待，最多 15 分钟；不需要你干预。"
+    fi
+
+    APT_LOCK_OPT=(-o DPkg::Lock::Timeout=900)
+    apt-get "${APT_LOCK_OPT[@]}" update -qq
+    apt-get "${APT_LOCK_OPT[@]}" install -y -qq "${DEPS[@]}" >/dev/null
     ok "已安装：${DEPS[*]}"
   fi
 fi
