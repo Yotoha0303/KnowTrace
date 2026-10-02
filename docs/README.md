@@ -18,6 +18,7 @@
 ## 按读者找入口
 
 - **第一次接触这个项目** → [`00-product-brief.md`](00-product-brief.md) → [`06-architecture.md`](06-architecture.md) → [`13-product-completion-audit.md`](13-product-completion-audit.md)
+- **想知道系统实际长什么样**（组件/链路/信任边界） → [`24-architecture-diagrams.md`](24-architecture-diagrams.md)
 - **想接 `/api/v1` 写客户端** → [`12-mobile-api.md`](12-mobile-api.md)（认证、Workspace 上下文、端点与错误码都在这里）
 - **想知道现在有什么是坏的** → [`19-product-defect-inventory.md`](19-product-defect-inventory.md)
 - **要动代码/配置** → 先按 [`changes/README.md`](changes/README.md) 的约定在 `changes/` 写变动前记录
@@ -37,6 +38,7 @@
 | [`04-database-design.md`](04-database-design.md) | 数据库设计与迁移 |
 | [`05-api-contract.md`](05-api-contract.md) | 服务端操作契约与错误码 |
 | [`06-architecture.md`](06-architecture.md) | 技术架构、依赖方向、部署形态 |
+| [`24-architecture-diagrams.md`](24-architecture-diagrams.md) | **技术架构图**：部署拓扑、鉴权链路、数据可见性、信任边界、依赖方向（`06` 回答「为什么这样选」，本文回答「实际长什么样」） |
 | [`07-ai-processing.md`](07-ai-processing.md) | AI 处理规范与供应商适配 |
 | [`08-test-and-acceptance.md`](08-test-and-acceptance.md) | 测试策略与验收场景 |
 
