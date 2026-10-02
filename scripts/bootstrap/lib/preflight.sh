@@ -8,13 +8,21 @@
 
 b_check_commands() {
   local missing=()
-  # 应用侧必需
-  for c in git docker openssl awk sed grep curl python3; do
+  # 应用侧必需。
+  #
+  # jq 与 flock 归在"必需"而不是"可选"，是因为它们被**巡检工具包真的调用**：
+  #   jq     —— weekly-check.sh / monthly-ops.sh 共 25 处，用来解析 JSON 报告
+  #   flock  —— 5 处，用来做并发锁
+  # 缺了它们不是"少个功能"，而是巡检**静默产出不完整的报告**
+  # （调用点普遍带 2>/dev/null，失败被吞掉）—— 这正是本项目最贵的故障形状。
+  # 2026-10-02 实测：新机器上 jq 存在，但那是 fwupd 的依赖**顺带**装上的
+  # （apt-mark showauto 里有它，showmanual 里没有），换镜像就可能没有。
+  for c in git docker openssl awk sed grep curl python3 jq flock; do
     command -v "$c" >/dev/null 2>&1 || missing+=("$c")
   done
   if (( ${#missing[@]} )); then
     b_fail "缺少必需命令：${missing[*]}"
-    b_info "Debian/Ubuntu: apt-get install -y git openssl curl python3"
+    b_info "Debian/Ubuntu: apt-get install -y git curl openssl python3 jq util-linux ca-certificates"
     return 1
   fi
   b_ok "必需命令齐备"
@@ -27,9 +35,10 @@ b_check_commands() {
   fi
   b_ok "docker compose v2 可用（$(docker compose version --short 2>/dev/null || echo '版本未知')）"
 
-  # 可选命令——缺了只是少功能，不阻断
+  # 可选命令 —— 缺了只是少功能，不阻断。
+  # bc / make 已确认在仓库脚本里有 0 处调用（make 只在 PowerShell 的 Makefile 里用）。
   local optional_missing=()
-  for c in make flock jq bc ss systemctl ufw; do
+  for c in make bc ss systemctl ufw; do
     command -v "$c" >/dev/null 2>&1 || optional_missing+=("$c")
   done
   if (( ${#optional_missing[@]} )); then
