@@ -105,7 +105,10 @@ KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系�
 make up
 ```
 
-`make up` 会生成仅保存在 `.env` 的数据库和 JWT 随机密钥，构建并启动 PostgreSQL、MySQL、Redis、go-user-system 和 KnowTrace，执行两套数据库迁移，并在数据库尚无管理员时创建固定默认管理员。默认用户名为 `KnowTrace`，默认密码为 `KnowTrace@123`。该凭据只适合本机首次登录；重复启动不会覆盖既有管理员或用户后来修改的密码。
+`make up` 会生成仅保存在 `.env` 的数据库和 JWT 随机密钥，构建并启动 PostgreSQL、MySQL、Redis、go-user-system 和 KnowTrace，执行两套数据库迁移，并在数据库尚无管理员时创建管理员。**管理员口令默认随机生成**（写入 `.env`，不会打印）；用户名为 `KnowTrace`。重复启动不会覆盖既有管理员或用户后来修改的密码。
+
+> 本机开发想用固定口令时，加 `-UseFixedAdminCredential`（PowerShell）或 `--use-fixed-admin-credential`（Linux）——此时口令为 `KnowTrace@123`，**仅适合绑定 `127.0.0.1` 的本机首次登录**。
+> 2026-10-02 之前这里默认就是那对固定凭据，而它写在公开 README 里；一台公网可访问的新机器因此带着公开口令上线过。
 
 如果没有 GNU Make，也可运行：
 

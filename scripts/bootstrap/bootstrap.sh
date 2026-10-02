@@ -358,8 +358,35 @@ b_stage_verify() {
   elif [[ "$actual_revision" == "$expect_revision" ]]; then
     b_ok "运行态 revision 与 HEAD 一致 → ${actual_revision:0:12}"
   else
-    b_fail "运行态 revision 不一致 → 运行 ${actual_revision:0:12} / HEAD ${expect_revision:0:12}"
-    failures=$(( failures + 1 ))
+    # 不一致本身不一定是问题：只改 docs/ 或 scripts/ 时镜像本来就不需要重建
+    # （那些文件不进镜像）。所以要看**运行态到 HEAD 之间改过哪些文件**。
+    #
+    # 为什么这样定：2026-09-30 的事故是「15 个 src/ 文件没进镜像」，
+    # 而当时没有任何检查能发现它。断言要抓的是那件事，不是"HEAD 相等"这个形式。
+    local app_paths=(src package.json pnpm-lock.yaml pnpm-workspace.yaml Dockerfile
+                     drizzle services next.config.ts .dockerignore
+                     compose.yaml compose.production.yaml compose.observability.yaml)
+    local app_changed=""
+    if git -C "$BOOTSTRAP_DIR" cat-file -e "${actual_revision}^{commit}" 2>/dev/null; then
+      app_changed="$(git -C "$BOOTSTRAP_DIR" diff --name-only \
+        "$actual_revision" "$expect_revision" -- "${app_paths[@]}" 2>/dev/null | head -5)"
+    else
+      b_warn "部署目录里没有 ${actual_revision:0:12} 这个提交（浅克隆？）—— 无法判断差异范围"
+      app_changed="unknown"
+    fi
+
+    if [[ -z "$app_changed" ]]; then
+      b_warn "运行态 ${actual_revision:0:12} 落后 HEAD ${expect_revision:0:12}，但差异只涉及文档/脚本 —— 镜像无需重建"
+    else
+      b_fail "运行态 revision 落后，且**有影响镜像的改动未部署**"
+      b_info "  运行 ${actual_revision:0:12} → HEAD ${expect_revision:0:12}"
+      if [[ "$app_changed" != "unknown" ]]; then
+        b_info "  未部署的文件（前 5 个）："
+        printf '    %s\n' $app_changed
+      fi
+      b_info "  修法：bash scripts/bootstrap/bootstrap.sh --stage apps"
+      failures=$(( failures + 1 ))
+    fi
   fi
 
   # (b) 证据图片目录是否真的可写。
