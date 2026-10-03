@@ -88,7 +88,16 @@ echo "[4/6] 启动 Alertmanager、Exporter、Prometheus、Grafana 与日志栈"
 # HUP 会触发热加载（Prometheus 收到 SIGHUP 重读配置与规则，不重启容器、不丢内存样本）。
 # 这里显式验证规则真的加载了，不靠「应该没问题」。
 echo "  [..] 触发 Prometheus 重载规则"
-docker kill -s HUP knowtrace-prometheus-1 >/dev/null 2>&1 || true
+# 用 compose 解析出容器，不写死容器名 —— 容器名随 compose 项目名变化
+# （`<项目名>-<服务>-1`），写死会在改名后**静默失效**：
+# 这行原本带 `2>/dev/null || true`，找不到容器时什么都不说，
+# 表现就是"规则更新了但 Prometheus 不重读"，而部署照样报成功。
+prometheus_container="$("${compose[@]}" ps -q prometheus 2>/dev/null | head -n1)"
+if [[ -n "$prometheus_container" ]]; then
+  docker kill -s HUP "$prometheus_container" >/dev/null 2>&1 || true
+else
+  echo "  [WARN] 未找到 prometheus 容器，跳过 HUP 重载；下面的规则断言会暴露真实后果"
+fi
 sleep 8
 rules_seen=false
 for _ in 1 2 3; do

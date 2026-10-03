@@ -350,11 +350,20 @@ b_stage_verify() {
   # (a) 运行态 revision 是否等于部署目录的 HEAD。
   #     镜像里烘进了 KNOWTRACE_APP_REVISION，这是唯一能证明
   #     "线上跑的就是这份代码"的判据。09-30 那次事故正是缺这个断言。
-  local expect_revision actual_revision
+  local expect_revision actual_revision app_container
   expect_revision="$(git -C "$BOOTSTRAP_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
-  actual_revision="$(docker inspect knowtrace-app-1 --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | awk -F= '/^KNOWTRACE_APP_REVISION=/{print $2}' | tr -d '\r')"
+  # 用 compose 解析出 app 容器，不写死容器名。
+  # 为什么：容器名是 `<compose 项目名>-<服务>-1`，项目名一改（如
+  # KnowTrace → KnowTrace-Workflow）容器名就变，写死会让这个**版本核对断言**
+  # 悄悄失效 —— 而它正是 2026-09-30 事故后加的、最该保持有效的那一条。
+  app_container="$("${compose[@]}" ps -q app 2>/dev/null | head -n1)"
+  if [[ -z "$app_container" ]]; then
+    b_warn "找不到 app 容器（compose ps -q app 为空）—— 跳过运行态 revision 核对"
+    return 0
+  fi
+  actual_revision="$(docker inspect "$app_container" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | awk -F= '/^KNOWTRACE_APP_REVISION=/{print $2}' | tr -d '\r')"
   if [[ -z "$actual_revision" ]]; then
-    b_warn "取不到运行态 revision（容器可能不叫 knowtrace-app-1）—— 跳过该项"
+    b_warn "取不到运行态 revision（容器 $app_container 里没有 KNOWTRACE_APP_REVISION）—— 跳过该项"
   elif [[ "$actual_revision" == "$expect_revision" ]]; then
     b_ok "运行态 revision 与 HEAD 一致 → ${actual_revision:0:12}"
   else
