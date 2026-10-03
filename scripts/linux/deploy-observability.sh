@@ -60,7 +60,7 @@ docker run --rm --entrypoint /bin/amtool \
   check-config /etc/alertmanager/alertmanager.json
 
 echo "[1/6] 拉取固定版本的核心监控镜像"
-"${compose[@]}" pull node-exporter blackbox-exporter alertmanager prometheus grafana
+"${compose[@]}" pull node-exporter blackbox-exporter alertmanager prometheus grafana loki alloy
 
 echo "[2/6] 让主应用加载私有 metrics token"
 if [[ "$build_app" == true ]]; then
@@ -72,9 +72,12 @@ fi
 echo "[3/6] 安装 Nginx metrics 公网阻断并保留原配置"
 "$script_directory/install-observability-nginx.sh"
 
-echo "[4/6] 启动 Alertmanager、Exporter、Prometheus 和 Grafana"
+echo "[4/6] 启动 Alertmanager、Exporter、Prometheus、Grafana 与日志栈"
+# 必须显式列出 loki 与 alloy：grafana 依赖 loki 会把它带起，
+# 但 **alloy 没有任何被依赖者** —— 不显式列它就永远不会启动，
+# 表现为「监控全套正常，只有日志是空的」。
 "${compose[@]}" up -d --no-build --wait --wait-timeout 600 \
-  alertmanager node-exporter blackbox-exporter prometheus grafana
+  alertmanager node-exporter blackbox-exporter prometheus grafana loki alloy
 
 # 规则文件是**绑定挂载**进 Prometheus 的（deploy/monitoring/rules -> /etc/prometheus/rules）。
 # 上面的 `up -d` 对「镜像没变、只有挂载内容变了」的容器是空操作 ——
@@ -151,6 +154,9 @@ echo "核心监控已部署；所有管理端口只绑定 127.0.0.1。"
 
 echo "[6/6] 执行端点、target、PromQL、Alertmanager 和 Grafana provisioning 验收"
 python3 "$script_directory/verify-observability.py" --core
+# 日志栈是常驻组件（不像 ELK 需按需启停），故一并验收：
+# 断言 /ready、容器日志采集是否生效、以及「投递一条→可查回」的端到端链路。
+python3 "$script_directory/verify-observability.py" --logs
 
 # ---- 6. 断言运行态 revision == HEAD ----------------------------------------
 # 2026-09-29 的生态观察发现：部署目录 HEAD 是 47a4c20，而运行中容器自报
