@@ -16,7 +16,7 @@
 
 | 组件 | 内容 | 备份方式 | 验证方式 |
 | --- | --- | --- | --- |
-| PostgreSQL | KnowTrace 业务、AI Run、主张与证据链 | `pg_dump` custom format | `pg_restore` 到临时 PostgreSQL，并逐表比对行数 |
+| PostgreSQL | KnowTrace-Workflow 业务、AI Run、主张与证据链 | `pg_dump` custom format | `pg_restore` 到临时 PostgreSQL，并逐表比对行数 |
 | MySQL | 账号、密码哈希、角色与 refresh token | `mysqldump --single-transaction` | 导入临时 MySQL，并逐表比对行数 |
 | Redis | 登录会话/限流等短期状态 | RDB 快照 | 临时 Redis 加载、`redis-check-rdb` 与 key 数核对 |
 | 上传目录 | 证据图片等文件 | `tar.gz` | 解包并核对文件数和总字节数 |
@@ -50,7 +50,7 @@ sudo PROJECT_DIR=/opt/knowtrace \
   BACKUP_ROOT=/var/backups/knowtrace \
   QUIESCE_WRITES=1 \
   /opt/knowtrace/scripts/linux/backup-all.sh \
-  | sudo tee /var/log/knowtrace-backup-last.log
+  | sudo tee /var/log/knowtrace-workflow-backup-last.log
 ```
 
 成功输出必须同时出现 `BACKUP_ARCHIVE=` 与 `BACKUP_SHA256=`。目录名以 `.incomplete-` 开头表示任务失败后的诊断现场，不得当成有效备份使用。
@@ -83,25 +83,25 @@ sudo PROJECT_DIR=/opt/knowtrace bash scripts/linux/fix-uploads-ownership.sh
 ```bash
 sudo chmod 700 /opt/knowtrace/scripts/linux/backup-all.sh
 sudo chmod 700 /opt/knowtrace/scripts/linux/prune-backups.sh
-sudo install -m 644 deploy/systemd/knowtrace-backup.service /etc/systemd/system/knowtrace-backup.service
-sudo install -m 644 deploy/systemd/knowtrace-backup.timer /etc/systemd/system/knowtrace-backup.timer
+sudo install -m 644 deploy/systemd/knowtrace-workflow-backup.service /etc/systemd/system/knowtrace-workflow-backup.service
+sudo install -m 644 deploy/systemd/knowtrace-workflow-backup.timer /etc/systemd/system/knowtrace-workflow-backup.timer
 sudo systemctl daemon-reload
-sudo systemctl enable --now knowtrace-backup.timer
-systemctl list-timers knowtrace-backup.timer --all
+sudo systemctl enable --now knowtrace-workflow-backup.timer
+systemctl list-timers knowtrace-workflow-backup.timer --all
 ```
 
 查看最近执行结果与日志：
 
 ```bash
-systemctl status knowtrace-backup.service --no-pager
-journalctl -u knowtrace-backup.service --since today --no-pager
+systemctl status knowtrace-workflow-backup.service --no-pager
+journalctl -u knowtrace-workflow-backup.service --since today --no-pager
 ```
 
 回滚定时任务不会删除任何已有备份：
 
 ```bash
-sudo systemctl disable --now knowtrace-backup.timer
-sudo rm -f /etc/systemd/system/knowtrace-backup.timer /etc/systemd/system/knowtrace-backup.service
+sudo systemctl disable --now knowtrace-workflow-backup.timer
+sudo rm -f /etc/systemd/system/knowtrace-workflow-backup.timer /etc/systemd/system/knowtrace-workflow-backup.service
 sudo systemctl daemon-reload
 ```
 

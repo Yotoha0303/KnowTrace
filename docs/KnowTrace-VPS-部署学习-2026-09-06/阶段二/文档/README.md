@@ -1,4 +1,4 @@
-# KnowTrace 阶段二交付索引
+# KnowTrace-Workflow 阶段二交付索引
 
 ## 结论
 
@@ -10,7 +10,7 @@
 - 内部 Nginx 与公网 HTTPS 各完成 200 请求/并发 5/零失败健康端点基线。
 - 当前 VPS 版本 `fcadab5edb63ed940a9b3d891842bbfd39e5a9d7`；分支已推送但未合并 `main`。
 - 受控重启后内核为 `6.8.0-139-generic`，约 23 秒恢复 HTTPS；5 个容器均 healthy。
-- 桌面学习记录主目录：`C:\Users\Yotoha\Desktop\KnowTrace-VPS-部署学习-2026-09-06\阶段二`。
+- 桌面学习记录主目录：`C:\Users\Yotoha\Desktop\KnowTrace-Workflow-VPS-部署学习-2026-09-06\阶段二`。
 
 ## 文件
 

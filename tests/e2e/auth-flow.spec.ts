@@ -8,7 +8,7 @@ test("go-user-system login, refresh recovery and logout", async ({ context, page
 
   await page.goto("/search?type=capture");
   await expect(page).toHaveURL(/\/login\?next=/);
-  await expect(page.getByRole("heading", { name: "登录 KnowTrace" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "登录 KnowTrace-Workflow" })).toBeVisible();
 
   await page.getByLabel("用户名").fill(username!);
   await page.getByLabel("密码").fill(password!);

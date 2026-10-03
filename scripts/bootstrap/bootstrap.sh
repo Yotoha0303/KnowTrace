@@ -291,7 +291,7 @@ b_report_remaining_manual() {
       caddyfile)
         b_warn "反向代理与证书 —— 仓库不提供 Caddyfile（与域名强相关）"
         b_info "    写入 /etc/caddy/Caddyfile 后：caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy"
-        b_info "    模板见 docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/服务器配置样例/Caddyfile"
+        b_info "    模板见 docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/服务器配置样例/Caddyfile"
         ;;
       ufw)
         b_warn "防火墙 —— 有自锁风险，脚本绝不代启"
@@ -422,7 +422,7 @@ b_stage_verify() {
     b_fail "未启用的定时器：${missing_timers[*]}"
     failures=$(( failures + 1 ))
   fi
-  if [[ "$(systemctl is-enabled "knowtrace-offsite-backup.timer" 2>/dev/null)" == "enabled" ]]; then
+  if [[ "$(systemctl is-enabled "knowtrace-workflow-offsite-backup.timer" 2>/dev/null)" == "enabled" ]]; then
     b_ok "offsite-backup 定时器已启用（异地备份，可选）"
   else
     b_info "offsite-backup 未启用 —— 可选，需 age 公钥与 rclone 远端后才能工作"
@@ -467,5 +467,5 @@ if [[ -n "$BOOTSTRAP_RECORD_FILE" ]]; then
 fi
 b_info "未自动化的部分（需人工）：系统包安装、sshd 加固、UFW、反向代理与证书、DNS。"
 b_report_remaining_manual
-b_info "指引见 docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md"
+b_info "指引见 docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md"
 b_record "=== bootstrap 结束 $(date -u '+%Y-%m-%dT%H:%M:%SZ') ==="

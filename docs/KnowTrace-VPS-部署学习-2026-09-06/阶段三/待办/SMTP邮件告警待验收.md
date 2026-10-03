@@ -66,7 +66,7 @@
    g = lambda k: re.search(rf'^{k}=(.*)$', env, re.M).group(1).strip()
    host, port = g('ALERT_SMTP_SMARTHOST').split(':')
    user, code, to = g('ALERT_SMTP_AUTH_USERNAME'), g('ALERT_SMTP_AUTH_PASSWORD'), g('ALERT_EMAIL_TO')
-   m = EmailMessage(); m['Subject']='KnowTrace SMTP 自检'; m['From']=user; m['To']=to
+   m = EmailMessage(); m['Subject']='KnowTrace-Workflow SMTP 自检'; m['From']=user; m['To']=to
    m.set_content('自检邮件')
    with smtplib.SMTP_SSL(host, int(port), timeout=25, context=ssl.create_default_context()) as s:
        s.login(user, code); s.send_message(m)

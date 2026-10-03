@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""巡检报告汇总（KnowTrace 运维工具包）。
+"""巡检报告汇总（KnowTrace-Workflow 运维工具包）。
 
 作用
 ----
@@ -145,7 +145,7 @@ def discover(reports_dir: Path, lookback_days: int) -> tuple[dict[str, ScriptSum
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ops-report.py",
-        description="汇总 KnowTrace 巡检报告（只读）",
+        description="汇总 KnowTrace-Workflow 巡检报告（只读）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "示例:\n"
@@ -173,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     now = datetime.now(timezone.utc)
     report = Report(
         script="ops_report",
-        title="KnowTrace 巡检报告汇总",
+        title="KnowTrace-Workflow 巡检报告汇总",
         quiet=args.quiet,
         no_color=args.no_color,
         extra_meta=environment_summary(),

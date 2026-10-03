@@ -185,7 +185,7 @@ OPENAI_MODEL=gpt-5.6-luna / DEEPSEEK_MODEL=deepseek-v4-flash   ← 配了名字�
 
 **8 项改进全部未完成**（报告末尾 checklist 全为空）：错误页改中性文案、认证失效专门处理、工作区会话续期、Proxy 识别 Server Action、错误 digest 记录、部署文档说明、两条回归测试。
 
-**为什么它还没修**：这份报告写在 `docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/问题记录/` 下——一个**运维学习目录**，不是待办队列。产品侧的 `docs/17` 里 BUG-001 的「初步推断」写的是「会话过期、数据库连接、错误提示误导或前端重试逻辑有关」——方向对，但**报告人显然不知道服务器上已经有结论了**。这是信息传导断裂，不是技术难题。
+**为什么它还没修**：这份报告写在 `docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/问题记录/` 下——一个**运维学习目录**，不是待办队列。产品侧的 `docs/17` 里 BUG-001 的「初步推断」写的是「会话过期、数据库连接、错误提示误导或前端重试逻辑有关」——方向对，但**报告人显然不知道服务器上已经有结论了**。这是信息传导断裂，不是技术难题。
 
 **怎么验证修好了**：页面保持打开超过 15 分钟后保存，能自动续期成功；Refresh Token 也失效时，明确提示重新登录且不进入数据库错误页。
 
@@ -274,7 +274,7 @@ workspaces：2 个，成员都是同一个 go-user:1
 2026-09-29 10:17:26 / 10:17:41 / 19:23:11
 ```
 
-19:21 两次与备份定时器吻合（`knowtrace-backup.timer` LAST = 19:22:56）。10:17 那两次对应我在 09-29 手工执行的备份——**是我自己造成的，如实记录**。停机时长约 24 秒，因为 `for: 1m` 的告警规则正好把它过滤掉，**这个停机在任何报告里都看不见**。
+19:21 两次与备份定时器吻合（`knowtrace-workflow-backup.timer` LAST = 19:22:56）。10:17 那两次对应我在 09-29 手工执行的备份——**是我自己造成的，如实记录**。停机时长约 24 秒，因为 `for: 1m` 的告警规则正好把它过滤掉，**这个停机在任何报告里都看不见**。
 
 ---
 
@@ -315,9 +315,9 @@ $ docker logs knowtrace-auth-1 | grep auth/login   →  每次成功后紧接一
 | 跳 | 是否传递真实 IP |
 | --- | --- |
 | Caddy → nginx | ✅ Caddy 自动设 `X-Forwarded-For` |
-| nginx | ✅ `real_ip_header X-Forwarded-For` + `real_ip_recursive on`（`/etc/nginx/sites-enabled/knowtrace.conf:17-19`），**ngnix 自己的 `$remote_addr` 已是真实 IP** |
+| nginx | ✅ `real_ip_header X-Forwarded-For` + `real_ip_recursive on`（`/etc/nginx/sites-enabled/knowtrace-workflow.conf:17-19`），**ngnix 自己的 `$remote_addr` 已是真实 IP** |
 | nginx → app | ❌ 转发的是 `$http_x_forwarded_for`（**入站头**），而真实 IP 在 `$remote_addr`。出站链变成 `<真实IP>, 172.18.0.2` |
-| **app → auth** | ❌ **KnowTrace 的 BFF 完全不转发任何 XFF**（`src/app/api/v1/auth/login/route.ts` → `loginWithGoUserSystem`） |
+| **app → auth** | ❌ **KnowTrace-Workflow 的 BFF 完全不转发任何 XFF**（`src/app/api/v1/auth/login/route.ts` → `loginWithGoUserSystem`） |
 
 **结果**：认证服务看到的 `c.RemoteAddr` = 应用容器 IP。
 又因为 `config.yml` 里 **`trustedProxies: []`**（空），Gin 不信任任何代理，

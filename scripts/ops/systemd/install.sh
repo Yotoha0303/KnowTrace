@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 # ============================================================================
-# KnowTrace 运维巡检 —— systemd 单元安装脚本
+# KnowTrace-Workflow 运维巡检 —— systemd 单元安装脚本
 # ============================================================================
 #
 # 安装 knowtrace-{daily-ops,weekly-check,monthly-ops} 三个 .service + .timer。
-# 不涉及 knowtrace-backup（那个由 scripts/linux/deploy-observability.sh 装）。
+# 不涉及 knowtrace-workflow-backup（那个由 scripts/linux/deploy-observability.sh 装）。
 #
 # 执行顺序是刻意固定的，别改：
 #   装单元 → daemon-reload → **逐个 start 验证** → 全通过才 enable 定时器
@@ -206,5 +206,5 @@ systemctl list-timers 'knowtrace*' --no-pager 2>/dev/null | sed 's/^/  /' || tru
 
 log
 log "安装完成。手动跑一次看效果："
-log "  sudo systemctl start knowtrace-daily-ops.service"
+log "  sudo systemctl start knowtrace-workflow-daily-ops.service"
 log "  报告：sudo ls -t $reports_directory | head"

@@ -13,7 +13,7 @@ try {
     Compress-Archive -LiteralPath $uploadDirectory -DestinationPath $uploadBackup -CompressionLevel Optimal
   }
 
-  Write-Output "KnowTrace PostgreSQL：$knowledgeBackup"
+  Write-Output "KnowTrace-Workflow PostgreSQL：$knowledgeBackup"
   Write-Output "go-user-system MySQL：$authBackup"
   if ($uploadBackup) { Write-Output "证据图片：$uploadBackup" }
 } finally {

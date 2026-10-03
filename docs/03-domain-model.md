@@ -58,7 +58,7 @@ created_at
 
 标题、正文或 Content Type 发生变化时必须生成 Revision 并增加 Capture 版本，包括接受 AI 标题/类型建议的情况。单独调整 Category 不产生 Revision；如果后续需要完整分类审计，再增加 Classification Event，而不是把 Category 数组塞进 Revision。
 
-描述对象或发生时间发生变化时也创建 Revision。`occurred_at` 是内容中事件的时间，`created_at` 是写入 KnowTrace 的时间，两者不可混用。
+描述对象或发生时间发生变化时也创建 Revision。`occurred_at` 是内容中事件的时间，`created_at` 是写入 KnowTrace-Workflow 的时间，两者不可混用。
 
 ## 4. Content Type
 

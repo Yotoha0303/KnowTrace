@@ -5,10 +5,10 @@
 
 | 定时器 | 下次触发 | 说明 |
 | --- | --- | --- |
-| `knowtrace-backup.timer` | 每天 19:22 UTC | 原有备份任务（先跑） |
-| `knowtrace-daily-ops.timer` | 每天 19:34 UTC | 日巡检（后跑，能看到当天备份） |
-| `knowtrace-weekly-check.timer` | 周一 20:04 UTC | 周巡检 |
-| `knowtrace-monthly-ops.timer` | 每月 1 日 21:06 UTC | 月巡检（演练模式） |
+| `knowtrace-workflow-backup.timer` | 每天 19:22 UTC | 原有备份任务（先跑） |
+| `knowtrace-workflow-daily-ops.timer` | 每天 19:34 UTC | 日巡检（后跑，能看到当天备份） |
+| `knowtrace-workflow-weekly-check.timer` | 周一 20:04 UTC | 周巡检 |
+| `knowtrace-workflow-monthly-ops.timer` | 每月 1 日 21:06 UTC | 月巡检（演练模式） |
 
 （实际触发时间会带 `RandomizedDelaySec` 的随机偏移，所以上面不是整点。）
 
@@ -18,13 +18,13 @@
 
 | 单元 | 类型 | 触发时间（UTC） | 做什么 |
 | --- | --- | --- | --- |
-| `knowtrace-daily-ops.timer` → `.service` | 每天 | `*-*-* 19:30:00` | 只读日巡检：资源、磁盘、容器、健康端点、监控 Targets |
-| `knowtrace-weekly-check.timer` → `.service` | 每周一 | `Mon *-*-* 20:00:00` | 只读周巡检：备份完整性校验、日志错误聚类、证书有效期、异常登录 |
-| `knowtrace-monthly-ops.timer` → `.service` | 每月 1 日 | `*-*-01 21:00:00` | 月巡检：**演练模式**，只出计划不执行写操作 |
+| `knowtrace-workflow-daily-ops.timer` → `.service` | 每天 | `*-*-* 19:30:00` | 只读日巡检：资源、磁盘、容器、健康端点、监控 Targets |
+| `knowtrace-workflow-weekly-check.timer` → `.service` | 每周一 | `Mon *-*-* 20:00:00` | 只读周巡检：备份完整性校验、日志错误聚类、证书有效期、异常登录 |
+| `knowtrace-workflow-monthly-ops.timer` → `.service` | 每月 1 日 | `*-*-01 21:00:00` | 月巡检：**演练模式**，只出计划不执行写操作 |
 
 三个 `.service` 都是 `Type=oneshot`，三个 `.timer` 都是 `Persistent=true`。
 
-**触发时间不是随便定的**：已有的 `knowtrace-backup.timer` 在 **19:21 UTC** 跑备份，
+**触发时间不是随便定的**：已有的 `knowtrace-workflow-backup.timer` 在 **19:21 UTC** 跑备份，
 所以日巡检排在 19:30（能看到当天的备份）、周巡检排在周一 20:00（校验的是刚生成的归档）。
 改时间时别把它们排到备份之前，否则「备份新鲜度」检查会看到昨天的归档。
 
@@ -74,13 +74,13 @@ sudo chmod 644 /etc/systemd/system/knowtrace-*.service /etc/systemd/system/knowt
 sudo systemctl daemon-reload
 
 # 3) 先干跑一次，确认能跑通（不依赖定时器）
-sudo systemctl start knowtrace-daily-ops.service
-systemctl status knowtrace-daily-ops.service --no-pager
+sudo systemctl start knowtrace-workflow-daily-ops.service
+systemctl status knowtrace-workflow-daily-ops.service --no-pager
 
 # 4) 确认无误再启用定时
-sudo systemctl enable --now knowtrace-daily-ops.timer
-sudo systemctl enable --now knowtrace-weekly-check.timer
-sudo systemctl enable --now knowtrace-monthly-ops.timer
+sudo systemctl enable --now knowtrace-workflow-daily-ops.timer
+sudo systemctl enable --now knowtrace-workflow-weekly-check.timer
+sudo systemctl enable --now knowtrace-workflow-monthly-ops.timer
 
 # 5) 核对下次触发时间
 systemctl list-timers 'knowtrace*' --no-pager
@@ -190,21 +190,21 @@ systemctl show -p Documentation <单元>.service     # 看解析结果是否为�
 systemctl --no-pager list-timers 'knowtrace*'
 
 # 手动触发一次（不等到点）
-sudo systemctl start knowtrace-daily-ops.service
+sudo systemctl start knowtrace-workflow-daily-ops.service
 
 # 看最近一次执行
-systemctl --no-pager status knowtrace-daily-ops.service
-journalctl -u knowtrace-daily-ops.service -n 50
+systemctl --no-pager status knowtrace-workflow-daily-ops.service
+journalctl -u knowtrace-workflow-daily-ops.service -n 50
 
 # 看有没有失败（注意：本机另有一个与巡检无关的 repass.service 长期是 failed 状态）
 systemctl --failed
 
 # 临时停掉定时（排查时）
-sudo systemctl stop knowtrace-daily-ops.timer
+sudo systemctl stop knowtrace-workflow-daily-ops.timer
 
 # 确认安装是否被改动过（6 个单元都应存在，Documentation 解析结果都不应为空）
 ls -la /etc/systemd/system/knowtrace-*ops* /etc/systemd/system/knowtrace-*check*
-systemctl show -p Documentation knowtrace-daily-ops.service
+systemctl show -p Documentation knowtrace-workflow-daily-ops.service
 ```
 
 `Persistent=true` 的含义：如果机器在触发时刻是关机的，开机后会补跑一次。
@@ -213,7 +213,7 @@ systemctl show -p Documentation knowtrace-daily-ops.service
 **回滚**（要停掉全部巡检定时器）：
 
 ```bash
-sudo systemctl disable --now knowtrace-daily-ops.timer knowtrace-weekly-check.timer knowtrace-monthly-ops.timer
+sudo systemctl disable --now knowtrace-workflow-daily-ops.timer knowtrace-workflow-weekly-check.timer knowtrace-workflow-monthly-ops.timer
 sudo rm -f /etc/systemd/system/knowtrace-{daily-ops,weekly-check,monthly-ops}.{service,timer}
 sudo systemctl daemon-reload
 ```
@@ -234,8 +234,8 @@ sudo systemctl daemon-reload
 >
 > 要查历史执行：
 > ```bash
-> journalctl -u knowtrace-daily-ops.service --since "7 days ago" --output=short-iso
-> journalctl -u knowtrace-daily-ops.service --list-boots
+> journalctl -u knowtrace-workflow-daily-ops.service --since "7 days ago" --output=short-iso
+> journalctl -u knowtrace-workflow-daily-ops.service --list-boots
 > ```
 
 ## 9. 相关文件

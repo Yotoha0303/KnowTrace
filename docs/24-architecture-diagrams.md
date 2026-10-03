@@ -107,7 +107,7 @@ flowchart TD
     Q5 -->|是| AUTHIN["已登录则跳首页；<br/>否则放行并清空身份头"]
     Q5 -->|否| P4{"Access Token 有效？"}
 
-    P4 -->|有效| INJ["注入身份头<br/>x-knowtrace-user-id / role-codes"]
+    P4 -->|有效| INJ["注入身份头<br/>x-knowtrace-workflow-user-id / role-codes"]
     P4 -->|失效| P5{"有 Refresh Token？"}
 
     P5 -->|有| RENEW["用 Refresh 换新令牌<br/>成功 → 放行并下发新 Cookie"]
@@ -247,7 +247,7 @@ flowchart TB
 1. **nginx 的守卫是有效的，而且是「覆盖」语义**：Caddy 先用
    `real_ip_header X-Forwarded-For` + `real_ip_recursive on` 把 `$remote_addr` 还原成真实客户端；
    nginx 再 `proxy_set_header X-Forwarded-For $remote_addr` —— **覆盖**，不是追加。
-   外部伪造的 XFF 到不了下游。（`deploy/nginx/knowtrace-vps.conf`）
+   外部伪造的 XFF 到不了下游。（`deploy/nginx/knowtrace-workflow-vps.conf`）
 2. ⚠️ **2026-10-03 换掉 ELK 之后，仅有的那点网络分段也消失了 —— 这是一次实测到的边界弱化。**
    原先 ELK 是唯一声明自定义网络的服务（`knowtrace_logging-internal` `172.19.0.0/16`
    `internal: true` + `knowtrace_logging-management` `172.20.0.0/16`，都不在 app 的
@@ -591,7 +591,7 @@ flowchart TD
 
 **`docs/06` 的 5 行流程图保留不动**（它是「架构结论」的一句话表达）；
 本文是它的**展开与校正**——补上边缘代理、监控栈、Workspace 隔离，
-并更正第 8 节「KnowTrace Compose 服务：app、postgres」的过时描述
+并更正第 8 节「KnowTrace-Workflow Compose 服务：app、postgres」的过时描述
 （**实际 10 个容器**）。
 
 ---
@@ -636,7 +636,7 @@ flowchart TD
 
 | 工作区 | 与本文的关系 |
 | --- | --- |
-| `KnowTrace`（本仓库） | 第 1–7 节的全部证据来自这里 |
+| `KnowTrace-Workflow`（本仓库） | 第 1–7 节的全部证据来自这里 |
 | `KnowTrace-ops` | 第 6 环（运行）的载体：巡检、部署、事故复盘 |
 | `KnowTrace-ecosystem` | 第 11 节的八环数字来自这里（2026-09-29 观察，非实时） |
 | `KnowTrace-tech-review` / `KnowTrace-career-assets` | 与本文无直接图，但改技术栈会回溯到第 1、4 节 |

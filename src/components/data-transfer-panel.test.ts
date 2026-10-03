@@ -43,7 +43,7 @@ describe("DataTransferPanel protocol routing", () => {
       );
 
     render(React.createElement(DataTransferPanel));
-    const input = screen.getByLabelText(/KnowTrace 文件/) as HTMLInputElement;
+    const input = screen.getByLabelText(/KnowTrace-Workflow 文件/) as HTMLInputElement;
     fireEvent.change(input, {
       target: {
         files: [
@@ -100,7 +100,7 @@ describe("DataTransferPanel protocol routing", () => {
       );
 
     render(React.createElement(DataTransferPanel));
-    const input = screen.getByLabelText(/KnowTrace 文件/) as HTMLInputElement;
+    const input = screen.getByLabelText(/KnowTrace-Workflow 文件/) as HTMLInputElement;
     fireEvent.change(input, {
       target: {
         files: [new File(["PK"], "knowtrace.zip", { type: "application/zip" })],
@@ -139,7 +139,7 @@ describe("DataTransferPanel protocol routing", () => {
       );
 
     render(React.createElement(DataTransferPanel));
-    fireEvent.change(screen.getByLabelText(/KnowTrace 文件/), {
+    fireEvent.change(screen.getByLabelText(/KnowTrace-Workflow 文件/), {
       target: { files: [new File(["xlsx"], "knowtrace.xlsx")] },
     });
     fireEvent.click(screen.getByRole("button", { name: "开始预检" }));
@@ -217,7 +217,7 @@ describe("DataTransferPanel protocol routing", () => {
       );
 
     render(React.createElement(DataTransferPanel));
-    fireEvent.change(screen.getByLabelText(/KnowTrace 文件/), {
+    fireEvent.change(screen.getByLabelText(/KnowTrace-Workflow 文件/), {
       target: { files: [new File(["PK"], "knowtrace.zip", { type: "application/zip" })] },
     });
     fireEvent.click(screen.getByRole("button", { name: "开始预检" }));

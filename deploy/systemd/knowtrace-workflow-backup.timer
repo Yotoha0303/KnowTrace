@@ -1,12 +1,12 @@
 [Unit]
-Description=Run the KnowTrace backup every day
+Description=Run the KnowTrace-Workflow backup every day
 
 [Timer]
 OnCalendar=*-*-* 03:20:00 Asia/Shanghai
 Persistent=true
 RandomizedDelaySec=5min
 AccuracySec=1min
-Unit=knowtrace-backup.service
+Unit=knowtrace-workflow-backup.service
 
 [Install]
 WantedBy=timers.target

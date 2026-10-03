@@ -1,5 +1,5 @@
 [Unit]
-Description=KnowTrace 每周运维只读巡检 (weekly-check)
+Description=KnowTrace-Workflow 每周运维只读巡检 (weekly-check)
 # systemd 的 Documentation= 有两个坑（都实测过，systemd 255）：
 #   1. 只接受可打印 ASCII 的 URI —— 写原始中文路径会报 "Invalid URL, ignoring"，整条被丢弃
 #   2. URI 里的 % 会被当成「单元说明符」（如 %E）去解析 —— 百分号编码必须把 % 写成 %%，

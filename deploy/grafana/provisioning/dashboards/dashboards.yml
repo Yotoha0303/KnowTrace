@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: KnowTrace VPS
+  - name: KnowTrace-Workflow VPS
     orgId: 1
-    folder: KnowTrace
+    folder: KnowTrace-Workflow
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

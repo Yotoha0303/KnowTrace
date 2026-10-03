@@ -1,12 +1,12 @@
-# KnowTrace 备份、巡检与故障处理 SOP
+# KnowTrace-Workflow 备份、巡检与故障处理 SOP
 
-> 适用环境：单台 Ubuntu 24.04 VPS、Docker Compose、Caddy、Nginx、KnowTrace、PostgreSQL、MySQL、Redis。
+> 适用环境：单台 Ubuntu 24.04 VPS、Docker Compose、Caddy、Nginx、KnowTrace-Workflow、PostgreSQL、MySQL、Redis。
 >
 > 证据边界：本文是阶段二的执行手册。只有实际完成备份、异机复制、空环境恢复和业务验证后，才能宣称具备经过验证的恢复能力。
 
 ## 1. 核心闭环
 
-KnowTrace 的运维闭环不是“生成一个备份文件”，而是：
+KnowTrace-Workflow 的运维闭环不是“生成一个备份文件”，而是：
 
 ```text
 备份成功
@@ -332,7 +332,7 @@ ufw status verbose
 | 页面停留一段时间后保存失败 | Token 过期、重定向、错误页误报 |
 | 多项服务同时异常 | 磁盘满、内存、Docker、主机网络 |
 
-KnowTrace 曾出现访问令牌过期后，保存请求被重定向到登录页，但全局错误页面显示“数据库故障”的情况。如果 ready 正常，不应立即重启 PostgreSQL。
+KnowTrace-Workflow 曾出现访问令牌过期后，保存请求被重定向到登录页，但全局错误页面显示“数据库故障”的情况。如果 ready 正常，不应立即重启 PostgreSQL。
 
 ### 7.2 先取证，再重启
 

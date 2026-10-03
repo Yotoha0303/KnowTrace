@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 # ============================================================================
-# KnowTrace 从零安装入口（Linux，bash）
+# KnowTrace-Workflow 从零安装入口（Linux，bash）
 # ============================================================================
 #
 # 这个脚本解决的是**鸡生蛋**问题：
@@ -13,11 +13,11 @@ set -Eeuo pipefail
 # 用法（新机器上，root）：
 #
 #   # 方式一：先 clone 再执行（可审计，推荐）
-#   git clone https://github.com/Yotoha0303/KnowTrace.git /opt/knowtrace
+#   git clone https://github.com/Yotoha0303/KnowTrace-Workflow.git /opt/knowtrace
 #   sudo bash /opt/knowtrace/scripts/install.sh --domain knowtrace.example.org
 #
 #   # 方式二：一条命令（不先 clone）
-#   curl -fsSL https://raw.githubusercontent.com/Yotoha0303/KnowTrace/refs/heads/main/scripts/install.sh \
+#   curl -fsSL https://raw.githubusercontent.com/Yotoha0303/KnowTrace-Workflow/refs/heads/main/scripts/install.sh \
 #     | sudo bash -s -- --domain knowtrace.example.org
 #
 # 它做四件事，然后交给 bootstrap：
@@ -35,7 +35,7 @@ set -Eeuo pipefail
 # 退出码: 0 成功  1 失败  3 参数或环境错误
 # ============================================================================
 
-REPO_URL="https://github.com/Yotoha0303/KnowTrace.git"
+REPO_URL="https://github.com/Yotoha0303/KnowTrace-Workflow.git"
 REPO_REF="main"
 TARGET_DIR="/opt/knowtrace"
 DOMAIN=""
@@ -50,7 +50,7 @@ usage() {
   #   原写法会让 --help 直接报 `sed: can't read …`（2026-10-02 实测踩到）。
   #   这条正是本脚本的头号用法，所以必须内嵌。
   cat <<'USAGE'
-KnowTrace 从零安装入口（Linux，root）
+KnowTrace-Workflow 从零安装入口（Linux，root）
 
 用法：
   git clone <repo> /opt/knowtrace && sudo bash /opt/knowtrace/scripts/install.sh [选项]
@@ -137,7 +137,7 @@ fi
 . /etc/os-release
 case "${ID:-}" in
   ubuntu|debian) ok "OS: ${PRETTY_NAME:-unknown}" ;;
-  *) die "只支持 Ubuntu / Debian（当前 ID=${ID:-unknown}）。其它发行版请照 docs/KnowTrace-VPS-部署学习-2026-09-06/ 手工部署" ;;
+  *) die "只支持 Ubuntu / Debian（当前 ID=${ID:-unknown}）。其它发行版请照 docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/ 手工部署" ;;
 esac
 info "仓库 : $REPO_URL ($REPO_REF)"
 info "目录 : $TARGET_DIR"
@@ -156,7 +156,7 @@ fi
 step "系统依赖"
 # 清单依据（两个来源，不是猜的）：
 #   * scripts/bootstrap/lib/preflight.sh 声明的必需命令
-#   * docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-…教程.md §5
+#   * docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/文档/04-…教程.md §5
 # 其中 jq 与 flock 是**必需**而非可选：巡检脚本里有 26 处 jq 调用，
 # 缺了不是"少个功能"，是**静默产出空字段的报告**（调用点带 2>/dev/null）。
 # 注意 jq 在 Ubuntu 上可能因 fwupd 依赖碰巧存在，不能指望。
@@ -293,8 +293,8 @@ if [[ "$DRY_RUN" == true ]]; then
   exit 0
 fi
 
-if [[ -f "$TARGET_DIR/.env" ]] && grep -qE '^KNOWTRACE_ADMIN_PASSWORD=KnowTrace@123$' "$TARGET_DIR/.env"; then
-  warn "管理员口令是固定值 KnowTrace@123 —— 公网可达时**必须**改（README 里写着这对凭据）"
+if [[ -f "$TARGET_DIR/.env" ]] && grep -qE '^KNOWTRACE_ADMIN_PASSWORD=KnowTrace-Workflow@123$' "$TARGET_DIR/.env"; then
+  warn "管理员口令是固定值 KnowTrace-Workflow@123 —— 公网可达时**必须**改（README 里写着这对凭据）"
 else
   info "管理员口令为随机生成，查看："
   info "  grep '^KNOWTRACE_ADMIN_' $TARGET_DIR/.env   # 勿贴进聊天或日志"
@@ -306,7 +306,7 @@ info "  1) 防火墙（自锁风险：先放行 SSH 端口再 enable，否则立
 info "     ufw allow <你的SSH端口>/tcp && ufw allow 80/tcp && ufw allow 443/tcp"
 info "     ufw default deny incoming && ufw default allow outgoing && ufw --force enable"
 info "  2) SSH 加固（改错即失联）：装公钥 → **另开窗口验证密钥能登录** → 才关密码登录"
-info "     样例：docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/配置样例/00-knowtrace-hardening.conf"
+info "     样例：docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/配置样例/00-knowtrace-hardening.conf"
 info ""
 info "端口与地址：应用 127.0.0.1:3000（经 Caddy → nginx），Grafana 需 SSH 隧道到 127.0.0.1:3001"
 [[ -n "$DOMAIN" ]] && info "站点：https://$DOMAIN"

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const ACCESS_TOKEN_COOKIE = "knowtrace_access_token";
+export const ACCESS_TOKEN_COOKIE = "knowtrace_workflow_access_token";
 export const REFRESH_TOKEN_COOKIE = "refresh_token";
 
 const authUserSchema = z.object({

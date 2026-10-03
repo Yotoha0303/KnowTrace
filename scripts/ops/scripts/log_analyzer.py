@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""日志错误模式分析与趋势对比（KnowTrace 运维工具包）。
+"""日志错误模式分析与趋势对比（KnowTrace-Workflow 运维工具包）。
 
 为什么用 Python 而不是 Bash
 --------------------------
@@ -365,7 +365,7 @@ def save_baseline(path: Path, scans: list[ContainerScan], window: str) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="log_analyzer.py",
-        description="KnowTrace 日志错误模式分析与趋势对比（只读）",
+        description="KnowTrace-Workflow 日志错误模式分析与趋势对比（只读）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "示例:\n"
@@ -437,7 +437,7 @@ def main(argv: list[str] | None = None) -> int:
     conf = load_ops_conf(args.conf)
     report = Report(
         script="log_analyzer",
-        title="KnowTrace 日志错误模式分析",
+        title="KnowTrace-Workflow 日志错误模式分析",
         quiet=args.quiet,
         no_color=args.no_color,
         extra_meta=environment_summary(),

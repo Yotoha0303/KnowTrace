@@ -3,8 +3,8 @@ set -Eeuo pipefail
 
 script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 project_directory="$(cd -- "$script_directory/../.." && pwd -P)"
-source_path="$project_directory/deploy/nginx/knowtrace-vps.conf"
-target_path="/etc/nginx/sites-available/knowtrace.conf"
+source_path="$project_directory/deploy/nginx/knowtrace-workflow-vps.conf"
+target_path="/etc/nginx/sites-available/knowtrace-workflow.conf"
 
 if (( EUID != 0 )); then
   exec sudo -- "$0" "$@"
@@ -28,12 +28,12 @@ fi
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_directory="/root/knowtrace-ops/backups/${timestamp}-stage3-nginx"
 install -d -m 700 "$backup_directory"
-cp -a -- "$target_path" "$backup_directory/knowtrace.conf"
-sha256sum "$backup_directory/knowtrace.conf" >"$backup_directory/knowtrace.conf.sha256"
+cp -a -- "$target_path" "$backup_directory/knowtrace-workflow.conf"
+sha256sum "$backup_directory/knowtrace-workflow.conf" >"$backup_directory/knowtrace-workflow.conf.sha256"
 
 install -m 644 -- "$source_path" "$target_path"
 if ! nginx -t; then
-  cp -a -- "$backup_directory/knowtrace.conf" "$target_path"
+  cp -a -- "$backup_directory/knowtrace-workflow.conf" "$target_path"
   nginx -t
   echo "错误：新配置检查失败，已恢复原配置。" >&2
   exit 1
@@ -41,7 +41,7 @@ fi
 
 systemctl reload nginx
 if ! curl -fsS http://127.0.0.1:8080/api/health/ready >/dev/null; then
-  cp -a -- "$backup_directory/knowtrace.conf" "$target_path"
+  cp -a -- "$backup_directory/knowtrace-workflow.conf" "$target_path"
   nginx -t
   systemctl reload nginx
   echo "错误：新配置下 ready 失败，已恢复原配置。" >&2
@@ -49,7 +49,7 @@ if ! curl -fsS http://127.0.0.1:8080/api/health/ready >/dev/null; then
 fi
 metrics_status="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/metrics)"
 if [[ "$metrics_status" != "404" ]]; then
-  cp -a -- "$backup_directory/knowtrace.conf" "$target_path"
+  cp -a -- "$backup_directory/knowtrace-workflow.conf" "$target_path"
   nginx -t
   systemctl reload nginx
   echo "错误：公网代理层的 metrics 状态不是 404，已恢复原配置：$metrics_status" >&2

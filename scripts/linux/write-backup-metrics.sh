@@ -7,8 +7,8 @@ backup_root="${BACKUP_ROOT:-/var/backups/knowtrace}"
 textfile_directory="$project_directory/runtime/node-exporter"
 
 install -d -m 755 "$textfile_directory"
-output_path="$textfile_directory/knowtrace-backup.prom"
-temporary_path="$(mktemp "$textfile_directory/.knowtrace-backup.XXXXXX")"
+output_path="$textfile_directory/knowtrace-workflow-backup.prom"
+temporary_path="$(mktemp "$textfile_directory/.knowtrace-workflow-backup.XXXXXX")"
 trap 'rm -f -- "$temporary_path"' EXIT
 
 mapfile -t archives < <(find "$backup_root" -maxdepth 1 -type f -name 'knowtrace-*.tar.gz' -printf '%T@ %p\n' 2>/dev/null | sort -rn)
@@ -23,13 +23,13 @@ if (( archive_count > 0 )); then
 fi
 
 {
-  echo '# HELP knowtrace_backup_last_success_timestamp_seconds Unix timestamp of the newest complete KnowTrace backup archive.'
+  echo '# HELP knowtrace_backup_last_success_timestamp_seconds Unix timestamp of the newest complete KnowTrace-Workflow backup archive.'
   echo '# TYPE knowtrace_backup_last_success_timestamp_seconds gauge'
   echo "knowtrace_backup_last_success_timestamp_seconds $latest_timestamp"
-  echo '# HELP knowtrace_backup_archive_count Number of complete KnowTrace backup archives on the VPS.'
+  echo '# HELP knowtrace_backup_archive_count Number of complete KnowTrace-Workflow backup archives on the VPS.'
   echo '# TYPE knowtrace_backup_archive_count gauge'
   echo "knowtrace_backup_archive_count $archive_count"
-  echo '# HELP knowtrace_backup_latest_size_bytes Size of the newest complete KnowTrace backup archive.'
+  echo '# HELP knowtrace_backup_latest_size_bytes Size of the newest complete KnowTrace-Workflow backup archive.'
   echo '# TYPE knowtrace_backup_latest_size_bytes gauge'
   echo "knowtrace_backup_latest_size_bytes $latest_size"
 } >"$temporary_path"

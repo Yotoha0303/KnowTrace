@@ -1,4 +1,4 @@
-# KnowTrace 反向代理模板 —— 由 scripts/install.sh 按 --domain 生成后写入 /etc/caddy/Caddyfile
+# KnowTrace-Workflow 反向代理模板 —— 由 scripts/install.sh 按 --domain 生成后写入 /etc/caddy/Caddyfile
 #
 # 为什么放在仓库里（2026-10-03）：此前 Caddyfile **只存在于 install.sh 的 heredoc 字符串**中，
 # 仓库里没有对应文件 —— 想查看"线上到底配了什么"必须去读脚本或翻文档快照。

@@ -16,14 +16,14 @@
 | `Authorization` | `Bearer <token>` | 原生客户端的访问令牌；刷新与退出时复用同一个头传刷新令牌 |
 | `X-Request-Id` | 8–128 字符 | 可选，用于串联请求日志 |
 
-不发送 `X-Client: native` 的请求一律按浏览器 Cookie 客户端处理（`knowtrace_access_token` / `refresh_token`）。原生客户端不接收 `Set-Cookie`：它没有浏览器 Cookie 罐，Cookie 无法可靠持久化。
+不发送 `X-Client: native` 的请求一律按浏览器 Cookie 客户端处理（`knowtrace_workflow_access_token` / `refresh_token`）。原生客户端不接收 `Set-Cookie`：它没有浏览器 Cookie 罐，Cookie 无法可靠持久化。
 
 ### Workspace 上下文
 
-记录、分类、主张等数据都落在某个 Workspace 内。浏览器客户端用 `knowtrace_workspace_id` Cookie 表示当前 Workspace；原生客户端不用 Cookie，改为在查询串上传 `x-knowtrace-workspace-id=<uuid>`：
+记录、分类、主张等数据都落在某个 Workspace 内。浏览器客户端用 `knowtrace_workflow_workspace_id` Cookie 表示当前 Workspace；原生客户端不用 Cookie，改为在查询串上传 `x-knowtrace-workflow-workspace-id=<uuid>`：
 
 ```http
-GET /api/v1/captures?x-knowtrace-workspace-id=00000000-0000-4000-8000-000000000001
+GET /api/v1/captures?x-knowtrace-workflow-workspace-id=00000000-0000-4000-8000-000000000001
 Authorization: Bearer <access-token>
 X-Client: native
 ```

@@ -23,7 +23,7 @@ const payload: PortablePayloadV2 = {
       title: "一次观察",
       content: "某产品在测试环境出现了异常行为。",
       contentType: "observation",
-      subject: "KnowTrace",
+      subject: "KnowTrace-Workflow",
       occurredAt: "2026-08-23T02:30:00.000Z",
       status: "active",
       categoryKeys: ["category-001"],
@@ -162,7 +162,7 @@ const payload: PortablePayloadV2 = {
   ],
 };
 
-describe("KnowTrace portable workbook v2", () => {
+describe("KnowTrace-Workflow portable workbook v2", () => {
   it("round-trips the claim and evidence chain while declaring untrusted downgrade policy", async () => {
     const buffer = await createPortableWorkbookV2(payload);
     const parsed = await parsePortableWorkbookV2(buffer);

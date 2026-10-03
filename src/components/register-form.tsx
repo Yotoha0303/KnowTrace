@@ -22,7 +22,7 @@ export function RegisterForm() {
       <span className="brand-mark">K</span>
       <p className="eyebrow">go-user-system account</p>
       <h1>创建账号</h1>
-      <p>账号与密码只提交到 go-user-system，KnowTrace 不保存密码。</p>
+      <p>账号与密码只提交到 go-user-system，KnowTrace-Workflow 不保存密码。</p>
 
       <label>
         用户名 <small>必填，3–64 个字符</small>

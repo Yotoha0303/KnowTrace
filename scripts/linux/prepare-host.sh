@@ -13,7 +13,7 @@ set -Eeuo pipefail
 #        唯一创建它们的是 scripts/start-all.ps1（**PowerShell**），Linux 侧没有对应实现。
 #     2. /etc/knowtrace/ 父目录不存在 —— ops 阶段 install 报 No such file or directory。
 #        （那一处在 bootstrap.sh 里修，不在本脚本）
-#     3. /etc/nginx/sites-available/knowtrace.conf 不存在 ——
+#     3. /etc/nginx/sites-available/knowtrace-workflow.conf 不存在 ——
 #        install-observability-nginx.sh 硬要求它已存在，否则 exit 1。
 #     4. Ubuntu 的 nginx default 站点占 :80，与 Caddy 抢端口 —— TLS 起不来。
 #
@@ -97,9 +97,9 @@ echo "--- 2/5 Nginx 站点配置 ---"
 # 这里只"放一份"，不做 reload —— apps 阶段之前应用还没起来，
 # install-observability-nginx.sh 的 ready 检查会失败。
 # 那个脚本看到目标已存在且内容相同，会走 `cmp -s` 的等值分支，只做 nginx -t。
-source_path="$project_directory/deploy/nginx/knowtrace-vps.conf"
-target_available="/etc/nginx/sites-available/knowtrace.conf"
-target_enabled="/etc/nginx/sites-enabled/knowtrace.conf"
+source_path="$project_directory/deploy/nginx/knowtrace-workflow-vps.conf"
+target_available="/etc/nginx/sites-available/knowtrace-workflow.conf"
+target_enabled="/etc/nginx/sites-enabled/knowtrace-workflow.conf"
 
 if [[ ! -f "$source_path" ]]; then
   fail "缺少 $source_path"
@@ -113,7 +113,7 @@ else
     timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
     backup_directory="/root/knowtrace-ops/backups/${timestamp}-prepare-host-nginx"
     run install -d -m 700 "$backup_directory"
-    run cp -a -- "$target_available" "$backup_directory/knowtrace.conf"
+    run cp -a -- "$target_available" "$backup_directory/knowtrace-workflow.conf"
     ok "原站点配置已备份到 $backup_directory"
   fi
   run install -d -m 755 /etc/nginx/sites-available /etc/nginx/sites-enabled

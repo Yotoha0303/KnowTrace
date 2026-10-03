@@ -719,7 +719,7 @@ describe("v2 isolated instance recovery", () => {
       const switchWorkspaceBody = await switchWorkspaceResponse.json();
       expect(switchWorkspaceResponse.status, JSON.stringify(switchWorkspaceBody)).toBe(200);
       const setCookie = switchWorkspaceResponse.headers.get("set-cookie") ?? "";
-      expect(setCookie).toContain(`knowtrace_workspace_id=${apiCreatedWorkspaceId}`);
+      expect(setCookie).toContain(`knowtrace_workflow_workspace_id=${apiCreatedWorkspaceId}`);
       expect(setCookie.toLowerCase()).toContain("httponly");
       expect(setCookie.toLowerCase()).toContain("samesite=lax");
       expect(setCookie.toLowerCase()).toContain("path=/");
@@ -783,7 +783,7 @@ describe("v2 isolated instance recovery", () => {
       expect(emptyDeleteBody.data.deletedWorkspaceId).toBe(apiCreatedWorkspaceId);
       expect(emptyDeleteBody.data.currentWorkspaceId).toBe(defaultWorkspaceId);
       const deleteSetCookie = emptyDeleteResponse.headers.get("set-cookie") ?? "";
-      expect(deleteSetCookie).toContain(`knowtrace_workspace_id=${defaultWorkspaceId}`);
+      expect(deleteSetCookie).toContain(`knowtrace_workflow_workspace_id=${defaultWorkspaceId}`);
       expect(deleteSetCookie.toLowerCase()).toContain("httponly");
       const deletedWorkspaceRows = await targetSql`
         select id from workspaces where id = ${apiCreatedWorkspaceId}
@@ -809,7 +809,7 @@ describe("v2 isolated instance recovery", () => {
         method: "DELETE",
         headers: {
           "content-type": "application/json",
-          cookie: `knowtrace_workspace_id=${memberWorkspaceId}`,
+          cookie: `knowtrace_workflow_workspace_id=${memberWorkspaceId}`,
         },
         body: JSON.stringify({
           workspaceId: memberWorkspaceId,
@@ -843,7 +843,7 @@ describe("v2 isolated instance recovery", () => {
           headers: {
             "content-type": "application/json",
             "idempotency-key": "workspace-shared-key-01",
-            cookie: `knowtrace_workspace_id=${workspaceId}`,
+            cookie: `knowtrace_workflow_workspace_id=${workspaceId}`,
           },
           body: JSON.stringify({
             title,
@@ -911,7 +911,7 @@ describe("v2 isolated instance recovery", () => {
       expect(defaultListBody.data[0]?.id).toBe(defaultCaptureId);
 
       const secondaryListResponse = await fetch(`${TARGET_APP}/api/v1/captures`, {
-        headers: { cookie: `knowtrace_workspace_id=${secondaryWorkspaceId}` },
+        headers: { cookie: `knowtrace_workflow_workspace_id=${secondaryWorkspaceId}` },
       });
       const secondaryListBody = await secondaryListResponse.json();
       expect(secondaryListResponse.status, JSON.stringify(secondaryListBody)).toBe(200);
@@ -920,12 +920,12 @@ describe("v2 isolated instance recovery", () => {
 
       const crossWorkspaceDetailResponse = await fetch(
         `${TARGET_APP}/api/v1/captures/${defaultCaptureId}`,
-        { headers: { cookie: `knowtrace_workspace_id=${secondaryWorkspaceId}` } },
+        { headers: { cookie: `knowtrace_workflow_workspace_id=${secondaryWorkspaceId}` } },
       );
       expect(crossWorkspaceDetailResponse.status).toBe(404);
 
       const secondaryCategoriesResponse = await fetch(`${TARGET_APP}/api/v1/categories`, {
-        headers: { cookie: `knowtrace_workspace_id=${secondaryWorkspaceId}` },
+        headers: { cookie: `knowtrace_workflow_workspace_id=${secondaryWorkspaceId}` },
       });
       const secondaryCategoriesBody = await secondaryCategoriesResponse.json();
       expect(
@@ -943,7 +943,7 @@ describe("v2 isolated instance recovery", () => {
       expect(defaultClaimsBody.data[0]?.statement).toBe("默认空间主张");
 
       const secondaryClaimsResponse = await fetch(`${TARGET_APP}/api/v1/claims`, {
-        headers: { cookie: `knowtrace_workspace_id=${secondaryWorkspaceId}` },
+        headers: { cookie: `knowtrace_workflow_workspace_id=${secondaryWorkspaceId}` },
       });
       const secondaryClaimsBody = await secondaryClaimsResponse.json();
       expect(secondaryClaimsResponse.status, JSON.stringify(secondaryClaimsBody)).toBe(200);
@@ -959,7 +959,7 @@ describe("v2 isolated instance recovery", () => {
       expect(defaultSubjectsBody.data[0]?.captureCount).toBe(1);
 
       const secondarySubjectsResponse = await fetch(`${TARGET_APP}/api/v1/subjects`, {
-        headers: { cookie: `knowtrace_workspace_id=${secondaryWorkspaceId}` },
+        headers: { cookie: `knowtrace_workflow_workspace_id=${secondaryWorkspaceId}` },
       });
       const secondarySubjectsBody = await secondarySubjectsResponse.json();
       expect(secondarySubjectsResponse.status, JSON.stringify(secondarySubjectsBody)).toBe(200);
@@ -977,7 +977,7 @@ describe("v2 isolated instance recovery", () => {
 
       const secondarySearchResponse = await fetch(
         `${TARGET_APP}/search?q=${encodeURIComponent("空间记录")}&from=2026-08-28&to=2026-08-28`,
-        { headers: { cookie: `knowtrace_workspace_id=${secondaryWorkspaceId}` } },
+        { headers: { cookie: `knowtrace_workflow_workspace_id=${secondaryWorkspaceId}` } },
       );
       const secondarySearchHtml = await secondarySearchResponse.text();
       expect(secondarySearchResponse.status).toBe(200);
@@ -987,7 +987,7 @@ describe("v2 isolated instance recovery", () => {
       const invalidWorkspaceResponse = await fetch(`${TARGET_APP}/api/v1/captures`, {
         headers: {
           cookie:
-            "knowtrace_workspace_id=dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+            "knowtrace_workflow_workspace_id=dddddddd-dddd-4ddd-8ddd-dddddddddddd",
         },
       });
       const invalidWorkspaceBody = await invalidWorkspaceResponse.json();
@@ -1010,7 +1010,7 @@ describe("v2 isolated instance recovery", () => {
         method: "DELETE",
         headers: {
           "content-type": "application/json",
-          cookie: `knowtrace_workspace_id=${secondaryWorkspaceId}`,
+          cookie: `knowtrace_workflow_workspace_id=${secondaryWorkspaceId}`,
         },
         body: JSON.stringify({
           workspaceId: secondaryWorkspaceId,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 # ============================================================================
-# KnowTrace 生产环境变量初始化（Linux）
+# KnowTrace-Workflow 生产环境变量初始化（Linux）
 # ============================================================================
 #
 # 职责：把 .env.example 变成可启动的 .env —— 生成本机密钥、补默认值。
@@ -22,7 +22,7 @@ set -Eeuo pipefail
 #   scripts/linux/init-env.sh [--env-file .env] [--use-fixed-admin-credential]
 #
 # 为什么管理员口令默认随机（2026-10-02 改）：
-#   原先写死 KnowTrace@123，而这对凭据**写在公开 README 与 start-all.ps1 里**。
+#   原先写死 KnowTrace-Workflow@123，而这对凭据**写在公开 README 与 start-all.ps1 里**。
 #   2026-10-02 在全新 VPS 上实测：该机公网可访问，管理员口令就是这 13 个字符。
 #   学习目录的《从零部署教程》§10 用的是 openssl rand -hex 24（48 字符随机），
 #   老机也是 48 字符 —— 只有"照仓库脚本装"的机器是固定值。
@@ -139,7 +139,7 @@ generated: list[str] = []
 
 # ---- 默认值（仅填空，不覆盖已填的）------------------------------------------
 if get_value("KNOWTRACE_ADMIN_USERNAME").strip() == "":
-    set_value("KNOWTRACE_ADMIN_USERNAME", "KnowTrace")
+    set_value("KNOWTRACE_ADMIN_USERNAME", "KnowTrace-Workflow")
 # 管理员口令：默认随机生成（48 字符，与教程 §10 一致）。
 # 固定值只在显式传 --use-fixed-admin-credential 时使用 —— 那是给本机开发留的逃生口。
 # 判据与 ensure_secret 一致（空 / replace / your_ 开头才生成），保持幂等：
@@ -147,13 +147,13 @@ if get_value("KNOWTRACE_ADMIN_USERNAME").strip() == "":
 _admin_password = get_value("KNOWTRACE_ADMIN_PASSWORD").strip()
 if use_fixed_admin_credential:
     if _admin_password == "" or re.match(r"^(replace|your_)", _admin_password):
-        set_value("KNOWTRACE_ADMIN_PASSWORD", "KnowTrace@123")
+        set_value("KNOWTRACE_ADMIN_PASSWORD", "KnowTrace-Workflow@123")
         generated.append("KNOWTRACE_ADMIN_PASSWORD(FIXED)")
 elif _admin_password == "" or re.match(r"^(replace|your_)", _admin_password):
     set_value("KNOWTRACE_ADMIN_PASSWORD", generate_secret(24))
     generated.append("KNOWTRACE_ADMIN_PASSWORD")
 else:
-    # 关键：已有值不动。特别地，**不要**把已存在的 KnowTrace@123 当成"需要替换"，
+    # 关键：已有值不动。特别地，**不要**把已存在的 KnowTrace-Workflow@123 当成"需要替换"，
     # 否则重跑会把已部署环境的已知口令悄悄换掉，导致运维人员登不进去。
     pass
 if get_value("AUTH_ENABLED").strip() == "":
@@ -187,12 +187,12 @@ if generated:
         print(f"    grep '^KNOWTRACE_ADMIN_PASSWORD=' {environment_path}")
 else:
     print(f"{environment_path.name} 已包含统一启动所需密钥。")
-# 这一行以前无条件打印「默认管理员凭据：KnowTrace / KnowTrace@123」。
+# 这一行以前无条件打印「默认管理员凭据：KnowTrace-Workflow / KnowTrace-Workflow@123」。
 # 2026-10-02 起管理员口令默认是随机生成的，那句话会**误导人**去用一对
 # 已经不成立的凭据（且它在公开 README 里，等于把口令写进日志）。
 # 改成按实际情况打印。
 if use_fixed_admin_credential:
-    print("管理员口令使用固定值 KnowTrace@123（--use-fixed-admin-credential；仅本机开发用）。")
+    print("管理员口令使用固定值 KnowTrace-Workflow@123（--use-fixed-admin-credential；仅本机开发用）。")
 else:
     print("管理员口令为随机生成，已写入上方 .env；查看方式见上（勿贴进聊天或日志）。")
     print("  首次登录后请立即修改；修改后 .env 中的值不再代表当前口令。")

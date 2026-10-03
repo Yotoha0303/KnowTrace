@@ -16,7 +16,7 @@
 ```typescript
 "use client";
 
-export const ACCESS_TOKEN_HEADER = "x-knowtrace-access-token";
+export const ACCESS_TOKEN_HEADER = "x-knowtrace-workflow-access-token";
 ```
 
 复查：`git show 24d1e23:src/features/auth/client-mode.ts | head -1` → `"use client";`

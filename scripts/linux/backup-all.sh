@@ -52,7 +52,7 @@ for service_name in postgres auth-mysql auth-redis auth app; do
 done
 
 exec 9>"$BACKUP_ROOT/.backup.lock"
-flock -n 9 || die "已有 KnowTrace 备份任务在运行"
+flock -n 9 || die "已有 KnowTrace-Workflow 备份任务在运行"
 
 created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 stamp="$(date -u +'%Y%m%dT%H%M%SZ')"
@@ -103,7 +103,7 @@ restore_runtime() {
   "${compose[@]}" start auth || restart_rc=1
   wait_healthy auth 60 || restart_rc=1
 
-  log "恢复 KnowTrace 应用"
+  log "恢复 KnowTrace-Workflow 应用"
   "${compose[@]}" start app || restart_rc=1
   wait_healthy app 60 || restart_rc=1
 
@@ -254,9 +254,9 @@ for system_config in \
   /etc/caddy/Caddyfile \
   /etc/nginx/nginx.conf \
   /etc/nginx/sites-available/knowtrace \
-  /etc/nginx/sites-available/knowtrace.conf \
+  /etc/nginx/sites-available/knowtrace-workflow.conf \
   /etc/nginx/sites-enabled/knowtrace \
-  /etc/nginx/sites-enabled/knowtrace.conf \
+  /etc/nginx/sites-enabled/knowtrace-workflow.conf \
   /etc/ssh/sshd_config \
   /etc/ssh/sshd_config.d/*.conf; do
   if [[ -f "$system_config" ]]; then
@@ -286,7 +286,7 @@ chmod -R go-rwx "$incomplete_dir"
 
 restore_runtime
 
-curl -fsS --max-time 10 "$APP_READY_URL" >/dev/null || die "备份后 KnowTrace ready 检查失败: $APP_READY_URL"
+curl -fsS --max-time 10 "$APP_READY_URL" >/dev/null || die "备份后 KnowTrace-Workflow ready 检查失败: $APP_READY_URL"
 curl -fsS --max-time 10 "$AUTH_READY_URL" >/dev/null || die "备份后认证服务 ready 检查失败: $AUTH_READY_URL"
 
 mv "$incomplete_dir" "$final_dir"

@@ -157,7 +157,7 @@ def check_grafana_auth(values: dict[str, str]) -> int:
     """只检查 Grafana 凭据，不改动任何东西。"""
     headers = grafana_auth_headers(values)
     try:
-        status, _ = get_json("http://127.0.0.1:3001/api/search?query=KnowTrace", headers=headers)
+        status, _ = get_json("http://127.0.0.1:3001/api/search?query=KnowTrace-Workflow", headers=headers)
     except urllib.error.HTTPError as error:
         print(f"FAIL {grafana_auth_failure_message(error)}", file=sys.stderr)
         return 1
@@ -169,8 +169,8 @@ def check_grafana_auth(values: dict[str, str]) -> int:
 
 
 def verify_core(values: dict[str, str]) -> None:
-    wait_http("KnowTrace liveness", "http://127.0.0.1:3000/api/health/live")
-    wait_http("KnowTrace readiness", "http://127.0.0.1:3000/api/health/ready")
+    wait_http("KnowTrace-Workflow liveness", "http://127.0.0.1:3000/api/health/live")
+    wait_http("KnowTrace-Workflow readiness", "http://127.0.0.1:3000/api/health/ready")
     wait_http("Auth readiness", "http://127.0.0.1:8082/readyz")
     wait_http("Prometheus", "http://127.0.0.1:9090/-/ready")
     wait_http("Alertmanager", "http://127.0.0.1:9093/-/ready")
@@ -186,7 +186,7 @@ def verify_core(values: dict[str, str]) -> None:
         raise RuntimeError("主应用受保护 metrics 端点缺少预期指标")
     if "text/plain" not in headers.get("content-type", ""):
         raise RuntimeError("主应用 metrics Content-Type 不正确")
-    print("PASS KnowTrace protected metrics endpoint")
+    print("PASS KnowTrace-Workflow protected metrics endpoint")
 
     try:
         request("http://127.0.0.1:8080/api/metrics")
@@ -241,7 +241,7 @@ def verify_core(values: dict[str, str]) -> None:
             )
         print(
             "PASS PromQL: 尚无备份归档（首次部署的正常状态；"
-            "knowtrace-backup.timer 触发后本项会转为 >= 1）"
+            "knowtrace-workflow-backup.timer 触发后本项会转为 >= 1）"
         )
 
     _, alertmanagers = get_json("http://127.0.0.1:9090/api/v1/alertmanagers")
@@ -253,14 +253,14 @@ def verify_core(values: dict[str, str]) -> None:
     grafana_headers = grafana_auth_headers(values)
     try:
         _, dashboards = get_json(
-            "http://127.0.0.1:3001/api/search?query=KnowTrace%20VPS",
+            "http://127.0.0.1:3001/api/search?query=KnowTrace-Workflow%20VPS",
             headers=grafana_headers,
         )
     except urllib.error.HTTPError as error:
         raise RuntimeError(grafana_auth_failure_message(error)) from error
-    if not any(item.get("uid") == "knowtrace-vps-overview" for item in dashboards):
-        raise RuntimeError("Grafana 没有加载 KnowTrace VPS dashboard")
-    print("PASS Grafana provisioned dashboard: knowtrace-vps-overview")
+    if not any(item.get("uid") == "knowtrace-workflow-vps-overview" for item in dashboards):
+        raise RuntimeError("Grafana 没有加载 KnowTrace-Workflow VPS dashboard")
+    print("PASS Grafana provisioned dashboard: knowtrace-workflow-vps-overview")
 
     try:
         _, datasource = get_json(
@@ -285,7 +285,7 @@ def send_verification_log() -> str:
     event_id = f"plg-{int(time.time())}"
     line = json.dumps(
         {"event_id": event_id, "level": "INFO",
-         "message": "KnowTrace PLG verification event",
+         "message": "KnowTrace-Workflow PLG verification event",
          "verification_source": "scripts/linux/verify-observability.py"},
         ensure_ascii=False,
     )
@@ -379,7 +379,7 @@ def verify_logs() -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Verify KnowTrace stage-three observability")
+    parser = argparse.ArgumentParser(description="Verify KnowTrace-Workflow stage-three observability")
     parser.add_argument("--core", action="store_true", help="verify metrics, Grafana and Alertmanager")
     parser.add_argument("--logs", action="store_true", help="verify PLG log pipeline (Loki + Alloy)")
     parser.add_argument(

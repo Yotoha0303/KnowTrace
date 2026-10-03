@@ -137,7 +137,7 @@
 
 # ── 内核参数（放最后：无害，且失败也不影响登录）────────────────────
 # 说明：SysRq 与其余几项**写在同一个 99- 文件里**，刻意不单独建
-# 10-magic-sysrq-knowtrace.conf —— 实测那个名字会被发行版自带的
+# 10-magic-sysrq-knowtrace-workflow.conf —— 实测那个名字会被发行版自带的
 # 10-magic-sysrq.conf 盖掉（同一字典序位置，且 `-` < `.`）。详见 group_vars。
 - name: 写入内核与网络栈加固参数
   ansible.builtin.copy:

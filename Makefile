@@ -3,15 +3,15 @@ POWERSHELL ?= powershell
 .PHONY: help init up start down stop restart ps logs auth-logs test auth-test check build backup deploy
 
 help:
-	@echo KnowTrace commands:
+	@echo KnowTrace-Workflow commands:
 	@echo   make init       Generate local secrets and default administrator settings
-	@echo   make up         Build and start KnowTrace, go-user-system, PostgreSQL, MySQL and Redis
+	@echo   make up         Build and start KnowTrace-Workflow, go-user-system, PostgreSQL, MySQL and Redis
 	@echo   make down       Stop and remove containers while preserving data volumes
 	@echo   make restart    Restart the complete stack
 	@echo   make ps         Show unified service status
-	@echo   make logs       Follow KnowTrace and authentication logs
+	@echo   make logs       Follow KnowTrace-Workflow and authentication logs
 	@echo   make check      Run frontend and Go backend quality gates
-	@echo   make backup     Back up KnowTrace PostgreSQL and go-user-system MySQL
+	@echo   make backup     Back up KnowTrace-Workflow PostgreSQL and go-user-system MySQL
 	@echo   make deploy     Rebuild and redeploy the app on the VPS, then assert the running revision matches HEAD
 
 init:

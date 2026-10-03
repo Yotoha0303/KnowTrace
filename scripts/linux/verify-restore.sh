@@ -38,7 +38,7 @@ cleanup() {
   set +e
   for container_name in "${containers[@]}"; do
     if [[ "$container_name" == knowtrace-restore-check-* ]]; then
-      if [[ "$(docker inspect --format '{{index .Config.Labels "com.knowtrace.purpose"}}' "$container_name" 2>/dev/null)" == "restore-check" ]]; then
+      if [[ "$(docker inspect --format '{{index .Config.Labels "com.knowtrace-workflow.purpose"}}' "$container_name" 2>/dev/null)" == "restore-check" ]]; then
         docker rm --force --volumes "$container_name" >/dev/null 2>&1 || true
       fi
     fi
@@ -113,7 +113,7 @@ wait_for_command() {
 remove_test_container() {
   local container_name="$1"
   [[ "$container_name" == knowtrace-restore-check-* ]] || die "拒绝删除非恢复演练容器: $container_name"
-  [[ "$(docker inspect --format '{{index .Config.Labels "com.knowtrace.purpose"}}' "$container_name")" == "restore-check" ]] \
+  [[ "$(docker inspect --format '{{index .Config.Labels "com.knowtrace-workflow.purpose"}}' "$container_name")" == "restore-check" ]] \
     || die "拒绝删除缺少恢复演练标签的容器: $container_name"
   docker rm --force --volumes "$container_name" >/dev/null
 }
@@ -163,7 +163,7 @@ pg_container="knowtrace-restore-check-pg-$run_id"
 log "在无端口、无生产卷的临时 PostgreSQL 容器中恢复"
 docker run --detach \
   --name "$pg_container" \
-  --label com.knowtrace.purpose=restore-check \
+  --label com.knowtrace-workflow.purpose=restore-check \
   --network none \
   --env POSTGRES_DB=knowtrace \
   --env POSTGRES_USER=knowtrace \
@@ -185,7 +185,7 @@ mysql_container="knowtrace-restore-check-mysql-$run_id"
 log "在无端口、无生产卷的临时 MySQL 容器中恢复"
 docker run --detach \
   --name "$mysql_container" \
-  --label com.knowtrace.purpose=restore-check \
+  --label com.knowtrace-workflow.purpose=restore-check \
   --network none \
   --env MYSQL_ROOT_PASSWORD=restore-check-only \
   --env MYSQL_DATABASE=go_user_system \
@@ -207,7 +207,7 @@ redis_container="knowtrace-restore-check-redis-$run_id"
 log "在无端口、无生产卷的临时 Redis 容器中加载 RDB"
 docker create \
   --name "$redis_container" \
-  --label com.knowtrace.purpose=restore-check \
+  --label com.knowtrace-workflow.purpose=restore-check \
   --network none \
   "$REDIS_IMAGE" redis-server --appendonly no >/dev/null
 containers+=("$redis_container")

@@ -11,7 +11,7 @@ import {
 } from "./utils";
 
 describe("search utilities", () => {
-  it("formats the default search day in the KnowTrace time zone", () => {
+  it("formats the default search day in the KnowTrace-Workflow time zone", () => {
     expect(dateInKnowTraceTimeZone(new Date("2026-08-21T15:59:59.999Z"))).toBe("2026-08-21");
     expect(dateInKnowTraceTimeZone(new Date("2026-08-21T16:00:00.000Z"))).toBe("2026-08-22");
   });

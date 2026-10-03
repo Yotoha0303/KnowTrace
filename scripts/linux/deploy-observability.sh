@@ -105,10 +105,10 @@ else
   echo "         人工核对：curl -s http://127.0.0.1:9090/api/v1/rules | grep revision" >&2
 fi
 
-install -m 644 "$project_directory/deploy/systemd/knowtrace-backup.service" /etc/systemd/system/knowtrace-backup.service
-install -m 644 "$project_directory/deploy/systemd/knowtrace-backup.timer" /etc/systemd/system/knowtrace-backup.timer
+install -m 644 "$project_directory/deploy/systemd/knowtrace-workflow-backup.service" /etc/systemd/system/knowtrace-workflow-backup.service
+install -m 644 "$project_directory/deploy/systemd/knowtrace-workflow-backup.timer" /etc/systemd/system/knowtrace-workflow-backup.timer
 systemctl daemon-reload
-systemctl enable --now knowtrace-backup.timer >/dev/null
+systemctl enable --now knowtrace-workflow-backup.timer >/dev/null
 "$script_directory/write-backup-metrics.sh"
 
 echo "[5/6] 断言运行态 revision"

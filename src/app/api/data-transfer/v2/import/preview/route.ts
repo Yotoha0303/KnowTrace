@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const file = formData.get("file");
     if (!(file instanceof File)) {
       return Response.json(
-        { error: { code: "FILE_REQUIRED", message: "请选择一个 KnowTrace v2 ZIP 交换包。" } },
+        { error: { code: "FILE_REQUIRED", message: "请选择一个 KnowTrace-Workflow v2 ZIP 交换包。" } },
         { status: 422 },
       );
     }

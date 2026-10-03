@@ -8,7 +8,7 @@
 本工作区现有的阶段三材料包括本摘要、日志位置与查询，以及问题记录。
 
 2026-09-09 复核发现，原记录中声明的桌面完整目录
-`C:\Users\Yotoha\Desktop\KnowTrace-VPS-部署学习-2026-09-06\阶段三`
+`C:\Users\Yotoha\Desktop\KnowTrace-Workflow-VPS-部署学习-2026-09-06\阶段三`
 实际不存在。完整实现文件当前位于 VPS `/opt/knowtrace`，并已推送到远端分支
 `codex/stage3-observability`。详见：
 

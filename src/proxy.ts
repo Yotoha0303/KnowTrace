@@ -64,21 +64,21 @@ function withIdentityHeaders(
   },
 ) {
   const headers = new Headers(request.headers);
-  headers.set("x-knowtrace-user-id", String(identity.id));
-  headers.set("x-knowtrace-username", encodeURIComponent(identity.username));
-  headers.set("x-knowtrace-nickname", encodeURIComponent(identity.nickname));
-  headers.set("x-knowtrace-role-codes", identity.roleCodes.join(","));
-  headers.delete("x-knowtrace-auth-page");
+  headers.set("x-knowtrace-workflow-user-id", String(identity.id));
+  headers.set("x-knowtrace-workflow-username", encodeURIComponent(identity.username));
+  headers.set("x-knowtrace-workflow-nickname", encodeURIComponent(identity.nickname));
+  headers.set("x-knowtrace-workflow-role-codes", identity.roleCodes.join(","));
+  headers.delete("x-knowtrace-workflow-auth-page");
   return headers;
 }
 
 /** 清除一切身份头。用于「未认证但必须放行」的路径——伪造的头绝不能存活。 */
 function withoutIdentityHeaders(request: NextRequest) {
   const headers = new Headers(request.headers);
-  headers.delete("x-knowtrace-user-id");
-  headers.delete("x-knowtrace-username");
-  headers.delete("x-knowtrace-nickname");
-  headers.delete("x-knowtrace-role-codes");
+  headers.delete("x-knowtrace-workflow-user-id");
+  headers.delete("x-knowtrace-workflow-username");
+  headers.delete("x-knowtrace-workflow-nickname");
+  headers.delete("x-knowtrace-workflow-role-codes");
   headers.delete(ACCESS_TOKEN_HEADER);
   headers.delete(WORKSPACE_ID_HEADER);
   return headers;
@@ -192,10 +192,10 @@ export async function proxy(request: NextRequest) {
   if (authPage) {
     if (user?.ok && authorization?.ok) return NextResponse.redirect(new URL("/", request.url));
     const requestHeaders = new Headers(request.headers);
-    requestHeaders.delete("x-knowtrace-user-id");
-    requestHeaders.delete("x-knowtrace-username");
-    requestHeaders.delete("x-knowtrace-nickname");
-    requestHeaders.set("x-knowtrace-auth-page", "1");
+    requestHeaders.delete("x-knowtrace-workflow-user-id");
+    requestHeaders.delete("x-knowtrace-workflow-username");
+    requestHeaders.delete("x-knowtrace-workflow-nickname");
+    requestHeaders.set("x-knowtrace-workflow-auth-page", "1");
     const response = NextResponse.next({ request: { headers: requestHeaders } });
     if (accessToken) clearSessionCookies(response);
     return response;

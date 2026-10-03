@@ -18,7 +18,7 @@
 
 1. 人工根据短提交号手写完整哈希，写错了期望值；Git 同步本身已成功。
 2. PowerShell 变量名不区分大小写，使用了与只读系统变量冲突的名称。
-3. 把认证服务的 `/readyz` 路径误套到 KnowTrace；正式应用路径是
+3. 把认证服务的 `/readyz` 路径误套到 KnowTrace-Workflow；正式应用路径是
    `/api/health/ready`。
 
 ## 修正与证据

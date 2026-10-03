@@ -1,4 +1,4 @@
-name: knowtrace
+name: knowtrace-workflow
 
 x-auth-build: &auth-build
   context: ./services/go-user-system
@@ -19,15 +19,15 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_DB: knowtrace
-      POSTGRES_USER: knowtrace
+      POSTGRES_DB: knowtrace_workflow
+      POSTGRES_USER: knowtrace_workflow
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-knowtrace}
     ports:
       - "127.0.0.1:${POSTGRES_HOST_PORT:-15432}:5432"
     volumes:
-      - knowtrace_postgres18:/var/lib/postgresql
+      - knowtrace_workflow_postgres18:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U knowtrace -d knowtrace"]
+      test: ["CMD-SHELL", "pg_isready -U knowtrace_workflow -d knowtrace_workflow"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -65,7 +65,7 @@ services:
 
   auth-migrate:
     build: *auth-build
-    image: knowtrace-auth:dev
+    image: knowtrace-workflow-auth:dev
     command: ["migrate", "up"]
     environment:
       <<: *auth-database-environment
@@ -76,12 +76,12 @@ services:
 
   auth-bootstrap:
     build: *auth-build
-    image: knowtrace-auth:dev
+    image: knowtrace-workflow-auth:dev
     command: ["bootstrap-admin-if-needed"]
     environment:
       <<: *auth-database-environment
-      BOOTSTRAP_ADMIN_USERNAME: ${KNOWTRACE_ADMIN_USERNAME:-KnowTrace}
-      BOOTSTRAP_ADMIN_PASSWORD: ${KNOWTRACE_ADMIN_PASSWORD:-KnowTrace@123}
+      BOOTSTRAP_ADMIN_USERNAME: ${KNOWTRACE_ADMIN_USERNAME:-KnowTrace-Workflow}
+      BOOTSTRAP_ADMIN_PASSWORD: ${KNOWTRACE_ADMIN_PASSWORD:-KnowTrace-Workflow@123}
       JWT_SECRET: ${AUTH_JWT_SECRET:?Run make init or scripts/start-all.ps1 first}
     depends_on:
       auth-migrate:
@@ -90,7 +90,7 @@ services:
 
   auth:
     build: *auth-build
-    image: knowtrace-auth:dev
+    image: knowtrace-workflow-auth:dev
     ports:
       - "127.0.0.1:${AUTH_BACKEND_PORT:-8082}:8082"
     environment:
@@ -133,7 +133,7 @@ services:
         # 必须作为 build arg 传（Dockerfile 的 builder 阶段用 ARG/ENV 接）。
         NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=1024}
     environment:
-      DATABASE_URL: postgres://knowtrace:${POSTGRES_PASSWORD:-knowtrace}@postgres:5432/knowtrace
+      DATABASE_URL: postgres://knowtrace_workflow:${POSTGRES_PASSWORD:-knowtrace}@postgres:5432/knowtrace_workflow
       EVIDENCE_UPLOAD_DIR: /app/data/uploads/evidence
       AUTH_ENABLED: "true"
       AUTH_SERVICE_URL: http://auth:8082
@@ -169,7 +169,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  knowtrace_postgres18:
+  knowtrace_workflow_postgres18:
   auth_mysql_data:
     name: go-user-system_mysql_data
     external: true

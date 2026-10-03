@@ -90,7 +90,7 @@ apt-get install -y git curl openssl python3 jq util-linux ca-certificates
 | 告警凭据（163 授权码） | 项目设计就是必须隐藏输入，不能进仓库 |
 
 这几项的完整步骤见
-`docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md`（663 行）。
+`docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md`（663 行）。
 
 ## 设计依据与一个诚实的边界
 
@@ -114,5 +114,5 @@ apt-get install -y git curl openssl python3 jq util-linux ca-certificates
 
 - 设计文档与三块拦路石：`KnowTrace-ops/docs/2026-09-29-一键部署可行性与设计.md`
 - 事故复盘（预检阈值的依据）：`KnowTrace-ops/docs/2026-09-30-全站500事故复盘.md`
-- 从零部署人工教程：`docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-*.md`
+- 从零部署人工教程：`docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/文档/04-*.md`
 - 监控栈细节：`docs/16-stage3-observability.md`

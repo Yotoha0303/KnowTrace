@@ -27,7 +27,7 @@ function createMetricsState(): MetricsState {
 
   const buildInfo = new Gauge({
     name: "knowtrace_build_info",
-    help: "KnowTrace build information.",
+    help: "KnowTrace-Workflow build information.",
     labelNames: ["version", "revision", "environment"] as const,
     registers: [registry],
   });
@@ -44,7 +44,7 @@ function createMetricsState(): MetricsState {
     registry,
     databaseReady: new Gauge({
       name: "knowtrace_database_ready",
-      help: "Whether the KnowTrace PostgreSQL dependency is ready (1) or unavailable (0).",
+      help: "Whether the KnowTrace-Workflow PostgreSQL dependency is ready (1) or unavailable (0).",
       registers: [registry],
     }),
     databaseProbeDuration: new Gauge({

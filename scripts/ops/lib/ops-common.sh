@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # ============================================================================
-# KnowTrace 运维公共库 —— Bash 系统操作层
+# KnowTrace-Workflow 运维公共库 —— Bash 系统操作层
 # ============================================================================
 #
 # 定位：本文件被 daily-check.sh / security-check.sh / run-daily-ops.sh 等脚本
@@ -25,7 +25,7 @@
 #   ops_parse_common_args "$@"
 #   ops_load_conf
 #   ... ops_section / ops_ok / ops_warn / ops_fail / ops_info ...
-#   ops_finish "daily-check" "KnowTrace 日常巡检"
+#   ops_finish "daily-check" "KnowTrace-Workflow 日常巡检"
 # ============================================================================
 
 [[ -n "${OPS_COMMON_LOADED:-}" ]] && return 0

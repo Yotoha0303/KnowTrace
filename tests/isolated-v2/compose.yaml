@@ -11,7 +11,7 @@ services:
     image: postgres:18-alpine
     environment:
       POSTGRES_DB: knowtrace_source
-      POSTGRES_USER: knowtrace
+      POSTGRES_USER: knowtrace_workflow
       POSTGRES_PASSWORD: isolated
     ports:
       - "127.0.0.1:15433:5432"
@@ -27,7 +27,7 @@ services:
     image: postgres:18-alpine
     environment:
       POSTGRES_DB: knowtrace_target
-      POSTGRES_USER: knowtrace
+      POSTGRES_USER: knowtrace_workflow
       POSTGRES_PASSWORD: isolated
     ports:
       - "127.0.0.1:15434:5432"
@@ -43,7 +43,7 @@ services:
     image: knowtrace-app:latest
     environment:
       <<: *app-environment
-      DATABASE_URL: postgres://knowtrace:isolated@source-postgres:5432/knowtrace_source
+      DATABASE_URL: postgres://knowtrace_workflow:isolated@source-postgres:5432/knowtrace_source
     ports:
       - "127.0.0.1:3301:3000"
     volumes:
@@ -62,7 +62,7 @@ services:
     image: knowtrace-app:latest
     environment:
       <<: *app-environment
-      DATABASE_URL: postgres://knowtrace:isolated@target-postgres:5432/knowtrace_target
+      DATABASE_URL: postgres://knowtrace_workflow:isolated@target-postgres:5432/knowtrace_target
     ports:
       - "127.0.0.1:3302:3000"
     volumes:

@@ -35,7 +35,7 @@ function payloadFor(bytes: Uint8Array = pngBytes): PortablePayloadV2 {
         title: "测试记录",
         content: "用于验证 ZIP 交换包。",
         contentType: "observation",
-        subject: "KnowTrace",
+        subject: "KnowTrace-Workflow",
         occurredAt: "2026-08-27T08:00:00.000Z",
         status: "active",
         categoryKeys: [],
@@ -97,7 +97,7 @@ async function rewritePackage(
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
-describe("KnowTrace portable package v2", () => {
+describe("KnowTrace-Workflow portable package v2", () => {
   it("round-trips workbook metadata and real attachment bytes", async () => {
     const payload = payloadFor();
     const source = await createPortablePackageV2(

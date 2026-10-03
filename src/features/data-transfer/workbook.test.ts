@@ -18,7 +18,7 @@ const payload = {
   categories: [{ key: "category-001", name: "案例", description: "测试分类", status: "active" as const }],
 };
 
-describe("KnowTrace portable workbook", () => {
+describe("KnowTrace-Workflow portable workbook", () => {
   it("round-trips records, subject, time, and category relationships", async () => {
     const buffer = await createPortableWorkbook(payload);
     const parsed = await parsePortableWorkbook(buffer);

@@ -28,7 +28,7 @@ capture() {
   "$@" >>"$report_file" 2>&1 || printf 'command failed status=%s\n' "$?" >>"$report_file"
 }
 
-printf 'KnowTrace diagnostic report\ncreated_utc=%s\ndomain=%s\nproject_dir=%s\n' \
+printf 'KnowTrace-Workflow diagnostic report\ncreated_utc=%s\ndomain=%s\nproject_dir=%s\n' \
   "$timestamp" "$domain" "$project_dir" >"$report_file"
 
 capture 'identity' id

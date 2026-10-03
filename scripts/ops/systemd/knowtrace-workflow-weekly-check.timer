@@ -1,5 +1,5 @@
 [Unit]
-Description=每周执行 KnowTrace 周运维巡检（含备份完整性校验）
+Description=每周执行 KnowTrace-Workflow 周运维巡检（含备份完整性校验）
 
 [Timer]
 # 周一 20:00 UTC，在当天备份（19:21）之后，确保校验的是最新归档

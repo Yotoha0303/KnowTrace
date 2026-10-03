@@ -15,7 +15,7 @@ if (
   $resolvedDestination -ne $projectDirectory -and
   -not $resolvedDestination.StartsWith($projectPrefix, [System.StringComparison]::OrdinalIgnoreCase)
 ) {
-  throw "备份目录必须位于 KnowTrace 项目内。"
+  throw "备份目录必须位于 KnowTrace-Workflow 项目内。"
 }
 
 New-Item -ItemType Directory -Force -Path $resolvedDestination | Out-Null

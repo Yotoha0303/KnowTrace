@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded, read-only HTTP baseline for KnowTrace health endpoints."""
+"""Bounded, read-only HTTP baseline for KnowTrace-Workflow health endpoints."""
 
 from __future__ import annotations
 

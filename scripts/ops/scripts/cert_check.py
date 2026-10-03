@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TLS 证书有效期批量检查（KnowTrace 运维工具包）。
+"""TLS 证书有效期批量检查（KnowTrace-Workflow 运维工具包）。
 
 为什么用 Python 而不是 Bash
 ---------------------------
@@ -19,7 +19,7 @@ Bash 用 ``openssl s_client | openssl x509 -noout -enddate`` 看一张证书足�
 安全性说明
 ----------
 * 本脚本**不提供**跳过 TLS 校验来「制造通过结果」的选项，遵循
-  ``docs/KnowTrace-VPS-部署学习-2026-09-06/阶段二/Bug记录/BUG-S2-005`` 的结论：
+  ``docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段二/Bug记录/BUG-S2-005`` 的结论：
   不能用「不验证证书」换取通过。
 * 当证书链校验失败时，脚本仍会尽力读取证书内容以报告有效期，但整体结论一定
   是 FAIL —— 信息用于排障，结论不被美化。
@@ -595,7 +595,7 @@ def derive_default_domain(conf) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "KnowTrace TLS 证书有效期批量检查（只读）。"
+            "KnowTrace-Workflow TLS 证书有效期批量检查（只读）。"
             "信任链校验不通过时绝不返回 OK，也不提供「跳过校验换取通过」的选项。"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -642,7 +642,7 @@ def main(argv: list[str] | None = None) -> int:
     conf = load_ops_conf(args.conf)
     report = Report(
         script="cert_check",
-        title="KnowTrace TLS 证书有效期检查",
+        title="KnowTrace-Workflow TLS 证书有效期检查",
         quiet=args.quiet,
         no_color=args.no_color,
         extra_meta=environment_summary(),

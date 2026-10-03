@@ -37,7 +37,7 @@ ufw_stale_tcp:
 #
 # ⚠️ 文件名前缀必须是 **99-**。sysctl 按文件名字典序读取、**后者覆盖前者**，
 #    而发行版自带 10-magic-sysrq.conf 等一批 10-*.conf。
-#    实测踩到：SysRq 一开始单独放在 10-magic-sysrq-knowtrace.conf 里，
+#    实测踩到：SysRq 一开始单独放在 10-magic-sysrq-knowtrace-workflow.conf 里，
 #    与自带的 10-magic-sysrq.conf 同前缀，字典序又排在它**前面**
 #    （`-` 0x2D < `.` 0x2E），于是被盖掉 —— 实际值仍是 176 而不是 17。
 #    放进这个 99- 文件后，字典序在所有 10-* 之后，才真正生效。

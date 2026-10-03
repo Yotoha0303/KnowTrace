@@ -2,7 +2,7 @@
 
 ## 1. 部署边界
 
-KnowTrace 的统一容器栈默认启用仓库内 `services/go-user-system` 认证后端，并默认把 Web 与认证端口绑定到 `127.0.0.1`。账户中心复用 Go 后端的资料、密码和 RBAC 管理；`admin` 角色拥有实例级全部业务数据范围，管理员创建内容默认共享；普通成员可管理本人内容并只读查看管理员共享内容，成员私有内容之间仍隔离。Workspace/组织分组和更细粒度业务角色尚未实现。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
+KnowTrace-Workflow 的统一容器栈默认启用仓库内 `services/go-user-system` 认证后端，并默认把 Web 与认证端口绑定到 `127.0.0.1`。账户中心复用 Go 后端的资料、密码和 RBAC 管理；`admin` 角色拥有实例级全部业务数据范围，管理员创建内容默认共享；普通成员可管理本人内容并只读查看管理员共享内容，成员私有内容之间仍隔离。Workspace/组织分组和更细粒度业务角色尚未实现。公网部署仍需要 HTTPS、`AUTH_COOKIE_SECURE=true`、网络隔离和安全运维，不能只凭“出现登录页”就声称可安全暴露。
 
 统一启动：
 
@@ -12,13 +12,13 @@ make up
 .\scripts\start-all.ps1
 ```
 
-首次启动会在 `.env` 生成 MySQL/JWT 随机密钥，**以及管理员随机口令**，并在尚无管理员时创建管理员 `KnowTrace`。口令默认随机；想用固定值 `KnowTrace@123` 需显式传 `--use-fixed-admin-credential`（Linux）/ `-UseFixedAdminCredential`（PowerShell），那**只适合绑定 `127.0.0.1` 的本机首次登录**。2026-10-02 之前默认就是那对固定凭据，而它写在公开 README 里，公网机器因此会带着公开口令上线。重复启动只检查管理员是否已存在，不会把用户后来修改的密码重置回默认值；修改密码后，MySQL 中的 bcrypt 哈希是当前凭据，`.env` 中的值仍只是初始化默认值。需要独立复核时仍须准备另一个不同账号；结论作者与复核者不能共享账号。修改密码会使该账号的全部会话失效；当前认证后端不提供设备会话列表和单设备撤销接口。管理员角色分配依赖数字用户 ID，因为后端尚无用户列表接口。
+首次启动会在 `.env` 生成 MySQL/JWT 随机密钥，**以及管理员随机口令**，并在尚无管理员时创建管理员 `KnowTrace-Workflow`。口令默认随机；想用固定值 `KnowTrace-Workflow@123` 需显式传 `--use-fixed-admin-credential`（Linux）/ `-UseFixedAdminCredential`（PowerShell），那**只适合绑定 `127.0.0.1` 的本机首次登录**。2026-10-02 之前默认就是那对固定凭据，而它写在公开 README 里，公网机器因此会带着公开口令上线。重复启动只检查管理员是否已存在，不会把用户后来修改的密码重置回默认值；修改密码后，MySQL 中的 bcrypt 哈希是当前凭据，`.env` 中的值仍只是初始化默认值。需要独立复核时仍须准备另一个不同账号；结论作者与复核者不能共享账号。修改密码会使该账号的全部会话失效；当前认证后端不提供设备会话列表和单设备撤销接口。管理员角色分配依赖数字用户 ID，因为后端尚无用户列表接口。
 
 ## 2. 容器运行
 
 根级 `Makefile` 是统一入口；`make up`、`make down`、`make restart`、`make ps` 和 `make logs` 分别管理完整栈。直接调用 Compose 前必须先运行 `make init` 生成本机密钥。
 
-启动顺序：MySQL → go-user-system Migration → 幂等管理员初始化 → Redis 与认证后端 → PostgreSQL → KnowTrace Migration → 中断 AI Run 恢复 → Next.js。任一步失败，依赖服务不会以“看似可用”的状态继续启动。
+启动顺序：MySQL → go-user-system Migration → 幂等管理员初始化 → Redis 与认证后端 → PostgreSQL → KnowTrace-Workflow Migration → 中断 AI Run 恢复 → Next.js。任一步失败，依赖服务不会以“看似可用”的状态继续启动。
 
 健康检查：
 
@@ -115,7 +115,7 @@ sudo PROJECT_DIR=/opt/knowtrace bash scripts/linux/fix-uploads-ownership.sh
 | 运维执行记录与事故复盘 | `../KnowTrace-ops/docs/` |
 | 监控栈部署与告警链路 | [`16-stage3-observability.md`](16-stage3-observability.md) |
 | 备份、恢复、压测与故障迭代 | [`15-stage2-vps-reliability.md`](15-stage2-vps-reliability.md) |
-| 从零部署的完整实操 | [`KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/`](KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/) |
+| 从零部署的完整实操 | [`KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/文档/`](KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/文档/) |
 | 运维脚本用法与说明 | `../scripts/ops/README.md`、`../scripts/bootstrap/README.md` |
 
 > [!IMPORTANT]

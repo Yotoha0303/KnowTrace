@@ -1,8 +1,8 @@
 [Unit]
-Description=每天执行 KnowTrace 每日运维巡检
+Description=每天执行 KnowTrace-Workflow 每日运维巡检
 
 [Timer]
-# 备份定时器 knowtrace-backup.timer 在 19:21 UTC 触发，日巡检排在它之后，
+# 备份定时器 knowtrace-workflow-backup.timer 在 19:21 UTC 触发，日巡检排在它之后，
 # 这样「备份新鲜度」检查看到的是当天的备份。
 OnCalendar=*-*-* 19:30:00 UTC
 Persistent=true

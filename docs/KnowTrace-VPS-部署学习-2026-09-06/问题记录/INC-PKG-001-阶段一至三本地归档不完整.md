@@ -12,7 +12,7 @@
 
 ## 处理
 
-1. 创建桌面目录 `KnowTrace-VPS-部署学习-2026-09-06`；
+1. 创建桌面目录 `KnowTrace-Workflow-VPS-部署学习-2026-09-06`；
 2. 按阶段整理原有文档、证据和问题记录；
 3. 从 VPS 白名单复制非敏感 Compose、脚本、配置、systemd 和演练日志；
 4. 排除 `.env`、私钥、授权码、数据库归档和真实业务数据；
@@ -38,10 +38,10 @@ Get-ChildItem -LiteralPath <源目录> -File |
 
 ## 回滚
 
-本次没有修改 VPS，也没有修改 `D:\MyDocuments\KnowTrace\KnowTrace` Git 仓库。旧版与桌面原件均保存在 D 盘 `_archive`，不建议在学习记录验收前删除。
+本次没有修改 VPS，也没有修改 `D:\MyDocuments\KnowTrace-Workflow\KnowTrace-Workflow` Git 仓库。旧版与桌面原件均保存在 D 盘 `_archive`，不建议在学习记录验收前删除。
 
 若需要恢复旧学习包，应先把当前主版本移动到另一个明确目录，再将以下预合并归档恢复为原目录名：
 
-`D:\MyDocuments\KnowTrace\_archive\KnowTrace-VPS-部署学习-2026-09-06.premerge-20260909T154345`
+`D:\MyDocuments\KnowTrace-Workflow\_archive\KnowTrace-Workflow-VPS-部署学习-2026-09-06.premerge-20260909T154345`
 
 不要直接覆盖当前主版本；恢复前先核对归档旁的 SHA-256 清单。

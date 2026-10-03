@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""KnowTrace 运维公共库 —— Python 自动化逻辑层。
+"""KnowTrace-Workflow 运维公共库 —— Python 自动化逻辑层。
 
 定位
 ----

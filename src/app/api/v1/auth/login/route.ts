@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   // 把真实客户端 IP 传给认证服务，供其登录限流按来源计数。
   //
   // 为什么取 x-forwarded-for：nginx 会用 `$remote_addr` **覆盖**该头
-  // （见 deploy/nginx/knowtrace-vps.conf），而 `$remote_addr` 已被 Caddy 的
+  // （见 deploy/nginx/knowtrace-workflow-vps.conf），而 `$remote_addr` 已被 Caddy 的
   // real_ip_header 还原为真实客户端。所以到这里这个值是可采信的——
   // 外部伪造的 XFF 到不了这里。
   //

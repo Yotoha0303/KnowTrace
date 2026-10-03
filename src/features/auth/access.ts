@@ -119,14 +119,14 @@ export const currentDataAccessScope = cache(async (): Promise<DataAccessScope> =
   }
 
   const requestHeaders = await headers();
-  const userId = Number(requestHeaders.get("x-knowtrace-user-id"));
+  const userId = Number(requestHeaders.get("x-knowtrace-workflow-user-id"));
   if (Number.isInteger(userId) && userId > 0) {
     return resolveDataAccessScope(
       scopeFromIdentity({
         id: userId,
-        username: decodeURIComponent(requestHeaders.get("x-knowtrace-username") ?? ""),
-        nickname: decodeURIComponent(requestHeaders.get("x-knowtrace-nickname") ?? ""),
-        roleCodes: (requestHeaders.get("x-knowtrace-role-codes") ?? "")
+        username: decodeURIComponent(requestHeaders.get("x-knowtrace-workflow-username") ?? ""),
+        nickname: decodeURIComponent(requestHeaders.get("x-knowtrace-workflow-nickname") ?? ""),
+        roleCodes: (requestHeaders.get("x-knowtrace-workflow-role-codes") ?? "")
           .split(",")
           .map((code) => code.trim())
           .filter(Boolean),

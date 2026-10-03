@@ -1,8 +1,8 @@
-# KnowTrace Prometheus 容器监控与企业实践
+# KnowTrace-Workflow Prometheus 容器监控与企业实践
 
 ## 1. 直接结论
 
-Prometheus 可以运行在 Docker 容器中，并通过 Docker Compose 的内部网络抓取 KnowTrace 各服务的指标。
+Prometheus 可以运行在 Docker 容器中，并通过 Docker Compose 的内部网络抓取 KnowTrace-Workflow 各服务的指标。
 
 但“Prometheus 能看到容器”与“Prometheus 能理解业务”是两件事：
 
@@ -16,7 +16,7 @@ Prometheus 可以运行在 Docker 容器中，并通过 Docker Compose 的内部
 
 参考：[Prometheus 配置和服务发现](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)、[Exporters and integrations](https://prometheus.io/docs/instrumenting/exporters/)。
 
-## 2. 当前 KnowTrace 的真实状态
+## 2. 当前 KnowTrace-Workflow 的真实状态
 
 根据 2026-09-07 本地仓库检查：
 
@@ -61,7 +61,7 @@ http://auth:8082/metrics
 services/go-user-system/compose.observability.yaml
 ```
 
-是认证子项目的独立监控 overlay，其中 Prometheus 抓取的是 `app:8082`。根级 KnowTrace Compose 中：
+是认证子项目的独立监控 overlay，其中 Prometheus 抓取的是 `app:8082`。根级 KnowTrace-Workflow Compose 中：
 
 - `app` 是 Next.js，端口为 3000。
 - `auth` 才是 Go 认证服务，端口为 8082。
@@ -138,7 +138,7 @@ Alert rules ─────────► Alertmanager ────────
 
 还应关注 in-flight 请求。Prometheus 官方也将请求量、错误和延迟列为在线服务的关键指标。参考：[Instrumentation practices](https://prometheus.io/docs/practices/instrumentation/)。
 
-KnowTrace Next.js 主应用建议补充：
+KnowTrace-Workflow Next.js 主应用建议补充：
 
 ```text
 knowtrace_http_requests_total{method,route,status}
@@ -311,7 +311,7 @@ Prometheus Operator 用 Kubernetes CRD 管理 Prometheus、Alertmanager、Servic
 4. 加入 PostgreSQL、MySQL 和 Redis exporters。
 5. 建立主机、容器、依赖和公网四类 dashboard。
 
-### 阶段 C：补 KnowTrace 主应用指标
+### 阶段 C：补 KnowTrace-Workflow 主应用指标
 
 1. 为 Next.js 主应用设计低基数 RED 指标。
 2. 增加 AI 运行和保存操作指标。
@@ -334,6 +334,6 @@ Prometheus Operator 用 Kubernetes CRD 管理 Prometheus、Alertmanager、Servic
 
 完成 Docker 阶段并留下证据后，可以表述为：
 
-> 在 Ubuntu 单机 Docker Compose 环境中为 KnowTrace 接入 Prometheus、Grafana、Node Exporter、cAdvisor、Blackbox Exporter及数据库 exporters；基于应用 RED、主机、容器、依赖和备份新鲜度构建监控与告警，并通过可控故障演练验证发现和恢复流程。
+> 在 Ubuntu 单机 Docker Compose 环境中为 KnowTrace-Workflow 接入 Prometheus、Grafana、Node Exporter、cAdvisor、Blackbox Exporter及数据库 exporters；基于应用 RED、主机、容器、依赖和备份新鲜度构建监控与告警，并通过可控故障演练验证发现和恢复流程。
 
 不要表述为“建设企业级高可用监控平台”，除非已经真实完成多副本、独立故障域、通知值班、长期存储、容量验证和持续运行。

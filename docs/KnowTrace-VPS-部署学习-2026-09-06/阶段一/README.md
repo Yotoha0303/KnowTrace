@@ -2,7 +2,7 @@
 
 ## 阶段结果
 
-KnowTrace 已部署在 Ubuntu VPS，通过 `https://knowtrace.duckdns.org` 提供服务。公网只承担 80/443 和 SSH 22345；数据库及管理界面没有直接暴露。
+KnowTrace-Workflow 已部署在 Ubuntu VPS，通过 `https://knowtrace.duckdns.org` 提供服务。公网只承担 80/443 和 SSH 22345；数据库及管理界面没有直接暴露。
 
 ## 1. 已有安装证据
 
@@ -90,7 +90,7 @@ git status --short --branch
 install -m 600 /dev/null .env
 ```
 
-使用 `.env.example` 了解字段，再通过密码生成器写入真实 `.env`。示例文件中的 `KnowTrace@123` 和 `knowtrace` 是开发示例，不是生产安全值。
+使用 `.env.example` 了解字段，再通过密码生成器写入真实 `.env`。示例文件中的 `KnowTrace-Workflow@123` 和 `knowtrace` 是开发示例，不是生产安全值。
 
 ```bash
 docker compose \

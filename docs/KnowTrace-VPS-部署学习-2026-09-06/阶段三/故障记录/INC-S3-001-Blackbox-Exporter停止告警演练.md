@@ -4,7 +4,7 @@
 - 时间：2026-09-08 12:46:04～12:48:08（Asia/Shanghai）。
 - 严重度：演练级。
 - 状态：已关闭。
-- 影响：Prometheus 无法抓取 Blackbox Exporter；KnowTrace 和认证业务保持在线。
+- 影响：Prometheus 无法抓取 Blackbox Exporter；KnowTrace-Workflow 和认证业务保持在线。
 - 服务器日志：`/var/log/knowtrace-observability-drill-20260908T044604Z.log`。
 
 ## 正常基线

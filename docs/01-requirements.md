@@ -219,7 +219,7 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 
 ### US-15 CC-Switch 当前供应商自动识别（已实现）
 
-作为使用 CC-Switch 的用户，我希望在处理引擎中选择 CC-Switch 后，KnowTrace 能自动识别并显示当前实际供应商，例如 Codex、DeepSeek 或其他兼容大模型，而不是只显示通用的“当前供应商”。
+作为使用 CC-Switch 的用户，我希望在处理引擎中选择 CC-Switch 后，KnowTrace-Workflow 能自动识别并显示当前实际供应商，例如 Codex、DeepSeek 或其他兼容大模型，而不是只显示通用的“当前供应商”。
 
 当前缺口：现有实现能够检查 CC-Switch 代理是否可达，并用小型结构化请求验证当前路由能否完成 AI 整理；但不能可靠识别供应商身份，也不能在 CC-Switch 切换到 DeepSeek 等供应商后自动更新显示。模型路由名和返回模型名均可能被 CC-Switch 映射，不能单独作为供应商身份依据。
 
@@ -227,15 +227,15 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 
 - 选择 CC-Switch 后自动检测代理状态、实际供应商和实际模型，分别展示“代理可达”“供应商已识别”“模型能力测试通过”三种状态。
 - 至少覆盖 Codex、DeepSeek 和一个其他兼容供应商；未知供应商必须显示为“未识别”，不能猜测。
-- 用户在 CC-Switch 中切换供应商后，KnowTrace 能重新检测并更新名称，不要求清理浏览器缓存或手动修改模型路由名。
+- 用户在 CC-Switch 中切换供应商后，KnowTrace-Workflow 能重新检测并更新名称，不要求清理浏览器缓存或手动修改模型路由名。
 - AI Run 保存当次检测到的供应商标识、显示名称、实际模型和检测时间，供后续追溯；不得保存 API Key、OAuth token 或 CC-Switch 敏感配置。
 - 供应商无法识别、代理未启动和模型能力不兼容必须给出不同提示；不能只显示持续加载动画。
 
-状态：已实现。KnowTrace 读取 CC-Switch 状态与模型目录，区分代理可达、供应商身份和可用路由；可用路由检测成功后不再强制每次手工测试。未知供应商保持“未识别”，不会猜测名称。
+状态：已实现。KnowTrace-Workflow 读取 CC-Switch 状态与模型目录，区分代理可达、供应商身份和可用路由；可用路由检测成功后不再强制每次手工测试。未知供应商保持“未识别”，不会猜测名称。
 
 ### US-16 Excel/ZIP 导出与导入主张、证据及附件（已完成）
 
-作为使用者，我希望 Excel 数据迁移不仅保存原始记录和分类，还能保存其主张、证伪条件、证据摘录、来源信息、核验状态、人工结论和证据图片，从而在另一个 KnowTrace 实例中继续原有知识调查，而不是只得到失去证据链的原文。
+作为使用者，我希望 Excel 数据迁移不仅保存原始记录和分类，还能保存其主张、证伪条件、证据摘录、来源信息、核验状态、人工结论和证据图片，从而在另一个 KnowTrace-Workflow 实例中继续原有知识调查，而不是只得到失去证据链的原文。
 
 验收标准：
 
@@ -246,11 +246,11 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 - 明确可编辑交换包能否恢复已采纳/已审核状态；没有受信任完整性机制时必须安全降级为待核验。
 - 继续兼容当前 `v1` Excel 导入；Excel 交换包仍不能替代 PostgreSQL、认证数据库和上传目录的完整备份。
 
-状态：已完成。`v2` 已实现主张、证据、来源/附件检查、人工结论、结论证据关系和图片 manifest 的 Excel 生成/解析，以及 `manifest.json + knowtrace.xlsx + attachments/` ZIP 包；导入会校验工作簿与附件 SHA-256、大小、MIME、路径和引用完整性，并拒绝目录穿越、额外文件和超限附件。Capture/Category 复用 `v1` 预检与事务语义，Claim/Evidence/Attachment 使用按 actor、格式版本和稳定对象身份隔离的 provenance，实现 `create / skip / repair / conflict`。确认导入会重新校验服务端暂存 ZIP、文件哈希和数据库预检快照，并在单个数据库事务中写入基础对象与知识链；附件文件失败时执行补偿清理。当前数据迁移页同时支持 `.xlsx v1` 与 `.zip v2`，可信状态按非受信任交换包策略安全降级。隔离恢复验收已使用两套独立 KnowTrace App + PostgreSQL 实例完成真实 HTTP 导出/预检/确认链路，验证空白实例恢复、图片在线读取与 SHA-256 一致、同一 actor 第二次导入全量幂等；同一真实目标 PostgreSQL 上还验证了第二 actor 使用独立 provenance 重新创建，不跨 actor 错误去重。详细范围与测试矩阵见 `KT-DEFER-005`。
+状态：已完成。`v2` 已实现主张、证据、来源/附件检查、人工结论、结论证据关系和图片 manifest 的 Excel 生成/解析，以及 `manifest.json + knowtrace.xlsx + attachments/` ZIP 包；导入会校验工作簿与附件 SHA-256、大小、MIME、路径和引用完整性，并拒绝目录穿越、额外文件和超限附件。Capture/Category 复用 `v1` 预检与事务语义，Claim/Evidence/Attachment 使用按 actor、格式版本和稳定对象身份隔离的 provenance，实现 `create / skip / repair / conflict`。确认导入会重新校验服务端暂存 ZIP、文件哈希和数据库预检快照，并在单个数据库事务中写入基础对象与知识链；附件文件失败时执行补偿清理。当前数据迁移页同时支持 `.xlsx v1` 与 `.zip v2`，可信状态按非受信任交换包策略安全降级。隔离恢复验收已使用两套独立 KnowTrace-Workflow App + PostgreSQL 实例完成真实 HTTP 导出/预检/确认链路，验证空白实例恢复、图片在线读取与 SHA-256 一致、同一 actor 第二次导入全量幂等；同一真实目标 PostgreSQL 上还验证了第二 actor 使用独立 provenance 重新创建，不跨 actor 错误去重。详细范围与测试矩阵见 `KT-DEFER-005`。
 
 ### US-17 Workspace 数据隔离（已完成并部署）
 
-作为多个用户和后续组织协作场景的使用者，我希望 KnowTrace 以 Workspace 作为数据边界，而不是仅依赖单个 actor/管理员可见性规则，从而让同一账号可以进入不同空间，并保证记录、知识链、搜索、导入导出和附件不会跨 Workspace 泄露。
+作为多个用户和后续组织协作场景的使用者，我希望 KnowTrace-Workflow 以 Workspace 作为数据边界，而不是仅依赖单个 actor/管理员可见性规则，从而让同一账号可以进入不同空间，并保证记录、知识链、搜索、导入导出和附件不会跨 Workspace 泄露。
 
 阶段目标：先完成**数据隔离和 Workspace 上下文**，不在本阶段同时展开复杂 RBAC、计费、Agent 权限或组织管理。
 
@@ -272,7 +272,7 @@ Content Type 只描述形态，不表示真假。例如 `observation` 表示用�
 
 ### US-18 移动 App（第二阶段）
 
-在 Workspace 数据隔离稳定后，作为移动端使用者，我希望通过真正的移动 App 快速记录、查看和继续处理 KnowTrace 内容，而不是依赖桌面网页缩放版。
+在 Workspace 数据隔离稳定后，作为移动端使用者，我希望通过真正的移动 App 快速记录、查看和继续处理 KnowTrace-Workflow 内容，而不是依赖桌面网页缩放版。
 
 阶段顺序：**US-17 Workspace 数据隔离完成并验收后再启动 US-18**，两者不并行开发。
 
@@ -369,7 +369,7 @@ AI Audit Recommendation：`supported / refuted / inconclusive / needs_more_evide
 
 ### 安全
 
-- 身份由 go-user-system 提供，KnowTrace 只接受服务端验证后的用户与角色上下文；业务数据还必须经过当前 Workspace Membership 和资源级访问策略校验，客户端提交的用户、角色或 Workspace 标识不能直接成为授权依据。
+- 身份由 go-user-system 提供，KnowTrace-Workflow 只接受服务端验证后的用户与角色上下文；业务数据还必须经过当前 Workspace Membership 和资源级访问策略校验，客户端提交的用户、角色或 Workspace 标识不能直接成为授权依据。
 - AI API Key 可以来自服务端环境变量，也可以由用户在 AI 整理台为单次请求提供；UI Key 不写入数据库、AI Run 或服务端日志。
 - UI Key 只有在用户明确勾选时才保存到当前标签页的 `sessionStorage`，关闭标签页后失效。
 - 日志不记录完整正文、Prompt、API Key 或供应商原始敏感错误。

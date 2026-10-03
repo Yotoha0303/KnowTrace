@@ -195,7 +195,7 @@ export function WorkspaceSwitcher({
             disabled={busy}
             maxLength={100}
             onChange={(event) => setName(event.target.value)}
-            placeholder="例如：KnowTrace 研发"
+            placeholder="例如：KnowTrace-Workflow 研发"
             required
             value={name}
           />

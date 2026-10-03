@@ -5,7 +5,7 @@
 本阶段在单台 2 GiB VPS 上建立可运行、可验证、可回滚的最小可观测性闭环：
 
 - Prometheus 抓取主应用、认证服务、服务器和 HTTP 探针指标；
-- Grafana 自动加载数据源和 `KnowTrace VPS 可观测性` dashboard；
+- Grafana 自动加载数据源和 `KnowTrace-Workflow VPS 可观测性` dashboard；
 - Alertmanager 接收 Prometheus 告警，并在配置 SMTP 后发送邮件；
 - Alloy 采集边缘代理与全部容器日志送给 Loki，Grafana 里与指标同一处检索（PLG 栈）；
 - 通过可恢复的 Blackbox Exporter 停止实验验证“发现 → firing → 送达 Alertmanager → 恢复 → 清除”。
@@ -53,7 +53,7 @@ Caddy / Nginx / Docker JSON logs -> Alloy -> Loki -> Grafana（同一界面里�
 | --- | --- |
 | `compose.observability.yaml` | 核心监控与 PLG 日志栈（全部常驻） |
 | `deploy/monitoring/prometheus.yml` | 抓取与 Alertmanager 路由 |
-| `deploy/monitoring/rules/knowtrace.yml` | 应用、主机、备份和自监控规则 |
+| `deploy/monitoring/rules/knowtrace-workflow.yml` | 应用、主机、备份和自监控规则 |
 | `deploy/grafana/` | 数据源（Prometheus + Loki）和 dashboard provisioning |
 | `deploy/alloy/config.alloy` | 容器、Caddy、Nginx 与验证事件的采集管道（替代 `logstash/`） |
 | `deploy/loki/loki-config.yml` | Loki 单机配置：本地文件系统 + 7 天保留 |
@@ -73,7 +73,7 @@ git status --short --branch
 free -h
 df -h /
 docker stats --no-stream
-systemctl status knowtrace-backup.timer --no-pager
+systemctl status knowtrace-workflow-backup.timer --no-pager
 scripts/linux/backup-all.sh
 scripts/linux/verify-restore.sh /var/backups/knowtrace/<新归档>
 ```
@@ -178,7 +178,7 @@ scripts/linux/test-email-alert.sh
 scripts/linux/observability-drill.sh blackbox
 ```
 
-脚本先验证正常基线，再停止 Blackbox Exporter，等待 `KnowTraceMetricsTargetDown` 进入 firing 并出现在 Alertmanager，随后通过 trap 恢复容器，重新验证 12 个 targets 并等待告警清除。它不会停止 KnowTrace 应用或数据库。
+脚本先验证正常基线，再停止 Blackbox Exporter，等待 `KnowTraceMetricsTargetDown` 进入 firing 并出现在 Alertmanager，随后通过 trap 恢复容器，重新验证 12 个 targets 并等待告警清除。它不会停止 KnowTrace-Workflow 应用或数据库。
 
 ## 日志栈（PLG）与查询
 
@@ -320,7 +320,7 @@ curl -sS http://127.0.0.1:9093/api/v2/status
 
 ### Backup freshness
 
-检查 timer、`/var/log/knowtrace-backup.log`、归档 SHA-256 和磁盘。告警恢复前必须生成新归档并通过隔离恢复，不能只手工改时间戳指标。
+检查 timer、`/var/log/knowtrace-workflow-backup.log`、归档 SHA-256 和磁盘。告警恢复前必须生成新归档并通过隔离恢复，不能只手工改时间戳指标。
 
 ### Auth HTTP
 
@@ -339,9 +339,9 @@ collector 暴露。它们与存储商无关 —— 换后端不改指标名。
 先看现场：
 
 ```bash
-systemctl status knowtrace-offsite-backup.timer --no-pager
-systemctl status knowtrace-offsite-backup.service --no-pager
-journalctl -u knowtrace-offsite-backup.service -n 50 --no-pager
+systemctl status knowtrace-workflow-offsite-backup.timer --no-pager
+systemctl status knowtrace-workflow-offsite-backup.service --no-pager
+journalctl -u knowtrace-workflow-offsite-backup.service -n 50 --no-pager
 ls -l /opt/knowtrace/runtime/node-exporter/knowtrace-offsite.prom
 ```
 
@@ -374,7 +374,7 @@ SHA-256。**未经恢复验证的备份不能算备份。** 私钥只应存在�
 
 ```bash
 systemctl list-timers 'knowtrace*' --no-pager
-journalctl -u knowtrace-daily-ops.service -n 40 --no-pager
+journalctl -u knowtrace-workflow-daily-ops.service -n 40 --no-pager
 ls -t /var/lib/knowtrace/reports/ | head
 cat /opt/knowtrace/runtime/node-exporter/knowtrace-ops.prom
 ```
@@ -390,7 +390,7 @@ cat /opt/knowtrace/runtime/node-exporter/knowtrace-ops.prom
 
 - **NeverRan**（`absent(...)`）：报告目录里**一份 JSON 都没有**。常见原因是
   定时器没 enable，或 `REPORTS_DIR` 被改过。检查
-  `systemctl is-enabled knowtrace-daily-ops.timer`。
+  `systemctl is-enabled knowtrace-workflow-daily-ops.timer`。
 
 - **DailyCheckStale / WeeklyCheckStale / MonthlyCheckStale**：跑过但超过周期。
   检查 timer 的 `OnCalendar` 与 `Persistent`，以及 service 是否被
@@ -403,7 +403,7 @@ cat /opt/knowtrace/runtime/node-exporter/knowtrace-ops.prom
 ### 运行态版本核对
 
 `knowtrace.revision` 组的指标由 `scripts/linux/write-revision-metrics.sh` 写入，
-由 `knowtrace-daily-ops.service` 的第二个 `ExecStartPost` 调用；
+由 `knowtrace-workflow-daily-ops.service` 的第二个 `ExecStartPost` 调用；
 `scripts/linux/deploy-observability.sh` 在部署末尾也会刷新一次。
 
 它回答的是**可用性之外的另一类问题**：服务是否在回答（可用性）与
@@ -515,7 +515,7 @@ docker logs knowtrace-caddy-1 2>&1 | grep -iE "certificate|renew|acme" | tail -2
 
 1. 保存诊断、当前 commit 和监控卷列表。
 2. 停止核心监控但保留数据：对 observability overlay 执行 `stop grafana prometheus alertmanager blackbox-exporter node-exporter`。
-3. Nginx 从 `/root/knowtrace-ops/backups/<时间>-stage3-nginx/knowtrace.conf` 恢复，执行 `nginx -t` 后 reload。
+3. Nginx 从 `/root/knowtrace-ops/backups/<时间>-stage3-nginx/knowtrace-workflow.conf` 恢复，执行 `nginx -t` 后 reload。
 4. 应用回退到部署前 commit，保留 `.env`、`.env.observability`、`compose.production.yaml` 和所有数据卷。
 5. 验证 app/auth/Nginx/公网 ready 和业务登录。
 

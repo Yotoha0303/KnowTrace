@@ -33,7 +33,7 @@ admin_password="$(openssl rand -hex 24)"
   printf 'AUTH_DB_PASSWORD=%s\n' "$auth_db_password"
   printf 'AUTH_JWT_SECRET=%s\n' "$auth_jwt_secret"
   printf '\n'
-  printf 'KNOWTRACE_ADMIN_USERNAME=KnowTrace\n'
+  printf 'KNOWTRACE_ADMIN_USERNAME=KnowTrace-Workflow\n'
   printf 'KNOWTRACE_ADMIN_PASSWORD=%s\n' "$admin_password"
   printf 'KNOWTRACE_HOST=127.0.0.1\n'
   printf '\n'

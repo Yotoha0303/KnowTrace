@@ -161,7 +161,7 @@ export function DataTransferPanel() {
     const mode = transferMode(file);
     if (!mode) {
       setStage("invalid");
-      setMessage("仅支持 KnowTrace .xlsx v1 或 .zip v2 文件。");
+      setMessage("仅支持 KnowTrace-Workflow .xlsx v1 或 .zip v2 文件。");
       return;
     }
 
@@ -260,7 +260,7 @@ export function DataTransferPanel() {
           <Upload size={20} />
           <div>
             <h2>导入数据</h2>
-            <p>支持 KnowTrace XLSX v1（最大 5 MB）和 ZIP v2（最大 256 MiB）。</p>
+            <p>支持 KnowTrace-Workflow XLSX v1（最大 5 MB）和 ZIP v2（最大 256 MiB）。</p>
           </div>
         </div>
         <div className="import-steps" aria-label="导入步骤">
@@ -270,7 +270,7 @@ export function DataTransferPanel() {
         </div>
         <label className="transfer-file-field">
           <span>
-            KnowTrace 文件 <small>必填 · .xlsx v1 或 .zip v2</small>
+            KnowTrace-Workflow 文件 <small>必填 · .xlsx v1 或 .zip v2</small>
           </span>
           <input
             ref={inputRef}

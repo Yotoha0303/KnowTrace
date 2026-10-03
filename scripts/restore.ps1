@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 if (-not $ConfirmDatabaseReset) {
-  throw "恢复会覆盖当前 KnowTrace 数据库。确认后请加 -ConfirmDatabaseReset。"
+  throw "恢复会覆盖当前 KnowTrace-Workflow 数据库。确认后请加 -ConfirmDatabaseReset。"
 }
 
 $resolvedBackup = (Resolve-Path -LiteralPath $BackupPath).Path
@@ -47,4 +47,4 @@ try {
   if ($appStopped) { docker compose start app | Out-Null }
 }
 
-Write-Output "KnowTrace 数据库已恢复：$resolvedBackup"
+Write-Output "KnowTrace-Workflow 数据库已恢复：$resolvedBackup"

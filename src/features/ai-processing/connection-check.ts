@@ -81,7 +81,7 @@ export async function resolveCCSwitchRoute(input: {
     if (!model) {
       throw new AppError(
         "AI_CC_SWITCH_MODEL_UNRESOLVED",
-        `已识别当前供应商为 ${target.providerName}，但 CC-Switch 未提供可用模型目录。请在 KnowTrace 高级设置中填写该供应商的模型 ID 后重试。`,
+        `已识别当前供应商为 ${target.providerName}，但 CC-Switch 未提供可用模型目录。请在 KnowTrace-Workflow 高级设置中填写该供应商的模型 ID 后重试。`,
       );
     }
     return { target, protocol: "openai_responses", model };
@@ -102,7 +102,7 @@ export async function resolveCCSwitchRoute(input: {
   if (target && !target.routeActive) {
     throw new AppError(
       "AI_CC_SWITCH_ROUTE_TARGET_INACTIVE",
-      `已识别 CC-Switch 当前供应商为 ${target.providerName}，但尚未发现可安全使用的代理协议。请在 CC-Switch“路由”页启用对应应用路由，或在 KnowTrace 高级设置中明确配置模型后重试。`,
+      `已识别 CC-Switch 当前供应商为 ${target.providerName}，但尚未发现可安全使用的代理协议。请在 CC-Switch“路由”页启用对应应用路由，或在 KnowTrace-Workflow 高级设置中明确配置模型后重试。`,
     );
   }
 
@@ -125,7 +125,7 @@ export async function detectCCSwitch(input: DetectInput) {
     });
   } catch {
     const dockerHint = healthURL.includes("host.docker.internal")
-      ? " KnowTrace 当前通过 Docker 访问宿主机；CC-Switch 默认只监听 127.0.0.1，Docker 无法访问该回环地址。请在 CC-Switch 的“路由”页先停止路由总开关，将监听地址改为 0.0.0.0、端口保持 15721，保存后重新开启路由总开关。"
+      ? " KnowTrace-Workflow 当前通过 Docker 访问宿主机；CC-Switch 默认只监听 127.0.0.1，Docker 无法访问该回环地址。请在 CC-Switch 的“路由”页先停止路由总开关，将监听地址改为 0.0.0.0、端口保持 15721，保存后重新开启路由总开关。"
       : " 请确认 CC-Switch 已启动，并在设置中开启本地代理。";
     throw new AppError(
       "AI_CC_SWITCH_UNREACHABLE",

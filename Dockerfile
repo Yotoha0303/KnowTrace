@@ -15,7 +15,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # Next.js evaluates server modules while collecting route metadata. The value is
 # only a build-time placeholder; Compose supplies the real runtime connection.
-ENV DATABASE_URL="postgres://knowtrace:knowtrace@postgres:5432/knowtrace"
+ENV DATABASE_URL="postgres://knowtrace_workflow:knowtrace@postgres:5432/knowtrace_workflow"
 # 把构建时的 git revision 烘进镜像（不是运行时注入）。
 # 为什么必须是构建时：运行态版本核对要比对「镜像里装的是哪一版代码」。
 # 若改成运行时 env 注入，重建与不重建会得到同一个值，核对就失去意义 ——

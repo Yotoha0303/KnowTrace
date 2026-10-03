@@ -1,4 +1,4 @@
-# KnowTrace 文档索引
+# KnowTrace-Workflow 文档索引
 
 `docs/` 下的文档分五层。**先确认你要的是哪一类**，再读对应的那一层——这是本目录唯一的入口规则。
 
@@ -94,7 +94,7 @@
 | --- | --- |
 | [`changes/`](changes/README.md) | 产品侧变动前记录。**改代码或配置前先来这里** |
 | [`日常运维/`](日常运维/README.md) | 巡检记录与运维回顾 |
-| [`KnowTrace-VPS-部署学习-2026-09-06/`](KnowTrace-VPS-部署学习-2026-09-06/README.md) | 阶段一至三的真实 VPS 学习档案：部署命令、故障记录、迁移清单 |
+| [`KnowTrace-Workflow-VPS-部署学习-2026-09-06/`](KnowTrace-Workflow-VPS-部署学习-2026-09-06/README.md) | 阶段一至三的真实 VPS 学习档案：部署命令、故障记录、迁移清单 |
 
 ## 仓库外
 

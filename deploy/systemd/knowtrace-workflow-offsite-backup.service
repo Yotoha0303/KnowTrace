@@ -1,7 +1,7 @@
 [Unit]
-Description=KnowTrace offsite encrypted backup upload
+Description=KnowTrace-Workflow offsite encrypted backup upload
 Documentation=file:/opt/knowtrace/docs/15-stage2-vps-reliability.md
-# ⚠ 刻意**不用** Requires=/Wants= 拉入 knowtrace-backup.service。
+# ⚠ 刻意**不用** Requires=/Wants= 拉入 knowtrace-workflow-backup.service。
 # Requires= 的语义是「连带启动」：写上去以后，每次启动本单元都会把 backup 服务
 # 也拉起来跑一轮 —— 而 backup-all.sh 在 QUIESCE_WRITES=1 下会
 # `docker compose stop app auth` 静默取快照再拉起，实测造成 app 约 24 秒、
@@ -10,7 +10,7 @@ Documentation=file:/opt/knowtrace/docs/15-stage2-vps-reliability.md
 # 本单元只上传 /var/backups/knowtrace 里**已存在**的最新归档，
 # 本地备份由它自己的 03:20 定时器负责。两者相差 50 分钟，足够。
 # After= 只在本单元与 backup 被同一次事务启动时才起排序作用，保留无害。
-After=network-online.target knowtrace-backup.service
+After=network-online.target knowtrace-workflow-backup.service
 Wants=network-online.target
 # 惰性：没配好就静默跳过，不产生失败记录（否则会天天标 failed，变成"狼来了"）。
 # 判据是 age 公钥存在 —— 它只在真正配置异地备份时才创建，是个可靠的"已配置"标志。

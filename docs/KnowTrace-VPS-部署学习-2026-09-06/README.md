@@ -1,4 +1,4 @@
-# KnowTrace VPS 真实项目学习档案（阶段一至三）
+# KnowTrace-Workflow VPS 真实项目学习档案（阶段一至三）
 
 更新时间：2026-09-09  
 VPS：Ubuntu 24.04.4 LTS，单机约 2 GiB 内存  

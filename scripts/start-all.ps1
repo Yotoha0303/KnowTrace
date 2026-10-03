@@ -39,18 +39,18 @@ try {
   $authReady = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8082/readyz"
   if ($authReady.StatusCode -ne 200) { throw "go-user-system 就绪检查失败。" }
   $appReady = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:3000/api/health/ready"
-  if ($appReady.StatusCode -ne 200) { throw "KnowTrace 就绪检查失败。" }
+  if ($appReady.StatusCode -ne 200) { throw "KnowTrace-Workflow 就绪检查失败。" }
 
   docker compose ps
-  Write-Output "KnowTrace 统一栈已就绪：http://127.0.0.1:3000"
+  Write-Output "KnowTrace-Workflow 统一栈已就绪：http://127.0.0.1:3000"
   # 2026-10-02 起管理员口令默认随机生成（见 scripts/init-env.ps1 的说明），
   # 所以这里不能再无条件打印一对固定凭据。
   $adminPassword = (Select-String -Path (Join-Path $projectDirectory ".env") -Pattern '^KNOWTRACE_ADMIN_PASSWORD=' |
     Select-Object -First 1).Line -replace '^KNOWTRACE_ADMIN_PASSWORD=', ''
-  if ($adminPassword -eq 'KnowTrace@123') {
-    Write-Output "管理员凭据：KnowTrace / KnowTrace@123（固定值，仅本机开发；已在数据库改过密码时以数据库为准）。"
+  if ($adminPassword -eq 'KnowTrace-Workflow@123') {
+    Write-Output "管理员凭据：KnowTrace-Workflow / KnowTrace-Workflow@123（固定值，仅本机开发；已在数据库改过密码时以数据库为准）。"
   } else {
-    Write-Output "管理员口令为随机生成（不是 KnowTrace@123）。查看方式（勿贴进聊天或日志）："
+    Write-Output "管理员口令为随机生成（不是 KnowTrace-Workflow@123）。查看方式（勿贴进聊天或日志）："
     Write-Output "  Select-String '^KNOWTRACE_ADMIN_' .env"
   }
 } finally {

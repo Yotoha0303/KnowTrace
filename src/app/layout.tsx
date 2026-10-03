@@ -11,7 +11,7 @@ import { listActorWorkspaces } from "@/features/workspace/service";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "KnowTrace", template: "%s · KnowTrace" },
+  title: { default: "KnowTrace-Workflow", template: "%s · KnowTrace-Workflow" },
   description: "把散碎输入变成可追溯、可审阅的知识记录。",
 };
 
@@ -20,16 +20,16 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const requestHeaders = await headers();
   const authEnabled = isAuthEnabled();
-  const authPage = requestHeaders.get("x-knowtrace-auth-page") === "1";
-  const userId = requestHeaders.get("x-knowtrace-user-id");
+  const authPage = requestHeaders.get("x-knowtrace-workflow-auth-page") === "1";
+  const userId = requestHeaders.get("x-knowtrace-workflow-user-id");
   const user = userId
     ? {
         id: Number(userId),
         username: decodeURIComponent(
-          requestHeaders.get("x-knowtrace-username") ?? "",
+          requestHeaders.get("x-knowtrace-workflow-username") ?? "",
         ),
         nickname: decodeURIComponent(
-          requestHeaders.get("x-knowtrace-nickname") ?? "",
+          requestHeaders.get("x-knowtrace-workflow-nickname") ?? "",
         ),
       }
     : null;

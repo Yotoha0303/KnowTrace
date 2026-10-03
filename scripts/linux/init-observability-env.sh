@@ -152,7 +152,7 @@ if email_enabled:
         "smarthost": smtp_smarthost,
         "send_resolved": True,
         "require_tls": smtp_require_tls,
-        "headers": {"Subject": "[KnowTrace] {{ .Status | toUpper }} {{ .CommonLabels.alertname }}"},
+        "headers": {"Subject": "[KnowTrace-Workflow] {{ .Status | toUpper }} {{ .CommonLabels.alertname }}"},
     }
     username = values.get("ALERT_SMTP_AUTH_USERNAME", "").strip()
     password = values.get("ALERT_SMTP_AUTH_PASSWORD", "")

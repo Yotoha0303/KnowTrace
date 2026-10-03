@@ -31,10 +31,10 @@ export function AppShell({
           workspaces={workspaces}
         />
 
-        <Link className="brand" href="/" aria-label="KnowTrace 首页">
+        <Link className="brand" href="/" aria-label="KnowTrace-Workflow 首页">
           <span className="brand-mark">K</span>
           <span>
-            <strong>KnowTrace</strong>
+            <strong>KnowTrace-Workflow</strong>
             <small>Capture what matters</small>
           </span>
         </Link>

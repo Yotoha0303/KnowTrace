@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================================
-# KnowTrace 安全与访问只读检查
+# KnowTrace-Workflow 安全与访问只读检查
 # ============================================================================
 #
 # 对应文档：
 #   docs/日常运维/2026-09-20-运维回顾与遗漏事项补缺.md（第 2 节「安全与访问」）
-#   docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/问题记录/INC-001-UFW未启用.md
+#   docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段一/问题记录/INC-001-UFW未启用.md
 #   docs/日常运维/日常运维清单.md（安全与访问）
 #
 # 设计原则（沿用运维记录原则）：
@@ -25,7 +25,7 @@ source "$SCRIPT_DIR/../lib/ops-common.sh"
 
 usage() {
     cat <<'EOF'
-KnowTrace 安全与访问只读检查
+KnowTrace-Workflow 安全与访问只读检查
 
 用法:
   ./scripts/security-check.sh [选项]
@@ -109,7 +109,7 @@ env_key_state() {
         printf 'empty'
     elif [[ "$value" == change-me* || "$value" == CHANGEME* || "$value" == example* \
         || "$value" == '<'* || "$value" == 'your-'* || "$value" == 'replace'* \
-        || "$value" == 'KnowTrace@123' || "$value" == 'password' || "$value" == 'admin' ]]; then
+        || "$value" == 'KnowTrace-Workflow@123' || "$value" == 'password' || "$value" == 'admin' ]]; then
         printf 'placeholder'
     else
         printf 'set'
@@ -118,7 +118,7 @@ env_key_state() {
 }
 
 # ============================================================================
-ops_section "KnowTrace 安全与访问只读检查  主机=$OPS_HOSTNAME"
+ops_section "KnowTrace-Workflow 安全与访问只读检查  主机=$OPS_HOSTNAME"
 printf '检查时间(UTC): %s\n' "$OPS_RUN_UTC"
 printf '权限级别: %s\n' "$([[ "$is_root" == "1" ]] && printf 'root（可读取完整 sshd/ufw/journal 输出）' || printf '普通用户（部分检查需要 sudo 才能获得完整输出）')"
 printf '保证: 本脚本不修改任何配置，也不输出任何密钥明文。\n'
@@ -394,7 +394,7 @@ if [[ -f "$ENV_FILE" ]]; then
     esac
 
     # 初始化默认管理员口令仍留在 .env 是已知设计，但生产环境应确认已修改
-    ops_info "env.default-admin" "默认管理员 KnowTrace / KnowTrace@123 只用于首次本机登录；请在数据库侧确认密码已修改"
+    ops_info "env.default-admin" "默认管理员 KnowTrace-Workflow / KnowTrace-Workflow@123 只用于首次本机登录；请在数据库侧确认密码已修改"
 elif [[ "$is_root" != "1" && -f "$ENV_FILE" ]]; then
     ops_info "env.key-check" "需要 root 才能读取 .env 内容（请用 sudo 重跑）"
 else
@@ -558,4 +558,4 @@ ops_fact "本脚本只做只读检查，未修改 SSH、防火墙或任何服务
 ops_fact "本次结论只代表执行时刻；未实际验证的内容不会被写成「已通过」。"
 ops_fact "如需变更配置，请先在 docs/日常运维/ 中记录原值、修改值、重载命令和回滚方法。"
 
-ops_finish "security-check" "KnowTrace 安全与访问只读检查"
+ops_finish "security-check" "KnowTrace-Workflow 安全与访问只读检查"

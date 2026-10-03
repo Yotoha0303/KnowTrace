@@ -26,9 +26,9 @@
 ## 架构
 
 ```text
-Internet -> Caddy :443 -> Nginx 127.0.0.1:8080 -> KnowTrace :3000
+Internet -> Caddy :443 -> Nginx 127.0.0.1:8080 -> KnowTrace-Workflow :3000
 
-Prometheus -> KnowTrace /api/metrics（Bearer）
+Prometheus -> KnowTrace-Workflow /api/metrics（Bearer）
            -> auth /metrics、Node Exporter、Blackbox Exporter
            -> Alertmanager -> SMTP（待配置）
 Grafana    -> Prometheus
@@ -76,4 +76,4 @@ ssh -N `
 
 这是单台 VPS 的个人运维实践证据，可以证明配置、部署、查询和一次可恢复故障演练；不能证明高可用、长期容量、真实生产值班、SLA 或真实用户规模。ELK 在本机运行时可用内存最低约 290～409 MiB，Swap 使用约 2.0 GiB，因此必须按需运行。
 
-项目内的权威配置、脚本和原理文档位于 `C:\Users\Yotoha\Desktop\KnowTrace`；本目录只保存学习过程和验收事实，不复制密钥或运行时配置。
+项目内的权威配置、脚本和原理文档位于 `C:\Users\Yotoha\Desktop\KnowTrace-Workflow`；本目录只保存学习过程和验收事实，不复制密钥或运行时配置。

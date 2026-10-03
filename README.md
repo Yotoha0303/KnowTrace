@@ -1,14 +1,14 @@
-# KnowTrace
+# KnowTrace-Workflow
 
-![KnowTrace 主页面](./images/knowtrace_main_1.png)
+![KnowTrace-Workflow 主页面](./images/knowtrace_main_1.png)
 
 <p align="center">
-  <a href="https://github.com/Yotoha0303/KnowTrace/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yotoha0303/KnowTrace/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Yotoha0303/KnowTrace-Workflow/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yotoha0303/KnowTrace-Workflow/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <a href="https://github.com/Yotoha0303/KnowTrace/issues"><img alt="GitHub Issues" src="https://img.shields.io/github/issues/Yotoha0303/KnowTrace"></a>
+  <a href="https://github.com/Yotoha0303/KnowTrace-Workflow/issues"><img alt="GitHub Issues" src="https://img.shields.io/github/issues/Yotoha0303/KnowTrace-Workflow"></a>
 </p>
 
-KnowTrace 是一个**“记录优先、AI 辅助整理、证据可追溯”**的知识采集与可靠知识工作流系统。
+KnowTrace-Workflow 是一个**“记录优先、AI 辅助整理、证据可追溯”**的知识采集与可靠知识工作流系统。
 
 它首先保存用户的原始记录，再通过 AI 提供分类、摘要、主张候选、证据审查和主题综合等辅助能力。AI 输出与具体记录版本绑定，不能未经人工确认覆盖原始内容；最终结论、独立复核和可靠发布由人完成。
 
@@ -211,6 +211,6 @@ Compose 部署
 
 ## 开源
 
-KnowTrace 自有代码采用 [MIT License](LICENSE)。
+KnowTrace-Workflow 自有代码采用 [MIT License](LICENSE)。
 
-GitHub：<https://github.com/Yotoha0303/KnowTrace>
+GitHub：<https://github.com/Yotoha0303/KnowTrace-Workflow>

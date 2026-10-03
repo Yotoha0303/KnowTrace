@@ -173,7 +173,7 @@ P2.6–P2.9 已继续交付：
 
 `US-16 / KT-DEFER-005` 已完成：保留 `.xlsx v1` 基础交换表，同时新增 `.zip v2` 知识链交换包，包含 Capture、Category、Claim、Evidence、核验上下文、人工结论上下文、图片 manifest 与真实图片字节。v2 已实现稳定引用、公式与 ZIP 路径安全校验、工作簿和附件 SHA-256/大小/MIME 校验、服务端预检包暂存、确认时重新校验、Capture/Category 基础防重、Claim/Evidence/Attachment provenance 的 `create / skip / repair / conflict`、单事务写入与附件补偿清理。普通 v2 包仍按**安全降级**处理：已采纳、已核验和已结论状态仅作为迁移审计上下文，不能直接恢复可信状态。数据迁移 UI 已同时接入 v1/v2，生产 Docker 构建通过，数据库 migration `0018`/`0019` 已应用。
 
-恢复验收使用两套独立 KnowTrace App + PostgreSQL 实例执行真实 HTTP 导出→预检→确认流程，已经验证空白目标实例恢复、图片在线访问与 SHA-256 一致、同一 actor 第二次导入全量幂等；同一真实目标 PostgreSQL 上还验证第二 actor 会重新创建 Capture/Claim/Evidence/Attachment，并生成独立 provenance，不跨 actor 错误去重。至此 `US-16` 关闭。完整数据库与上传目录备份仍是最高恢复等级。
+恢复验收使用两套独立 KnowTrace-Workflow App + PostgreSQL 实例执行真实 HTTP 导出→预检→确认流程，已经验证空白目标实例恢复、图片在线访问与 SHA-256 一致、同一 actor 第二次导入全量幂等；同一真实目标 PostgreSQL 上还验证第二 actor 会重新创建 Capture/Claim/Evidence/Attachment，并生成独立 provenance，不跨 actor 错误去重。至此 `US-16` 关闭。完整数据库与上传目录备份仍是最高恢复等级。
 
 ### 已完成并部署：P3 / US-17 Workspace 数据隔离
 

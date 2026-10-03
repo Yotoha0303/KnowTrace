@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# KnowTrace 每日运维（只读 + 可选生成当日巡检记录）
+# KnowTrace-Workflow 每日运维（只读 + 可选生成当日巡检记录）
 # ============================================================================
 #
 # 对应文档：
@@ -36,7 +36,7 @@ source "$SCRIPT_DIR/../lib/ops-monitor.sh"
 
 usage() {
     cat <<'EOF'
-KnowTrace 每日运维（只读）
+KnowTrace-Workflow 每日运维（只读）
 
 用法:
   ./scripts/daily-ops.sh [选项]
@@ -110,7 +110,7 @@ THRESH_LOAD_FACTOR="$(ops_conf_int THRESHOLD_LOAD_WARN_FACTOR 2)"
 have_docker=0; ops_have_cmd docker && have_docker=1
 
 # ============================================================================
-ops_section "KnowTrace 每日运维  主机=$OPS_HOSTNAME  用户=$OPS_USER_NAME  目录=$OPS_CWD"
+ops_section "KnowTrace-Workflow 每日运维  主机=$OPS_HOSTNAME  用户=$OPS_USER_NAME  目录=$OPS_CWD"
 printf '执行时间(UTC): %s\n' "$OPS_RUN_UTC"
 printf '保证        : 本脚本只读，不修改任何服务、容器、配置或数据。\n'
 
@@ -414,4 +414,4 @@ else
     ops_fact "如需生成当日巡检记录，加 --record"
 fi
 
-ops_finish "daily-ops" "KnowTrace 每日运维"
+ops_finish "daily-ops" "KnowTrace-Workflow 每日运维"

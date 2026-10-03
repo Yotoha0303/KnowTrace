@@ -259,7 +259,7 @@ export async function previewPortableImport(input: {
   try {
     parsed = await parsePortableWorkbook(input.buffer);
   } catch {
-    throw new AppError("INVALID_WORKBOOK", "无法读取该 Excel 文件，请使用 KnowTrace 导出的 .xlsx 文件。");
+    throw new AppError("INVALID_WORKBOOK", "无法读取该 Excel 文件，请使用 KnowTrace-Workflow 导出的 .xlsx 文件。");
   }
   const analysis = await analyzeImport(parsed.payload, input.actor);
   const issues = [...parsed.issues, ...analysis.summary.issues].slice(0, 100);

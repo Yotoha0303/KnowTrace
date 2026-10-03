@@ -26,7 +26,7 @@
 | 位置 | 单元 | 安装者 | 装的是什么 |
 | --- | --- | --- | --- |
 | `scripts/ops/systemd/` | `daily-ops` / `weekly-check` / `monthly-ops`（3 组 service+timer）+ `install.sh` | **本目录的 `systemd/install.sh`**，或 `scripts/bootstrap/bootstrap.sh --stage ops` | **巡检**（只读巡检的定时任务） |
-| `deploy/systemd/` | `knowtrace-backup` / `knowtrace-offsite-backup`（2 组 service+timer） | `scripts/linux/deploy-observability.sh`（第 105 行起） | **备份**（本地一致性备份 + 异地上传） |
+| `deploy/systemd/` | `knowtrace-workflow-backup` / `knowtrace-workflow-offsite-backup`（2 组 service+timer） | `scripts/linux/deploy-observability.sh`（第 105 行起） | **备份**（本地一致性备份 + 异地上传） |
 
 **为什么没有合并**：两者的安装时机与归属不同——备份单元随「核心监控部署」一起装
 （`deploy-observability.sh` 的 `[5/5]` 步），巡检单元随「运维工具包」一起装。

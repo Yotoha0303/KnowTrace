@@ -24,7 +24,7 @@
 PowerShell 示例：
 
 ```powershell
-$cipher = 'C:\Users\Yotoha\Desktop\KnowTrace-VPS-部署学习-2026-09-06\阶段二\异地备份\knowtrace-20260907T151359Z-74b93d1a.tar.gz.age'
+$cipher = 'C:\Users\Yotoha\Desktop\KnowTrace-Workflow-VPS-部署学习-2026-09-06\阶段二\异地备份\knowtrace-20260907T151359Z-74b93d1a.tar.gz.age'
 $identity = 'C:\Users\Yotoha\.ssh\knowtrace_vps_ed25519'
 $restoreWork = Join-Path $env:TEMP 'knowtrace-restore-review'
 New-Item -ItemType Directory -Force -Path $restoreWork

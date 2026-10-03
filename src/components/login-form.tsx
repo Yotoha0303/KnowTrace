@@ -102,8 +102,8 @@ export function LoginForm({ registrationEnabled }: { registrationEnabled: boolea
     <form className="login-card" onSubmit={submit}>
       <span className="brand-mark">K</span>
       <p className="eyebrow">Protected workspace</p>
-      <h1>登录 KnowTrace</h1>
-      <p>账号与会话由独立的 go-user-system 管理，KnowTrace 不保存密码。</p>
+      <h1>登录 KnowTrace-Workflow</h1>
+      <p>账号与会话由独立的 go-user-system 管理，KnowTrace-Workflow 不保存密码。</p>
       <label>
         用户名
         <input autoComplete="username" autoFocus maxLength={255} onChange={(event) => setUsername(event.target.value)} required value={username} />

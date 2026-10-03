@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================================
-# KnowTrace 每月运维（默认只出计划，--apply 才执行写操作）
+# KnowTrace-Workflow 每月运维（默认只出计划，--apply 才执行写操作）
 # ============================================================================
 #
 # 对应文档：
 #   docs/日常运维/日常运维清单.md（第 160-164 行「日常频率建议」的每月部分）
-#   docs/KnowTrace-VPS-部署学习-2026-09-06/阶段二/文档/07-备份巡检与故障处理SOP.md
+#   docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段二/文档/07-备份巡检与故障处理SOP.md
 #
 # 每月清单（原文）：
 #   隔离恢复演练、依赖更新检查、故障记录复盘、文档更新
@@ -46,7 +46,7 @@ source "$SCRIPT_DIR/../lib/ops-common.sh"
 
 usage() {
     cat <<'EOF'
-KnowTrace 每月运维（默认演练模式）
+KnowTrace-Workflow 每月运维（默认演练模式）
 
 用法:
   ./scripts/monthly-ops.sh [选项]
@@ -234,7 +234,7 @@ apply_run() {
 }
 
 # ============================================================================
-ops_section "KnowTrace 每月运维  主机=$OPS_HOSTNAME  用户=$OPS_USER_NAME  目录=$OPS_CWD"
+ops_section "KnowTrace-Workflow 每月运维  主机=$OPS_HOSTNAME  用户=$OPS_USER_NAME  目录=$OPS_CWD"
 printf '执行时间(UTC): %s\n' "$OPS_RUN_UTC"
 printf '模式        : %s\n' "$([[ "$MONTHLY_APPLY" == "1" ]] && printf 'APPLY（会执行写操作）' || printf '演练（只出计划，不改变任何东西）')"
 printf '权限级别    : %s\n' "$([[ "$is_root" == "1" ]] && printf 'root' || printf '普通用户（恢复演练需要 root）')"
@@ -777,4 +777,4 @@ else
     ops_fact "如需生成月度记录骨架，加 --write-record"
 fi
 
-ops_finish "monthly-ops" "KnowTrace 每月运维"
+ops_finish "monthly-ops" "KnowTrace-Workflow 每月运维"

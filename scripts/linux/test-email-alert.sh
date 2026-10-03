@@ -36,7 +36,7 @@ payload = [
             "instance": event_id,
         },
         "annotations": {
-            "summary": "Manual KnowTrace email delivery verification",
+            "summary": "Manual KnowTrace-Workflow email delivery verification",
             "runbook": "docs/16-stage3-observability.md#email-delivery",
         },
         "startsAt": now.isoformat(),

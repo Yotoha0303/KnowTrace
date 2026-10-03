@@ -250,7 +250,7 @@ func TestRunBootstrapAdminIfNeededSkipsExistingAdministrator(t *testing.T) {
 	deps := baseRunDeps(t)
 	deps.getenv = func(key string) string {
 		values := map[string]string{
-			"BOOTSTRAP_ADMIN_USERNAME": "KnowTrace",
+			"BOOTSTRAP_ADMIN_USERNAME": "KnowTrace-Workflow",
 			"BOOTSTRAP_ADMIN_PASSWORD": "strong-password",
 		}
 		return values[key]
@@ -268,7 +268,7 @@ func TestRunBootstrapAdminIfNeededReturnsUnexpectedError(t *testing.T) {
 	deps := baseRunDeps(t)
 	deps.getenv = func(key string) string {
 		values := map[string]string{
-			"BOOTSTRAP_ADMIN_USERNAME": "KnowTrace",
+			"BOOTSTRAP_ADMIN_USERNAME": "KnowTrace-Workflow",
 			"BOOTSTRAP_ADMIN_PASSWORD": "strong-password",
 		}
 		return values[key]

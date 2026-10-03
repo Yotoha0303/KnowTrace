@@ -160,7 +160,7 @@ AI_REQUEST_TIMEOUT_MS
 AI_MAX_INPUT_CHARS
 ```
 
-Provider Base URL 使用代码内受控默认值或服务端白名单。浏览器只可为 CC-Switch 模式传入 `localhost`、回环地址或 `host.docker.internal`，服务端规范化为 `/v1`；其他任意 URL 均拒绝。默认跟随模式经 `/v1/messages` 进入 CC-Switch，由它把请求转发给当前供应商；KnowTrace 对返回的 JSON 再做应用 Schema 校验。
+Provider Base URL 使用代码内受控默认值或服务端白名单。浏览器只可为 CC-Switch 模式传入 `localhost`、回环地址或 `host.docker.internal`，服务端规范化为 `/v1`；其他任意 URL 均拒绝。默认跟随模式经 `/v1/messages` 进入 CC-Switch，由它把请求转发给当前供应商；KnowTrace-Workflow 对返回的 JSON 再做应用 Schema 校验。
 
 UI 提供的 API Key 通过 Server Action 仅传入本次 Provider 调用，不参与输入哈希，不写入数据库、Run、Suggestion 或日志。用户可选择把凭据保存在当前标签页的 `sessionStorage`，默认不保存。
 
@@ -174,7 +174,7 @@ const nextConfig = {
 }
 ```
 
-KnowTrace Compose 服务：
+KnowTrace-Workflow Compose 服务：
 
 ```text
 app
@@ -183,7 +183,7 @@ postgres
 
 首版单实例，不引入 Redis、消息队列和共享 ISR Cache。页面以动态数据读取为主，避免为简单内部工具增加复杂缓存一致性问题。
 
-认证采用仓库内 `services/go-user-system` 的独立运行服务（Go、MySQL、Redis），由根级 Compose/Makefile 统一编排。浏览器只访问 KnowTrace 同源 BFF，access/refresh token 都保存在 HttpOnly Cookie；Proxy 执行页面前置门禁，Server Action 和私有图片 Route Handler再独立授权。详细边界见 ADR-0013 与 ADR-0014。
+认证采用仓库内 `services/go-user-system` 的独立运行服务（Go、MySQL、Redis），由根级 Compose/Makefile 统一编排。浏览器只访问 KnowTrace-Workflow 同源 BFF，access/refresh token 都保存在 HttpOnly Cookie；Proxy 执行页面前置门禁，Server Action 和私有图片 Route Handler再独立授权。详细边界见 ADR-0013 与 ADR-0014。
 
 ## 9. GitHub 项目复用策略
 

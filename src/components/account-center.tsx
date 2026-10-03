@@ -65,7 +65,7 @@ export function AccountCenter({
         <div>
           <p className="eyebrow">go-user-system</p>
           <h1>账户中心</h1>
-          <p className="page-intro">账号、密码与权限由独立认证服务统一管理；KnowTrace 只保存登录会话 Cookie。</p>
+          <p className="page-intro">账号、密码与权限由独立认证服务统一管理；KnowTrace-Workflow 只保存登录会话 Cookie。</p>
         </div>
         <span className="status-pill"><span />认证服务已接入</span>
       </header>
@@ -134,7 +134,7 @@ export function AccountCenter({
       <section className="account-card account-authorization">
         <div className="account-card-heading">
           <ShieldCheck size={20} />
-          <div><h2>我的角色与权限</h2><p>这些权限来自 go-user-system；目前它们不等同于 KnowTrace 的 Workspace 数据隔离。</p></div>
+          <div><h2>我的角色与权限</h2><p>这些权限来自 go-user-system；目前它们不等同于 KnowTrace-Workflow 的 Workspace 数据隔离。</p></div>
         </div>
         <div className="authorization-columns">
           <div><h3>角色</h3><CodeList empty="当前账号没有角色" values={authorization.role_codes} /></div>

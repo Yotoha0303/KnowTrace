@@ -24,14 +24,14 @@
     rule: allow
     port: "{{ ssh_port }}"
     proto: tcp
-    comment: "SSH (KnowTrace Day 0)"
+    comment: "SSH (KnowTrace-Workflow Day 0)"
 
 - name: 放行 Web 入口端口
   community.general.ufw:
     rule: allow
     port: "{{ item }}"
     proto: tcp
-    comment: "Web entry (KnowTrace Day 0)"
+    comment: "Web entry (KnowTrace-Workflow Day 0)"
   loop: "{{ ufw_allowed_tcp | reject('equalto', ssh_port) | list }}"
 
 - name: 清理过期放行（sshd 已不监听的端口）

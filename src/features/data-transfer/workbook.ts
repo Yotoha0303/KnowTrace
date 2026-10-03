@@ -50,14 +50,14 @@ function styleDataSheet(sheet: Worksheet, widths: number[]) {
 export async function createPortableWorkbook(payload: PortablePayload): Promise<Buffer> {
   const parsed = portablePayloadSchema.parse(payload);
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "KnowTrace";
+  workbook.creator = "KnowTrace-Workflow";
   workbook.created = new Date();
   workbook.modified = new Date();
 
   const instructions = workbook.addWorksheet(SHEETS.instructions, { views: [{ showGridLines: false }] });
   instructions.columns = [{ width: 24 }, { width: 92 }];
   instructions.mergeCells("A1:B1");
-  instructions.getCell("A1").value = "KnowTrace 数据交换文件";
+  instructions.getCell("A1").value = "KnowTrace-Workflow 数据交换文件";
   instructions.getCell("A1").font = { bold: true, size: 20, color: { argb: `FF${headerFill}` } };
   instructions.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${accentFill}` } };
   instructions.getCell("A1").alignment = { vertical: "middle" };
@@ -105,7 +105,7 @@ export async function createPortableWorkbook(payload: PortablePayload): Promise<
   styleDataSheet(relationships, [40, 40]);
 
   const metadata = workbook.addWorksheet(SHEETS.metadata, { state: "veryHidden" });
-  metadata.addRows([["format_version", DATA_TRANSFER_FORMAT_VERSION], ["generator", "KnowTrace"]]);
+  metadata.addRows([["format_version", DATA_TRANSFER_FORMAT_VERSION], ["generator", "KnowTrace-Workflow"]]);
 
   const output = await workbook.xlsx.writeBuffer();
   return Buffer.from(output);

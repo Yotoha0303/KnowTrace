@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # ============================================================================
-# KnowTrace 日常巡检（只读）
+# KnowTrace-Workflow 日常巡检（只读）
 # ============================================================================
 #
 # 对应文档：
 #   docs/日常运维/日常运维清单.md
-#   docs/KnowTrace-VPS-部署学习-2026-09-06/阶段二/文档/07-备份巡检与故障处理SOP.md（6.1 每日五分钟巡检）
+#   docs/KnowTrace-Workflow-VPS-部署学习-2026-09-06/阶段二/文档/07-备份巡检与故障处理SOP.md（6.1 每日五分钟巡检）
 #
 # 职责（Bash 的系统操作层）：
 #   主机身份 / 运行时间 / 负载 / CPU / 内存 / Swap / 磁盘 / inode
 #   关键 systemd 服务 / Docker 容器与重启次数 / 容器日志错误扫描
-#   KnowTrace 与应用链路健康端点 / 备份新鲜度与权限 / 监听端口 / UFW
+#   KnowTrace-Workflow 与应用链路健康端点 / 备份新鲜度与权限 / 监听端口 / UFW
 #
 # 不做（这些属于 Python 自动化逻辑层）：
 #   证书剩余天数计算  -> scripts/cert_check.py
@@ -32,7 +32,7 @@ source "$SCRIPT_DIR/../lib/ops-common.sh"
 
 usage() {
     cat <<'EOF'
-KnowTrace 日常巡检（只读）
+KnowTrace-Workflow 日常巡检（只读）
 
 用法:
   ./scripts/daily-check.sh [选项]
@@ -81,8 +81,8 @@ APP_HEALTH_BASE="$(ops_conf_get APP_HEALTH_BASE http://127.0.0.1:3000)"
 NGINX_HEALTH_URL="$(ops_conf_get NGINX_HEALTH_URL http://127.0.0.1:8080/api/health/ready)"
 AUTH_HEALTH_URL="$(ops_conf_get AUTH_HEALTH_URL http://127.0.0.1:8082/readyz)"
 PUBLIC_HEALTH_URL="$(ops_conf_get PUBLIC_HEALTH_URL "")"
-BACKUP_LOG="$(ops_conf_get BACKUP_LOG /var/log/knowtrace-backup.log)"
-BACKUP_TIMER_UNIT="$(ops_conf_get BACKUP_TIMER_UNIT knowtrace-backup.timer)"
+BACKUP_LOG="$(ops_conf_get BACKUP_LOG /var/log/knowtrace-workflow-backup.log)"
+BACKUP_TIMER_UNIT="$(ops_conf_get BACKUP_TIMER_UNIT knowtrace-workflow-backup.timer)"
 # 让工具包公共库的默认报告目录跟随 ops.conf，与 daily-ops/weekly-check 落到同一个
 # REPORTS_DIR。不设这一项时，ops_write_json 的兜底路径是 <工具包>/reports/，
 # 于是同一批巡检的报告会分裂成两份互不可见的目录，汇总与新鲜度判定都会看漏。
@@ -120,7 +120,7 @@ compose_available() {
 }
 
 # ============================================================================
-ops_section "KnowTrace 日常巡检  主机=$OPS_HOSTNAME  用户=$OPS_USER_NAME  目录=$OPS_CWD"
+ops_section "KnowTrace-Workflow 日常巡检  主机=$OPS_HOSTNAME  用户=$OPS_USER_NAME  目录=$OPS_CWD"
 printf '巡检时间(UTC): %s\n' "$OPS_RUN_UTC"
 printf '说明: 以下结论只覆盖本次执行时刻。修改任何服务前请先保存现场证据。\n'
 
@@ -635,4 +635,4 @@ ops_fact "记录建议：异常现象 / 命令输出 / 关键证据 / 初步推�
 ops_fact "证书有效期: scripts/cert_check.py    备份完整性: scripts/backup_check.py"
 ops_fact "日志错误模式: scripts/log_analyzer.py    汇总报告: scripts/ops-report.py"
 
-ops_finish "daily-check" "KnowTrace 日常巡检"
+ops_finish "daily-check" "KnowTrace-Workflow 日常巡检"

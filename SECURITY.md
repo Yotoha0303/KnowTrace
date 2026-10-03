@@ -2,7 +2,7 @@
 
 ## 支持范围
 
-KnowTrace 当前处于持续开发阶段，只维护默认分支上的最新代码。
+KnowTrace-Workflow 当前处于持续开发阶段，只维护默认分支上的最新代码。
 
 **默认姿态**：面向本机或受保护的可信网络。仓库里的默认 `compose.yaml` 只把应用绑到
 `127.0.0.1`，不带反向代理、TLS 或对外监听——**直接把它暴露到公网是不安全的**。
@@ -24,7 +24,7 @@ Caddy 终结 TLS 与安全头、nginx 与全部后端仅绑本机、`/api/metric
 
 ## 私下报告漏洞
 
-请使用 GitHub 的 [Private vulnerability reporting](https://github.com/Yotoha0303/KnowTrace/security/advisories/new) 提交安全问题。不要创建公开 Issue，也不要附带真实密钥、生产数据库、用户内容或可识别个人的信息。
+请使用 GitHub 的 [Private vulnerability reporting](https://github.com/Yotoha0303/KnowTrace-Workflow/security/advisories/new) 提交安全问题。不要创建公开 Issue，也不要附带真实密钥、生产数据库、用户内容或可识别个人的信息。
 
 报告中建议包含：
 

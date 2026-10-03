@@ -25,7 +25,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "KnowTrace PostgreSQL readiness is failing"
+          summary: "KnowTrace-Workflow PostgreSQL readiness is failing"
           runbook: "docs/16-stage3-observability.md#database-not-ready"
 
       - alert: KnowTraceAuthNotReady
@@ -34,7 +34,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "KnowTrace authentication service is not ready"
+          summary: "KnowTrace-Workflow authentication service is not ready"
           runbook: "docs/16-stage3-observability.md#auth-not-ready"
 
       - alert: KnowTraceRequestErrors
@@ -43,7 +43,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "KnowTrace captured server request errors"
+          summary: "KnowTrace-Workflow captured server request errors"
           runbook: "docs/16-stage3-observability.md#request-errors"
 
   - name: knowtrace.host
@@ -99,7 +99,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "No complete KnowTrace backup archive is present"
+          summary: "No complete KnowTrace-Workflow backup archive is present"
           runbook: "docs/16-stage3-observability.md#backup-freshness"
 
       - alert: KnowTraceBackupStale
@@ -108,7 +108,7 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "The newest KnowTrace backup is older than 26 hours"
+          summary: "The newest KnowTrace-Workflow backup is older than 26 hours"
           runbook: "docs/16-stage3-observability.md#backup-freshness"
 
   # 异地备份（scripts/linux/offsite-backup.sh 写的三个指标）
@@ -152,7 +152,7 @@ groups:
   # 巡检结论（scripts/linux/write-ops-metrics.sh 写的指标）
   # 修的是「最大的传导断裂」：巡检跑完只写报告，没人定时看。
   # 运行态版本一致性。
-  # 指标由 scripts/linux/write-revision-metrics.sh 写入，由 knowtrace-daily-ops.service
+  # 指标由 scripts/linux/write-revision-metrics.sh 写入，由 knowtrace-workflow-daily-ops.service
   # 的第二个 ExecStartPost 调用（在 write-ops-metrics.sh 之后）。
   #
   # 修的是 2026-09-29 生态观察的 F-01：部署目录 HEAD 是 47a4c20，

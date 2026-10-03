@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# KnowTrace 每周运维（只读 + 可选生成记录）
+# KnowTrace-Workflow 每周运维（只读 + 可选生成记录）
 # ============================================================================
 #
 # 对应文档：
@@ -38,7 +38,7 @@ source "$SCRIPT_DIR/../lib/ops-monitor.sh"
 
 usage() {
     cat <<'EOF'
-KnowTrace 每周运维（只读）
+KnowTrace-Workflow 每周运维（只读）
 
 用法:
   ./scripts/weekly-check.sh [选项]
@@ -98,7 +98,7 @@ ops_load_conf
 # ----------------------------------------------------------------------------
 PROJECT_DIR="$(ops_conf_get PROJECT_DIR /opt/knowtrace)"
 BACKUP_ROOT="$(ops_conf_get BACKUP_ROOT /var/backups/knowtrace)"
-BACKUP_LOG="$(ops_conf_get BACKUP_LOG /var/log/knowtrace-backup.log)"
+BACKUP_LOG="$(ops_conf_get BACKUP_LOG /var/log/knowtrace-workflow-backup.log)"
 REPORTS_DIR="$(ops_conf_get REPORTS_DIR /var/lib/knowtrace/reports)"
 RECORD_DIR="$(ops_conf_get RECORD_DIR /var/log/knowtrace-logs)"
 CERT_SCRIPT="$(ops_conf_get CERT_SCRIPT "$SCRIPT_DIR/cert_check.py")"
@@ -136,7 +136,7 @@ have_curl=0; ops_have_cmd curl && have_curl=1
 have_docker=0; ops_have_cmd docker && have_docker=1
 
 # ============================================================================
-ops_section "KnowTrace 每周运维  主机=$OPS_HOSTNAME  用户=$OPS_USER_NAME  目录=$OPS_CWD"
+ops_section "KnowTrace-Workflow 每周运维  主机=$OPS_HOSTNAME  用户=$OPS_USER_NAME  目录=$OPS_CWD"
 printf '执行时间(UTC): %s\n' "$OPS_RUN_UTC"
 printf '权限级别    : %s\n' "$([[ "$is_root" == "1" ]] && printf 'root' || printf '普通用户（部分检查需要 sudo 才完整）')"
 printf '保证        : 本脚本只读，不修改任何服务、容器、配置或数据。\n'
@@ -213,10 +213,10 @@ else
         # ---- 解包校验内部 SHA256SUMS（只解到临时目录，不改动原归档）----
         if ops_have_cmd tar && [[ -f "$newest_sha256_file" ]]; then
             tmp_extract=""
-            tmp_extract="$(mktemp -d /tmp/knowtrace-weekly-check.XXXXXX 2>/dev/null || printf '')"
+            tmp_extract="$(mktemp -d /tmp/knowtrace-workflow-weekly-check.XXXXXX 2>/dev/null || printf '')"
             if [[ -z "$tmp_extract" ]]; then
                 ops_warn "backup.inner-checksum" "无法创建临时目录，跳过后备包内部校验"
-            elif [[ "$tmp_extract" != /tmp/knowtrace-weekly-check.* ]]; then
+            elif [[ "$tmp_extract" != /tmp/knowtrace-workflow-weekly-check.* ]]; then
                 ops_warn "backup.inner-checksum" "临时目录不符合安全前缀，跳过：$tmp_extract"
             else
                 if tar --extract --gzip --file "$newest_archive" \
@@ -500,7 +500,7 @@ delegate_script "安全与访问" "security" "$SECURITY_SCRIPT"
 ops_section "8. 周运维结束"
 
 ops_fact "周清单对照：备份校验 ✓  日志错误模式 ✓  证书有效期 ✓  异常登录 ✓"
-ops_fact "未自动验证的项（需人工）：登录后核心页面读写、附件读取 —— 见日常运维清单「KnowTrace 业务健康」"
+ops_fact "未自动验证的项（需人工）：登录后核心页面读写、附件读取 —— 见日常运维清单「KnowTrace-Workflow 业务健康」"
 ops_fact "记录建议：现象 / 命令 / 关键证据 / 初步推断 / 处理动作 / 验证结果 / 遗留风险"
 ops_fact "失败项请建独立故障记录，模板见 docs/日常运维/ 的 2026-09-20 记录"
 
@@ -584,4 +584,4 @@ else
     ops_fact "如需生成运维记录骨架，加 --write-record"
 fi
 
-ops_finish "weekly-check" "KnowTrace 每周运维"
+ops_finish "weekly-check" "KnowTrace-Workflow 每周运维"

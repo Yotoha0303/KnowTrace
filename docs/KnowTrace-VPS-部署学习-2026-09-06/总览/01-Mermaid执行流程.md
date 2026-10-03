@@ -30,7 +30,7 @@ flowchart TD
 flowchart LR
     U[浏览器] -->|HTTPS 443| C[Caddy<br/>TLS 证书 安全头]
     C -->|HTTP 127.0.0.1:8080| N[Nginx<br/>反向代理与日志]
-    N -->|HTTP 127.0.0.1:3000| A[KnowTrace App]
+    N -->|HTTP 127.0.0.1:3000| A[KnowTrace-Workflow App]
     A --> P[(PostgreSQL)]
     A --> H[Go Auth]
     H --> M[(MySQL)]
@@ -69,7 +69,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    APP[KnowTrace / Auth] -->|私有 metrics| PROM[Prometheus]
+    APP[KnowTrace-Workflow / Auth] -->|私有 metrics| PROM[Prometheus]
     NODE[Node Exporter] --> PROM
     BB[Blackbox Exporter] --> PROM
     BK[备份新鲜度指标] --> PROM

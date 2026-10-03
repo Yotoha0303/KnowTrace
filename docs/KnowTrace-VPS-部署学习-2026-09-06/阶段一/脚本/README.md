@@ -16,7 +16,7 @@ $Target = "root@<VPS_IP>:/root/knowtrace-learning/"
 
 ssh -p <SSH_PORT> -i $Key root@<VPS_IP> "install -d -m 0700 /root/knowtrace-learning"
 scp -P <SSH_PORT> -i $Key `
-  "C:\Users\Yotoha\Desktop\KnowTrace-VPS-部署学习-2026-09-06\脚本\*.sh" `
+  "C:\Users\Yotoha\Desktop\KnowTrace-Workflow-VPS-部署学习-2026-09-06\脚本\*.sh" `
   $Target
 ```
 

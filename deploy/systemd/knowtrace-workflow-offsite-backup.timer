@@ -1,5 +1,5 @@
 [Unit]
-Description=Run the KnowTrace offsite backup upload every day
+Description=Run the KnowTrace-Workflow offsite backup upload every day
 
 [Timer]
 # 本地备份在 03:20 (+08) 跑，日巡检在 19:30 UTC。
@@ -8,7 +8,7 @@ OnCalendar=*-*-* 04:10:00 Asia/Shanghai
 Persistent=true
 RandomizedDelaySec=10min
 AccuracySec=5min
-Unit=knowtrace-offsite-backup.service
+Unit=knowtrace-workflow-offsite-backup.service
 
 [Install]
 WantedBy=timers.target

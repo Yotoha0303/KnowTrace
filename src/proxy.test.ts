@@ -62,7 +62,7 @@ describe("authentication proxy", () => {
       ),
     );
     const request = new NextRequest("http://localhost/api/v1/captures", {
-      headers: { cookie: "knowtrace_access_token=expired.jwt" },
+      headers: { cookie: "knowtrace_workflow_access_token=expired.jwt" },
     });
 
     const response = await proxy(request);
@@ -96,7 +96,7 @@ describe("authentication proxy", () => {
   it("allows the registration page only when upstream registration is enabled", async () => {
     const enabled = await proxy(new NextRequest("http://localhost/register"));
     expect(enabled.headers.get("x-middleware-next")).toBe("1");
-    expect(enabled.headers.get("x-middleware-request-x-knowtrace-auth-page")).toBe("1");
+    expect(enabled.headers.get("x-middleware-request-x-knowtrace-workflow-auth-page")).toBe("1");
 
     vi.stubEnv("AUTH_REGISTRATION_ENABLED", "false");
     const disabled = await proxy(new NextRequest("http://localhost/register"));
@@ -120,18 +120,18 @@ describe("authentication proxy", () => {
     vi.stubGlobal("fetch", fetchMock);
     const request = new NextRequest("http://localhost/", {
       headers: {
-        cookie: "knowtrace_access_token=access.jwt",
-        "x-knowtrace-username": "attacker",
-        "x-knowtrace-role-codes": "admin",
+        cookie: "knowtrace_workflow_access_token=access.jwt",
+        "x-knowtrace-workflow-username": "attacker",
+        "x-knowtrace-workflow-role-codes": "admin",
       },
     });
 
     const response = await proxy(request);
 
     expect(response.headers.get("x-middleware-next")).toBe("1");
-    expect(response.headers.get("x-middleware-request-x-knowtrace-user-id")).toBe("7");
-    expect(response.headers.get("x-middleware-request-x-knowtrace-username")).toBe("yotoha");
-    expect(response.headers.get("x-middleware-request-x-knowtrace-role-codes")).toBe("user");
+    expect(response.headers.get("x-middleware-request-x-knowtrace-workflow-user-id")).toBe("7");
+    expect(response.headers.get("x-middleware-request-x-knowtrace-workflow-username")).toBe("yotoha");
+    expect(response.headers.get("x-middleware-request-x-knowtrace-workflow-role-codes")).toBe("user");
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8082/api/v1/users/me",
       expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer access.jwt" }) }),
@@ -177,7 +177,7 @@ describe("authentication proxy", () => {
     const request = new NextRequest("http://localhost/search", {
       headers: {
         cookie:
-          "knowtrace_access_token=expired.jwt; refresh_token=valid-refresh.jwt",
+          "knowtrace_workflow_access_token=expired.jwt; refresh_token=valid-refresh.jwt",
       },
     });
 
@@ -186,9 +186,9 @@ describe("authentication proxy", () => {
     // 续期成功 → 放行，并把新的 access token 写回 Cookie
     expect(response.status).toBe(200);
     const setCookie = response.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain("knowtrace_access_token=renewed.jwt");
+    expect(setCookie).toContain("knowtrace_workflow_access_token=renewed.jwt");
     // 身份头由**服务端重新校验**后的结果写入，不是从客户端抄来的
-    expect(response.headers.get("x-middleware-request-x-knowtrace-username")).toBe("yotoha");
+    expect(response.headers.get("x-middleware-request-x-knowtrace-workflow-username")).toBe("yotoha");
   });
 
   // ---- 2026-10-01 新增：状态 A（**只有 refresh cookie**）----
@@ -227,7 +227,7 @@ describe("authentication proxy", () => {
       }),
     );
 
-    // 关键：**没有** knowtrace_access_token
+    // 关键：**没有** knowtrace_workflow_access_token
     const request = new NextRequest("http://localhost/", {
       headers: { cookie: "refresh_token=valid-refresh.jwt" },
     });
@@ -235,7 +235,7 @@ describe("authentication proxy", () => {
     const response = await proxy(request);
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie") ?? "").toContain("knowtrace_access_token=renewed.jwt");
+    expect(response.headers.get("set-cookie") ?? "").toContain("knowtrace_workflow_access_token=renewed.jwt");
   });
 
   it("falls back to rejecting when the refresh token is also invalid", async () => {
@@ -250,7 +250,7 @@ describe("authentication proxy", () => {
     const request = new NextRequest("http://localhost/api/v1/captures", {
       headers: {
         cookie:
-          "knowtrace_access_token=expired.jwt; refresh_token=dead.jwt",
+          "knowtrace_workflow_access_token=expired.jwt; refresh_token=dead.jwt",
       },
     });
 
@@ -277,9 +277,9 @@ describe("authentication proxy", () => {
       headers: {
         "next-action": "abc123",
         // 伪造的身份头必须被清掉，否则下游可能误信
-        "x-knowtrace-user-id": "999",
-        "x-knowtrace-role-codes": "admin",
-        cookie: "knowtrace_access_token=expired.jwt",
+        "x-knowtrace-workflow-user-id": "999",
+        "x-knowtrace-workflow-role-codes": "admin",
+        cookie: "knowtrace_workflow_access_token=expired.jwt",
       },
     });
 
@@ -289,7 +289,7 @@ describe("authentication proxy", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
     // 伪造身份已被清除（Next 用 x-middleware-request-* 传递改写后的头）
-    const spoofed = response.headers.get("x-middleware-request-x-knowtrace-user-id");
+    const spoofed = response.headers.get("x-middleware-request-x-knowtrace-workflow-user-id");
     expect(spoofed === null || spoofed === "").toBe(true);
   });
 
@@ -352,7 +352,7 @@ describe("authentication proxy", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     const request = new NextRequest(
-      "http://localhost/api/v1/captures?x-knowtrace-workspace-id=ws-1",
+      "http://localhost/api/v1/captures?x-knowtrace-workflow-workspace-id=ws-1",
       { headers: { authorization: "Bearer access.jwt", "x-client": "native" } },
     );
 
@@ -360,7 +360,7 @@ describe("authentication proxy", () => {
 
     expect(response.headers.get("x-middleware-next")).toBe("1");
     // 不做 Cookie 身份注入；令牌由下游重新校验并重新取角色。
-    expect(response.headers.get("x-middleware-request-x-knowtrace-user-id")).toBeNull();
+    expect(response.headers.get("x-middleware-request-x-knowtrace-workflow-user-id")).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:8082/api/v1/users/me",
       expect.objectContaining({

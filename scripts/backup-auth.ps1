@@ -12,7 +12,7 @@ $projectPrefix = $projectDirectory.TrimEnd(
   [System.IO.Path]::AltDirectorySeparatorChar
 ) + [System.IO.Path]::DirectorySeparatorChar
 if (-not $resolvedDestination.StartsWith($projectPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-  throw "认证备份目录必须位于 KnowTrace 项目内。"
+  throw "认证备份目录必须位于 KnowTrace-Workflow 项目内。"
 }
 
 function Get-SHA256Hex([string]$Path) {

@@ -16,8 +16,8 @@
  * 不需要任何指令——**现在不需要，将来也不要加**。
  */
 
-export const ACCESS_TOKEN_HEADER = "x-knowtrace-access-token";
-export const WORKSPACE_ID_HEADER = "x-knowtrace-workspace-id";
+export const ACCESS_TOKEN_HEADER = "x-knowtrace-workflow-access-token";
+export const WORKSPACE_ID_HEADER = "x-knowtrace-workflow-workspace-id";
 
 export function isNativeClientRequest(request: Request): boolean {
   return request.headers.get("x-client")?.trim().toLowerCase() === "native";

@@ -1,5 +1,5 @@
 # ============================================================================
-# KnowTrace 运维工具包配置模板（ops.conf.example）
+# KnowTrace-Workflow 运维工具包配置模板（ops.conf.example）
 # ============================================================================
 #
 # 用法：
@@ -30,7 +30,7 @@ OBSERVABILITY_ENV_FILE=/opt/knowtrace/.env.observability
 UPLOAD_DIR=/opt/knowtrace/data/uploads
 BACKUP_ROOT=/var/backups/knowtrace
 DOCKER_DATA_DIR=/var/lib/docker
-BACKUP_LOG=/var/log/knowtrace-backup.log
+BACKUP_LOG=/var/log/knowtrace-workflow-backup.log
 
 # 报告输出目录（同时也是 ops-report.py 汇总时的扫描目录）。
 # 需要 root 才能创建，属于「运维数据」而不是「项目代码」，因此不放在 PROJECT_DIR 下。
@@ -73,7 +73,7 @@ CADDY_ACCESS_LOG=/var/log/caddy/knowtrace-access.log
 # 期望存在的单元与服务
 # ----------------------------------------------------------------------------
 SYSTEMD_UNITS=docker nginx caddy ssh
-BACKUP_TIMER_UNIT=knowtrace-backup.timer
+BACKUP_TIMER_UNIT=knowtrace-workflow-backup.timer
 
 # 核心服务：缺失 = FAIL
 EXPECTED_SERVICES=app auth postgres auth-mysql auth-redis

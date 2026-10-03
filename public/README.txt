@@ -1,1 +1,1 @@
-Static assets for KnowTrace live in this directory.
+Static assets for KnowTrace-Workflow live in this directory.

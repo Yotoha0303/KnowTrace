@@ -29,7 +29,7 @@
 #   fail2ban  确认 jail 在跑
 #   firewall  **放最后**：改防火墙是唯一能让人当场失联的动作，
 #             前面任何一步失败都还没动网络策略，排查成本最低。
-- name: KnowTrace Day 0 —— 宿主机基线与加固
+- name: KnowTrace-Workflow Day 0 —— 宿主机基线与加固
   hosts: localhost
   connection: local
   gather_facts: true
