@@ -1,0 +1,85 @@
+---
+# UFW：宿主机只放行「Web 入口 + SSH」。
+#
+# ⚠️ 这是整套 playbook 里**唯一能让人当场失联**的 role（改 UFW 打掉 SSH 端口，
+#    同时又没有密钥登录，就只能走厂商控制台）。
+#    site.yml 刻意把它排在最后 —— 前面任何一步失败都还没动网络策略。
+#
+# 安全设计（三条，缺一不可）：
+#   1. **只增不减、绝不 reset**：用 rule 而不是 reset，避免把现有放行规则抹掉。
+#   2. **放行 SSH → 设默认策略 → enable** 严格按此顺序。
+#      ufw 的默认策略是"没有显式规则就 deny"，先设 deny 等于先把自己关在门外。
+#   3. enable 前**再断言一次**我们确实已放行 ssh_port。
+#      （`ufw enable` 在非交互下要 --force；但更要紧的是规则得先在。）
+
+- name: 确保 ufw 已安装
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+    lock_timeout: 900
+
+- name: 放行 SSH 端口
+  # 必须排在默认策略之前 —— 见文件头第 2 条
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: tcp
+    comment: "SSH (KnowTrace Day 0)"
+
+- name: 放行 Web 入口端口
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    comment: "Web entry (KnowTrace Day 0)"
+  loop: "{{ ufw_allowed_tcp | reject('equalto', ssh_port) | list }}"
+
+- name: 清理过期放行（sshd 已不监听的端口）
+  # 只删我们明确列出的那些。**不**用 reset，不动别人的规则。
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    delete: true
+  loop: "{{ ufw_stale_tcp }}"
+  # 不存在时不报错（幂等：第二次跑就没有可删的了）
+  failed_when: false
+  register: firewall_stale_result
+
+- name: 设置默认策略
+  # 只在放行规则到位之后
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: incoming, policy: deny }
+    - { direction: outgoing, policy: allow }
+    - { direction: routed, policy: deny }
+
+- name: 启用 ufw
+  community.general.ufw:
+    state: enabled
+
+- name: 读取生效后的规则
+  ansible.builtin.command:
+    cmd: ufw status
+  register: firewall_status
+  changed_when: false
+
+- name: 断言放行清单正确
+  # 「改完看着像成功」的防线：直接检查实际规则文本。
+  # 期望恰好 80 / 443 / ssh_port 三条，且过期端口不在其中。
+  ansible.builtin.assert:
+    that:
+      - "(' ' + ssh_port + '/tcp') in firewall_status.stdout"
+      - "'80/tcp' in firewall_status.stdout"
+      - "'443/tcp' in firewall_status.stdout"
+      - "ufw_stale_tcp | select('in', firewall_status.stdout) | list | length == 0"
+    fail_msg: >-
+      UFW 放行清单与预期不符。期望：80/443/{{ ssh_port }}，
+      且不含 {{ ufw_stale_tcp | join('/') }}。实际见 `ufw status`。
+    success_msg: "UFW 放行清单正确"
+
+- name: 记录 UFW 状态
+  ansible.builtin.debug:
+    msg: "{{ firewall_status.stdout_lines }}"

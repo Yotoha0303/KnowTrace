@@ -1,0 +1,156 @@
+---
+# SSH 加固 + 内核参数。
+#
+# ⚠️ 前置：roles/access 已跑过、且你已**从外部用私钥登录成功**。
+#    本 role 会把密码登录关掉 —— 在那之前没有可用的密钥，就是自锁。
+#
+# ⚠️ 我们**不改 SSH 端口**。改端口要连同 UFW 放行、隧道、厂商控制台一起
+#    在维护窗口做；日常重跑的 playbook 只做断言。见 group_vars/all.yml。
+
+- name: 断言 sshd 实际端口与 group_vars 一致
+  # 防止"UFW 放行清单"与实际端口脱节（放行了 22345 但 sshd 在别的端口＝自锁）
+  ansible.builtin.command:
+    cmd: sshd -T
+  register: hardening_sshd_effective
+  changed_when: false
+
+- name: 校验端口一致
+  ansible.builtin.assert:
+    that:
+      - "'port ' + ssh_port in hardening_sshd_effective.stdout"
+    fail_msg: >-
+      sshd 实际端口与 ssh_port={{ ssh_port }} 不符。先查 `sshd -T | grep ^port`
+      与 /etc/ssh/sshd_config.d/，**不要**继续跑本 playbook。
+    success_msg: "sshd 端口 {{ ssh_port }} 与 UFW 放行清单一致"
+
+- name: 确保备份目录存在
+  ansible.builtin.file:
+    path: /root/knowtrace-ops/backups
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: 备份现有 sshd_config.d
+  # 回滚锚点：改坏了用这里的副本覆盖回去
+  ansible.builtin.archive:
+    path: /etc/ssh/sshd_config.d
+    dest: /root/knowtrace-ops/backups/sshd_config.d-{{ ansible_date_time.iso8601_basic_short }}.tar.gz
+    format: gz
+  register: hardening_sshd_backup
+  changed_when: true
+
+- name: 记录备份路径
+  ansible.builtin.debug:
+    msg: "sshd 配置已备份：{{ hardening_sshd_backup.dest }}"
+
+# ⚠️ 文件名必须是 00- 开头，**不能是 99-**。
+#    实测 /etc/ssh/sshd_config 第 12 行 `Include /etc/ssh/sshd_config.d/*.conf`，
+#    而该目录下的 50-cloud-init.conf 里写着 `PasswordAuthentication yes`。
+#    sshd 对同一参数是**首个出现的值生效** —— 排 50 后面（如 99-*.conf）
+#    会被它盖掉，改了等于没改。0 开头确保我们赢。
+- name: 写入 sshd 加固 drop-in
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-knowtrace-hardening.conf
+    content: |
+      # 由 deploy/ansible/roles/hardening 管理。**请勿手工编辑** —— 改 group_vars 后重跑。
+      #
+      # ⚠️ 文件名 00- 前缀是刻意的：sshd 同参数首个值生效，
+      #    必须排在 50-cloud-init.conf（PasswordAuthentication yes）之前。
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+      MaxAuthTries 3
+      X11Forwarding no
+    owner: root
+    group: root
+    mode: "0600"
+    # validate：**先让 sshd 自己校验这份文件**，不通过就不落盘。
+    # 这是"配置写错导致失联"的结构性防线（sshd 的 -f 接受单个片段文件）。
+    validate: /usr/sbin/sshd -t -f %s
+  register: hardening_dropin
+
+- name: 校验生效后的 sshd 配置
+  ansible.builtin.command:
+    cmd: sshd -T
+  register: hardening_sshd_after
+  changed_when: false
+
+- name: 断言加固项全部生效
+  # 为什么断言而不是"改了就算数"：上面那条 00-/50- 的坑，
+  # 只有读**实际生效值**才能发现。改了文件不等于改了行为 ——
+  # sshd -T 会如实显示 cloud-init 那份的 yes。
+  ansible.builtin.assert:
+    that:
+      - "'passwordauthentication no' in hardening_sshd_after.stdout"
+      - "'permitrootlogin prohibit-password' in hardening_sshd_after.stdout"
+      - "'maxauthtries 3' in hardening_sshd_after.stdout"
+      - "'kbdinteractiveauthentication no' in hardening_sshd_after.stdout"
+      - "'pubkeyauthentication yes' in hardening_sshd_after.stdout"
+    fail_msg: >-
+      sshd 加固项未全部生效。注意检查是否有**排序更靠前**的 drop-in 覆盖了它
+      （sshd 同参数首个值生效）。当前生效值见 `sshd -T`。
+    success_msg: "sshd 五项加固全部生效"
+
+- name: 重载 sshd
+  # reload 而非 restart：不影响既有连接，当前会话可作逃生通道。
+  # 上一行的 assert 已保证新配置是好的（不通过就不会走到这里）。
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: reloaded
+  when: hardening_dropin.changed
+
+# ── 内核参数（放最后：无害，且失败也不影响登录）────────────────────
+- name: 屏蔽 SysRq 危险键
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/10-magic-sysrq-knowtrace.conf
+    content: |
+      # 由 deploy/ansible/roles/hardening 管理。
+      # 只保留 sync(1) 与 remount-readonly(16)，其余（强制重启/杀进程等）禁用。
+      kernel.sysrq = 17
+    owner: root
+    group: root
+    mode: "0644"
+  register: hardening_sysrq
+
+- name: 写入内核与网络栈加固参数
+  ansible.builtin.copy:
+    dest: "{{ sysctl_file }}"
+    content: |
+      # 由 deploy/ansible/roles/hardening 管理 —— 改 group_vars/all.yml 后重跑。
+      # 只含本 playbook 声明的那几项；发行版自带的 /etc/sysctl.d/10-*.conf 不动。
+      {% for key, value in sysctl_settings.items() %}
+      {{ key }} = {{ value }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+  register: hardening_sysctl
+
+- name: 应用内核参数
+  # `-p <文件>` 而非 `--system`：只加载本文件，不越界改发行版的值
+  ansible.builtin.command:
+    cmd: sysctl -p {{ sysctl_file }}
+  when: hardening_sysctl.changed or hardening_sysrq.changed
+  changed_when: hardening_sysctl.changed or hardening_sysrq.changed
+
+- name: 读取内核参数实际取值
+  # 同样读实际值：sysctl -p 报成功不等于值是我们想要的
+  # （可能被更靠后的文件或 /etc/sysctl.conf 覆盖）
+  ansible.builtin.command:
+    cmd: sysctl -n {{ item.key }}
+  loop: "{{ sysctl_settings | dict2items }}"
+  register: hardening_sysctl_check
+  changed_when: false
+
+- name: 校验内核参数取值
+  ansible.builtin.assert:
+    that:
+      - "item.stdout | trim == item.item.value | string"
+    fail_msg: >-
+      {{ item.item.key }} 实际为 '{{ item.stdout | trim }}'，
+      期望 '{{ item.item.value }}' —— 检查是否有排序更靠后的 sysctl 文件覆盖它。
+  loop: "{{ hardening_sysctl_check.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"

@@ -1,0 +1,67 @@
+---
+# Day 0 的全部可变项集中在这里 —— 换机器、换端口只改这里，不碰 role。
+
+# ── SSH ──────────────────────────────────────────────────────────────
+# 目标机实际在用的端口（实测 2026-10-03：sshd -T → port 22345）。
+# ⚠️ 本 role **不改端口**：改端口是唯一能一次把人挡在门外的操作，
+#    要连同 UFW 放行、Caddy/隧道、厂商控制台一起在维护窗口做，不能交给日常重跑的 playbook。
+#    这里只做**断言**：实际端口必须与它一致，否则立刻失败（防止 UFW 放行清单与实际脱节）。
+ssh_port: 22345
+
+# root 的 authorized_keys。实测该机 /root/.ssh 下没有 authorized_keys2。
+root_authorized_keys: /root/.ssh/authorized_keys
+
+# 控制端公钥**在目标机上的路径**。因为 playbook 是就地跑的（见 site.yml 头），
+# 这里给的是目标机上的路径，不是本机路径。
+# 公钥不是机密，但它**不该进 public 仓库** —— 那份 `.pub` 由使用者放到这个位置。
+# 留空或文件不存在 → access role 第一步就 assert 失败（不会静默写进一个空的 key）。
+root_public_key_file: /root/knowtrace-ops/knowtrace_vps_ed25519.pub
+
+# ── 防火墙 ───────────────────────────────────────────────────────────
+# 宿主机只放行这三样：Web 入口 + SSH。
+# 其余一律**不开 UFW 端口**，只绑 127.0.0.1 走 Caddy 反代或 SSH 隧道：
+#   Prometheus 9090 / Grafana 3001 / Alertmanager 9093 / Loki 3100 / Alloy push 5000
+ufw_allowed_tcp:
+  - "{{ ssh_port }}"
+  - "80"
+  - "443"
+
+# 过期放行：实测服务器上有一条 22/tcp，但 sshd 并不听 22（端口已改）。
+# 留着它等于给扫描器多开一个探测面，清掉。
+ufw_stale_tcp:
+  - "22"
+
+# ── 内核与网络栈加固 ─────────────────────────────────────────────────
+# 只写本文件，并用 `sysctl -p <本文件>` 应用 —— **不用 `sysctl --system`**，
+# 免得顺带把发行版的 /etc/sysctl.d/10-*.conf 一起改掉（那不是本次的授权范围）。
+sysctl_file: /etc/sysctl.d/99-knowtrace-security.conf
+sysctl_settings:
+  # 禁用 IP 重定向与源路由（防 IP 欺骗）；本机不是路由器，无需转发 ICMP 重定向
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.all.accept_source_route: 0
+  # TCP SYN Cookie 防 SYN Flood
+  net.ipv4.tcp_syncookies: 1
+  net.ipv4.tcp_max_syn_backlog: 2048
+  # 忽略广播 ICMP（防 smurf 放大）
+  net.ipv4.icmp_echo_ignore_broadcasts: 1
+
+# ── 系统包 ───────────────────────────────────────────────────────────
+# 与 scripts/install.sh 的 DEPS 对齐（那份暂不删，共存期的边界见 ../README.md）。
+# 不含 ansible（在控制端跑）、不含 Docker 镜像内的运行时。
+baseline_packages:
+  - docker.io
+  - docker-compose-v2
+  - nginx
+  - caddy
+  - rclone
+  - age
+  - fail2ban
+  - git
+  - curl
+  - ca-certificates
+  - jq
+  - util-linux
+  - openssl
+  - python3
+  - unattended-upgrades

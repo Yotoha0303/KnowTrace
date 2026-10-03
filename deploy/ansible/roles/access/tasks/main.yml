@@ -1,0 +1,64 @@
+---
+# 第 0 步：把控制端公钥装进 root 的 authorized_keys。
+#
+# 为什么单独成一个 role（而不是混在 hardening 里）：
+#   它必须能**单独跑**。实测该机 /root/.ssh/authorized_keys 是 0 字节空文件，
+#   也就是说这台机器目前**只有密码登录可用**。在密钥被验证可用之前就去关
+#   密码登录，等于把自己锁在门外。
+#   所以流程被拆成两段，中间夹一道人工闸：
+#
+#       ansible-playbook site.yml --tags access      # ① 只装公钥
+#       ssh -i <私钥> -p 22345 root@<host> whoami    # ② 【人工】从外部验证密钥能登录
+#       ansible-playbook site.yml                    # ③ 全量：改 sshd + 防火墙
+#
+#   少了第 ② 步，"加固成功"可能只是"谁都进不来了"。
+- name: 断言已提供控制端公钥
+  # 没有这一条时，下面会往 authorized_keys 里写进空内容 ——
+  # 那等于"加固完成"但谁都进不来。宁可现在就炸。
+  ansible.builtin.assert:
+    that:
+      - root_public_key_file | length > 0
+      - root_public_key_file is exists
+    fail_msg: >-
+      root_public_key_file 未设置或文件不存在（当前：'{{ root_public_key_file }}'）。
+      请把它指向本机公钥文件（如 ~/.ssh/knowtrace_vps_ed25519.pub）。
+    success_msg: "待安装的公钥：{{ root_public_key_file }}"
+
+- name: 读取公钥内容
+  ansible.builtin.slurp:
+    src: "{{ root_public_key_file }}"
+  register: access_pubkey
+
+- name: 确保 /root/.ssh 存在且权限正确
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: 安装公钥到 authorized_keys
+  # authorized_key 是幂等的：同一把 key 重复跑不会重复追加。
+  # key 做 trim 是必要的 —— 公钥文件末尾通常有换行，且 Windows 侧可能是 CRLF。
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ access_pubkey.content | b64decode | trim }}"
+    state: present
+    manage_dir: false
+
+- name: 检查 authorized_keys 状态
+  # 实测踩过：裸机上它是一个 **0 字节文件** —— ls 看着"在"、sshd 也不报错，
+  # 但没人能密钥登录。只看文件存在是不够的，得看大小。
+  ansible.builtin.stat:
+    path: "{{ root_authorized_keys }}"
+  register: access_authkeys
+
+- name: 断言 authorized_keys 非空
+  ansible.builtin.assert:
+    that:
+      - access_authkeys.stat.exists
+      - access_authkeys.stat.size > 0
+    fail_msg: "{{ root_authorized_keys }} 为空 —— 现在关密码登录会直接失联。已中止。"
+    success_msg: >-
+      {{ root_authorized_keys }} 已就位（{{ access_authkeys.stat.size }} 字节）。
+      **下一步：从外部用这把私钥登录一次，确认成功后再跑全量。**

@@ -1,0 +1,48 @@
+---
+# Day 0：宿主机准备与加固。
+#
+# 职责边界（照《部署与运维工具了解》§一 的分工表）：
+#   * 只管**操作系统本身**：系统包、authorized_keys、sshd、内核参数、防火墙。
+#   * **不碰容器内配置** —— 业务与监控容器怎么起、怎么组网、内存上限多少，属 Day 1，归 Compose。
+#   * 不做业务版本变更 —— 业务天天变，频繁重跑 Ansible 会把底层改乱。
+#   * 不装/不配监控组件 —— 那些是容器，见 compose.observability.yaml。
+#
+# 幂等：整套连跑两次，第二次应当 changed=0（验收标准之一）。
+#
+# ⚠️ connection: local —— 本 playbook **在目标机上就地跑**，不是从控制端推。
+#    为什么：ansible-core 的 Windows 控制端支持是坏的（实测 2.17 与 2.21 均败于
+#    `No module named 'fcntl'`，2.21 另败于 os.get_blocking 的 WinError 87）。
+#    就地跑还有两个附带好处：不需要在机器上建第二个账号、不需要二次 SSH 认证。
+#    完整原因与两条被否决的替代方案见
+#    docs/changes/2026-10-03-P4-Ansible宿主机阶段与P5文档收尾.md
+#
+# 用法（见同目录 README.md）：
+#   ansible-playbook site.yml --tags access          # ① 只装公钥
+#   ssh -i <私钥> -p 22345 root@<host> whoami         # ② 【人工闸】从外部验证密钥能登录
+#   ansible-playbook site.yml --check                # ③ 预演全量
+#   ansible-playbook site.yml                        # ④ 全量：改 sshd + 内核 + 防火墙
+#
+# role 顺序是刻意的，**不要随意调换**：
+#   access    先装公钥（否则后面关密码登录就是自锁）
+#   baseline  装包
+#   hardening 改 sshd + 内核参数
+#   fail2ban  确认 jail 在跑
+#   firewall  **放最后**：改防火墙是唯一能让人当场失联的动作，
+#             前面任何一步失败都还没动网络策略，排查成本最低。
+- name: KnowTrace Day 0 —— 宿主机基线与加固
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  roles:
+    - role: access
+      tags: [access]
+    - role: baseline
+      tags: [baseline]
+    - role: hardening
+      tags: [hardening]
+    - role: fail2ban
+      tags: [fail2ban]
+    # 刻意在最后：见文件头 role 顺序说明
+    - role: firewall
+      tags: [firewall]

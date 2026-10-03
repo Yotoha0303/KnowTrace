@@ -1,0 +1,51 @@
+---
+# 宿主机的**已装包**清单。
+#
+# 边界：只保证"系统该有的命令行工具在位"。**不装**业务/监控的运行时依赖 ——
+# 那些封在容器里（Day 1，归 Compose），宿主机只需要一个 docker。
+#
+# 为什么用 apt 模块而不是 `apt-get install`：
+#   apt 模块有幂等性 —— 装过的包第二次跑直接跳过（changed=0）。
+#   shell 版 apt-get install 每次都会说"已是最新"，但退出码与状态无从判定。
+- name: 安装宿主机基线包
+  ansible.builtin.apt:
+    name: "{{ baseline_packages }}"
+    state: present
+    update_cache: true
+    # 与 scripts/install.sh 相同的理由：裸机首启时 unattended-upgrades
+    # 可能正占着 dpkg 锁，apt 会立刻失败（退出码 100）。
+    # 用 apt 自带的锁等待选项等它，而不是在外面套重试循环 ——
+    # apt 的锁等待是"排队"，重试循环是"反复撞门"，前者更省事也更可靠。
+    lock_timeout: 900
+    autoclean: false
+    autoremove: false
+
+- name: 确认 docker 守护进程可用
+  # 裸机上 docker 是"装好但没跑"的常见状态；这里只**断言**，不负责启动策略
+  ansible.builtin.command:
+    cmd: docker info --format {% raw %}'{{.ServerVersion}}'{% endraw %}
+  register: baseline_docker_version
+  changed_when: false
+
+- name: 记录 docker 版本
+  ansible.builtin.debug:
+    msg: "docker server {{ baseline_docker_version.stdout }}"
+
+- name: 开启自动安全补丁（unattended-upgrades）
+  # 只保证"启用"这个状态。**不改** 20auto-upgrades 的具体策略文件 ——
+  # 那属于发行版默认值，动它需要单独说明为什么。
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: 启用 unattended-upgrades 单元
+  # 不用 when 门控：systemd_service 本身幂等，第二次跑就是 ok 而不是 changed
+  ansible.builtin.systemd_service:
+    name: unattended-upgrades
+    enabled: true
+    state: started

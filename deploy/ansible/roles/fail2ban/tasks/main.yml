@@ -1,0 +1,61 @@
+---
+# fail2ban：只确认**它真的在保护本机的 SSH**，不重新发明一套配置。
+#
+# 为什么做得这么轻：实测该机已有 /etc/fail2ban/jail.d/defaults-debian.conf，
+# 里面已经是 `[sshd] enabled = true` —— 它就是官方推荐写法。
+# 我们再写一份 jail 反而是"两套并存"（这与引入 Ansible 的初衷相悖）。
+# 这里只做两件事：① 断言 jail 活着 ② 把 sshd 日志来源钉死为 systemd。
+#
+# ⚠️ 已知缺口（**本次不修，留作后续**）：
+#   该 jail 没有配 `port`。fail2ban 的 sshd filter 是按日志里的
+#   "Failed password" 抓的，与 sshd 实际端口无关，所以功能上不受影响；
+#   但 `fail2ban-client` 的端口信息会失真。要修得连同 jail.local 一起设计，
+#   不在本次授权范围内。
+
+- name: 确保 fail2ban 已安装
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+    lock_timeout: 900
+
+- name: 钉死 sshd 日志来源为 systemd
+  # 实测该机默认 backend = systemd（在 defaults-debian.conf 里）。
+  # 这里**显式声明**，免得将来发行版换默认值时静默失效 ——
+  # 该机 /var/log/auth.log 在 Ubuntu 24.04 上并不保证存在，靠 auto 探测很脆。
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/00-knowtrace-sshd.conf
+    content: |
+      # 由 deploy/ansible/roles/fail2ban 管理。
+      # 只补一条 backend；[sshd] enabled 仍由 defaults-debian.conf 提供。
+      # 文件名 00- 让它在 defaults-debian.conf 之前被读，语义更明确。
+      [sshd]
+      backend = systemd
+    owner: root
+    group: root
+    mode: "0644"
+  register: fail2ban_conf
+
+- name: 启用并启动 fail2ban
+  ansible.builtin.systemd_service:
+    name: fail2ban
+    enabled: true
+    state: started
+
+- name: 重载 fail2ban（仅配置变化时）
+  ansible.builtin.command:
+    cmd: fail2ban-client reload
+  when: fail2ban_conf.changed
+  changed_when: true
+
+- name: 断言 sshd jail 在运行
+  ansible.builtin.command:
+    cmd: fail2ban-client status sshd
+  register: fail2ban_status
+  changed_when: false
+  retries: 5
+  delay: 3
+  until: fail2ban_status.rc == 0
+
+- name: 记录 jail 状态
+  ansible.builtin.debug:
+    msg: "{{ fail2ban_status.stdout_lines[0:2] }}"

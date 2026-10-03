@@ -1,0 +1,14 @@
+---
+# Day 0 用到的两个 collection —— ansible-core 自带的是 ansible.builtin，
+# 这两个是外部的，必须显式声明，否则换台控制端就报 "couldn't resolve module/action"。
+#
+#   ansible-galaxy collection install -r requirements.yml
+#
+# 用途：
+#   ansible.posix.authorized_key     —— 幂等地维护 /root/.ssh/authorized_keys
+#   community.general.ufw            —— 幂等地维护 UFW 规则（而不是拼 ufw 命令行）
+collections:
+  - name: ansible.posix
+    version: ">=1.5.0"
+  - name: community.general
+    version: ">=8.0.0"
