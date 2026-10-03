@@ -136,24 +136,17 @@
   when: hardening_dropin.changed
 
 # ── 内核参数（放最后：无害，且失败也不影响登录）────────────────────
-- name: 屏蔽 SysRq 危险键
-  ansible.builtin.copy:
-    dest: /etc/sysctl.d/10-magic-sysrq-knowtrace.conf
-    content: |
-      # 由 deploy/ansible/roles/hardening 管理。
-      # 只保留 sync(1) 与 remount-readonly(16)，其余（强制重启/杀进程等）禁用。
-      kernel.sysrq = 17
-    owner: root
-    group: root
-    mode: "0644"
-  register: hardening_sysrq
-
+# 说明：SysRq 与其余几项**写在同一个 99- 文件里**，刻意不单独建
+# 10-magic-sysrq-knowtrace.conf —— 实测那个名字会被发行版自带的
+# 10-magic-sysrq.conf 盖掉（同一字典序位置，且 `-` < `.`）。详见 group_vars。
 - name: 写入内核与网络栈加固参数
   ansible.builtin.copy:
     dest: "{{ sysctl_file }}"
     content: |
       # 由 deploy/ansible/roles/hardening 管理 —— 改 group_vars/all.yml 后重跑。
       # 只含本 playbook 声明的那几项；发行版自带的 /etc/sysctl.d/10-*.conf 不动。
+      #
+      # ⚠️ 文件名 99- 前缀是刻意的：sysctl 后者覆盖前者，必须排在所有 10-* 之后。
       {% for key, value in sysctl_settings.items() %}
       {{ key }} = {{ value }}
       {% endfor %}
@@ -166,8 +159,8 @@
   # `-p <文件>` 而非 `--system`：只加载本文件，不越界改发行版的值
   ansible.builtin.command:
     cmd: sysctl -p {{ sysctl_file }}
-  when: hardening_sysctl.changed or hardening_sysrq.changed
-  changed_when: hardening_sysctl.changed or hardening_sysrq.changed
+  when: hardening_sysctl.changed
+  changed_when: hardening_sysctl.changed
 
 - name: 读取内核参数实际取值
   # 同样读实际值：sysctl -p 报成功不等于值是我们想要的

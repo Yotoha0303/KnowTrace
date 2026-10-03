@@ -34,6 +34,13 @@ ufw_stale_tcp:
 # ── 内核与网络栈加固 ─────────────────────────────────────────────────
 # 只写本文件，并用 `sysctl -p <本文件>` 应用 —— **不用 `sysctl --system`**，
 # 免得顺带把发行版的 /etc/sysctl.d/10-*.conf 一起改掉（那不是本次的授权范围）。
+#
+# ⚠️ 文件名前缀必须是 **99-**。sysctl 按文件名字典序读取、**后者覆盖前者**，
+#    而发行版自带 10-magic-sysrq.conf 等一批 10-*.conf。
+#    实测踩到：SysRq 一开始单独放在 10-magic-sysrq-knowtrace.conf 里，
+#    与自带的 10-magic-sysrq.conf 同前缀，字典序又排在它**前面**
+#    （`-` 0x2D < `.` 0x2E），于是被盖掉 —— 实际值仍是 176 而不是 17。
+#    放进这个 99- 文件后，字典序在所有 10-* 之后，才真正生效。
 sysctl_file: /etc/sysctl.d/99-knowtrace-security.conf
 sysctl_settings:
   # 禁用 IP 重定向与源路由（防 IP 欺骗）；本机不是路由器，无需转发 ICMP 重定向
@@ -45,6 +52,11 @@ sysctl_settings:
   net.ipv4.tcp_max_syn_backlog: 2048
   # 忽略广播 ICMP（防 smurf 放大）
   net.ipv4.icmp_echo_ignore_broadcasts: 1
+  # SysRq 只保留 sync(1) 与 remount-readonly(16)，共 17；
+  # 去掉强制重启、杀进程等（Ubuntu 默认 176 保留得更多）。
+  # 注：这是台无键盘的机器，SysRq 真正的入口是 /proc/sysrq-trigger（需 root），
+  #     所以这条的边际收益有限 —— 但既然写了就得让它真的生效，不能是纸面加固。
+  kernel.sysrq: 17
 
 # ── 系统包 ───────────────────────────────────────────────────────────
 # 与 scripts/install.sh 的 DEPS 对齐（那份暂不删，共存期的边界见 ../README.md）。
