@@ -2,308 +2,215 @@
 
 ![KnowTrace 主页面](./images/knowtrace_main_1.png)
 
-更多界面截图见 [KnowTrace 界面截图](./images/READEME.md)。
-
 <p align="center">
   <a href="https://github.com/Yotoha0303/KnowTrace/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Yotoha0303/KnowTrace/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/Yotoha0303/KnowTrace/issues"><img alt="GitHub Issues" src="https://img.shields.io/github/issues/Yotoha0303/KnowTrace"></a>
 </p>
 
-KnowTrace 是一个“记录优先、AI 辅助整理”的轻量知识采集系统，面向个人或在同一可信环境中使用的小群体。
+KnowTrace 是一个**“记录优先、AI 辅助整理、证据可追溯”**的知识采集与可靠知识工作流系统。
 
-用户可以直接输入关键词、想法片段、经历、观察或问题。系统先可靠保存原文，再由 AI 生成候选标题、摘要、少量分类、语义拆分和可逐条选择的局部原文建议。AI 处理结果单独留痕，不会未经确认覆盖原始记录。
+它首先保存用户的原始记录，再通过 AI 提供分类、摘要、主张候选、证据审查和主题综合等辅助能力。AI 输出与具体记录版本绑定，不能未经人工确认覆盖原始内容；最终结论、独立复核和可靠发布由人完成。
+
+当前项目同时作为一个 **AI 应用 + 多服务交付 + 可靠性工程实验项目** 持续演进。
 
 > [!IMPORTANT]
-> 项目仍在持续开发。默认部署面向本机或受保护的可信网络，不是已经完成公网安全加固的托管服务；开放源代码不等于可以把默认配置直接暴露到互联网。
+> 项目仍在持续开发。当前重点是把已经实现的能力进行真实验证，并完善部署、可观测性、备份恢复、故障演练与自动化运维。公网运行能力必须以实际验证结果为准，不能仅凭“已经部署”视为生产级高可用系统。
 
-## 项目亮点
+## 项目定位
 
-- **记录优先**：原始内容先保存，AI 失败不会影响记录，AI 建议也不会自动覆盖原文。
-- **证据可追溯**：主张、证据、来源检查、人工结论和发布快照保留清晰的状态与版本边界。
-- **AI 不越权**：AI 负责辅助整理和提示证据缺口，最终判断与采纳始终由人完成。
-- **Workspace 隔离**：记录、分类、主张、证据、检索、附件与迁移流程使用服务端 Workspace 边界。
-- **可迁移、可恢复**：支持带预检和事务确认的 Excel v2 迁移包，并提供数据库、认证数据和附件备份流程。
-- **本地优先**：Docker Compose 可一次启动 Web、PostgreSQL、认证服务、MySQL 与 Redis；默认不依赖真实模型即可体验完整流程。
-
-## 当前范围
-
-当前版本聚焦十件事：
-
-1. 快速记录原始内容。
-2. 手动或 AI 辅助完成内容分类。
-3. 保存每一次 AI 处理的输入版本、结果和状态。
-4. 从原文中提取少量可证伪主张候选，并由人工决定是否进入证据调查。
-5. 对已确认的证据快照运行 AI 可靠性审查，提示覆盖、平衡和待补检查，但不替代人工结论。
-6. 统一检索原始记录、主张、证据和人工结论，并按分类查看主题档案。
-7. 按描述对象回看事件时间线，并生成可回链、可接受或驳回、能识别输入变化的 AI 主题综合档案。
-8. 对人工结论执行来源权威性评估、跨身份独立复核和可靠发布，并通过 `/api/v1` 为未来移动端提供稳定数据接口。
-9. 通过“数据迁移”导出/导入 Excel：迁移记录原文、对象、时间、状态、分类及关联；导入先预检、再确认，并以单事务写入。
-10. 通过 Workspace 隔离记录、主张、证据、检索、附件和迁移数据，并支持创建、切换及安全删除空 Workspace。
-
-每条记录可以独立保存“描述对象”和“发生时间”。发生时间默认当前时间，可用日历调整；描述对象支持公司、人物、项目等自由文本，并参与全文检索与组合筛选。
-
-当前明确不做：
-
-- KnowTrace 自建另一套密码存储和账号数据库；认证统一由仓库内 `services/go-user-system` 的独立服务负责。当前已有 Workspace 数据隔离，但不提供组织邀请、计费或复杂团队权限系统。
-- AI 自动联网补证、最终真实性判定和向公网自动分发知识。
-- RAG、向量检索和知识图谱。
-- 面向大规模团队的复杂分析看板。
-- 移动端应用。
-
-移动端应用尚未开发，但记录、分类、对象时间线、主张和可靠发布已有版本化 JSON API；契约见 [移动端 API](docs/12-mobile-api.md)。
-
-统一容器栈默认启用 go-user-system 登录。默认只监听本机；在完成 HTTPS、网络隔离和部署加固前仍不应直接暴露到公网。
-
-## 技术方案
-
-- 全栈元框架：Next.js App Router + TypeScript
-- 界面：React、Tailwind CSS
-- 数据库：PostgreSQL
-- 数据访问：Drizzle ORM 与 SQL 数据库迁移
-- 数据校验：Zod
-- AI：供应商适配层（Provider Adapter），首批兼容 OpenAI/DeepSeek
-- 认证后端：仓库内置 go-user-system（Go、MySQL、Redis）
-- 部署：根级 Docker Compose 与 Makefile 统一编排
-- 测试：Vitest、Testing Library、Playwright
-
-初始化代码时使用当时最新的稳定/LTS 补丁版本，不使用 Preview 或 Canary 作为默认生产基线。
-
-## 核心约束
-
-- 保存记录与调用 AI 是两个独立操作。
-- 启动 AI 前必须确认编辑器已完成保存；存在未保存修改时阻止分析并定位到保存按钮，AI 始终读取明确的已保存版本。
-- AI 失败不能影响记录保存。
-- 原文只通过显式编辑或明确勾选的 AI 局部建议修改，并保留修订版本（Revision）。
-- AI 局部建议在写回前显示整篇原文的修改前/修改后对比；最近一次已采纳整理可整体回退，回退本身生成新 Revision 且不覆盖后续手动工作。
-- AI 输出始终绑定具体 Capture（记录）版本。
-- AI 分类属于候选建议，合计最多 3 个、新分类最多 1 个；新分类默认不选。
-- 再次接受 AI 分类会替换旧 AI 分类关系，但始终保留手动分类。
-- 首版中的 Capture 只是记录，不代表内容真实或已经验证。
-- AI 主张候选最多 3 个且默认不创建；人工接纳后才成为独立 Claim（主张）。
-- Claim 按 `candidate → investigating → ready_for_review → concluded` 的受控流程流转，允许退回调查或撤回。
-- 至少有 1 条人工采纳的 Evidence（证据）才能进入 `ready_for_review`；该状态仍不表示真实。
-- Evidence 采纳前必须通过来源检查，且保存的摘录要能在抓取内容中匹配；每次检查保存不可变元数据快照。
-- 调查中的未审核 Evidence 可以编辑；每次编辑保留旧版本，并把当前来源检查重置为待检查。来源 URL 可以留空；无链接 Evidence 上传图片并由本地使用者显式确认图片与摘录一致后，可以采纳并提交待审核。
-- 每条 Evidence 可附加最多 5 张 JPEG、PNG、WebP 或 GIF 图片（单张不超过 10 MB），文件保存在项目 `data/uploads/evidence`，数据库保存相对路径、格式、大小和 SHA-256，并可通过网页查看原图。上传本身不等于核验；人工核验会冻结附件快照和组合哈希，后续新增图片会使旧核验失效。
-- 来源检查证明“当时可访问且摘录匹配”，不证明来源权威、结论正确或页面永远不变。
-- 待审核 Claim 只能形成 `现有证据支持 / 反驳 / 证据不足` 三类人工结论；结论冻结当时使用的 Evidence 与来源哈希，并允许重新调查。
-- AI 可靠性审查只读取当时已采纳且来源匹配的 Evidence 快照；覆盖度与正反平衡由服务端确定，结果变化后旧审查明确标记过期。
-- AI 主题综合保存当时的主题输入快照和哈希；模型引用的 Capture/Claim ID、依据层级和时间点由服务端重新校验，输入变化后旧档案不能再被接受。
-- 可靠发布不是单按钮确认：每条结论证据必须有当前版本的来源权威性评估，至少两类独立来源、至少一条第一手/官方/专业来源，并由不同于结论作者的 go-user-system 登录账号批准独立复核。
-- 发布会冻结主张、人工结论、证据来源哈希、权威性评估和独立复核为不可变版本；显式永久删除 Capture 时会级联删除这些版本，避免留下用户已要求删除的内容副本。
-- 统一检索按知识对象分组并保留状态与来源回链，检索命中本身不提高内容可靠性。
-- 记录详情会按同一对象、共同分类和文字片段显示可解释的相似记录；相似只用于回看，不代表观点一致或内容可靠。
-- `occurred_at` 表示内容所描述事件的时间，不等同于记录创建时间；描述对象和发生时间的修改同样进入 Revision。
-- 归档可恢复；永久删除必须二次确认，并级联删除版本与 AI 处理历史。
-
-## 本地启动
-
-**Windows**：需要 Docker Desktop、GNU Make 和 Windows PowerShell。首次启动执行：
-
-```bash
-make up
+```
+原始记录
+   ↓
+AI 辅助整理
+   ↓
+Claim / Evidence
+   ↓
+来源检查
+   ↓
+人工结论
+   ↓
+独立复核
+   ↓
+可靠发布
 ```
 
-`make up` 会生成仅保存在 `.env` 的数据库和 JWT 随机密钥，构建并启动 PostgreSQL、MySQL、Redis、go-user-system 和 KnowTrace，执行两套数据库迁移，并在数据库尚无管理员时创建管理员。**管理员口令默认随机生成**（写入 `.env`，不会打印）；用户名为 `KnowTrace`。重复启动不会覆盖既有管理员或用户后来修改的密码。
+同时围绕运行可靠性形成：
 
-> 本机开发想用固定口令时，加 `-UseFixedAdminCredential`（PowerShell）或 `--use-fixed-admin-credential`（Linux）——此时口令为 `KnowTrace@123`，**仅适合绑定 `127.0.0.1` 的本机首次登录**。
-> 2026-10-02 之前这里默认就是那对固定凭据，而它写在公开 README 里；一台公网可访问的新机器因此带着公开口令上线过。
-
-如果没有 GNU Make，也可运行：
-
-```powershell
-.\scripts\start-all.ps1
+```
+代码
+ ↓
+CI
+ ↓
+构建 / 部署
+ ↓
+Metrics / Logs / Traces
+ ↓
+告警
+ ↓
+备份 / 恢复
+ ↓
+故障演练
+ ↓
+Runbook / Postmortem
 ```
 
-**Linux**：`make up` 走的是 PowerShell（`scripts/start-all.ps1`），**在 Linux 上不可用**。
-用 `scripts/install.sh` —— 从一台只有 sshd 的机器开始，一条命令：
+## 当前能力
+
+- **记录优先**：AI 失败不影响原始记录保存。
+- **版本与可追溯性**：Capture、Revision、AI Run、Claim、Evidence 和可靠发布版本具有明确边界。
+- **证据工作流**：支持来源检查、证据快照、人工结论、来源权威性评估和独立复核。
+- **Workspace 隔离**：记录、分类、主张、证据、检索、附件与迁移流程按 Workspace 进行服务端隔离。
+- **统一检索**：支持记录、主张、证据、结论、分类、对象和时间等维度检索。
+- **数据迁移**：支持带预检、版本化指纹和事务确认的 Excel 数据迁移。
+- **统一认证**：内置独立的 Go 用户认证与 RBAC 服务，使用 MySQL + Redis。
+- **容器化运行**：Docker Compose 统一编排 Web、PostgreSQL、认证服务、MySQL 和 Redis。
+- **健康检查与恢复**：提供应用/认证 ready 检查、数据库备份、上传文件备份和隔离恢复验证。
+- **可靠性实验**：已建立 VPS 部署、压测、备份恢复、故障演练和可观测性阶段。
+
+## 技术栈
+
+### 应用
+
+- Next.js App Router
+- TypeScript / React / Tailwind CSS
+- PostgreSQL / Drizzle ORM
+- Zod
+- OpenAI / DeepSeek Provider Adapter
+
+### 认证
+
+- Go / Gin / GORM
+- MySQL
+- Redis
+- JWT / Refresh Token / RBAC
+
+### 交付与运行
+
+- Linux / Ubuntu
+- Docker / Docker Compose
+- Nginx / Caddy
+- GitHub Actions / GHCR
+- Makefile / Shell / Python
+- 备份、恢复、SHA-256 完整性校验
+
+### 可观测性
+
+当前 VPS 阶段采用轻量 **PLG** 日志路线，而不是继续使用资源开销较高的 ELK：
+
+```
+Prometheus → Grafana → Alertmanager
+                 ↑
+Loki ← Alloy ← Caddy / Nginx / Docker Logs
+```
+
+同时使用：
+
+- Prometheus Metrics
+- Grafana Dashboard
+- Alertmanager 告警
+- Blackbox Exporter
+- Loki / Alloy
+- OpenTelemetry / OTLP / Tempo
+- Request ID / Trace Context
+- Health / Readiness
+- 有界压测与 P50 / P95 / P99
+
+> 2026-10-03 起，VPS 阶段三由 ELK 调整为 PLG。原因是当前 1.8 GiB 级 VPS 的资源约束：Loki + Alloy 更适合常驻运行。具体变更记录见 `changes/` 与 `docs/16-stage3-observability.md`。
+
+## 部署
+
+Linux 服务器可以从仓库脚本开始：
 
 ```bash
 sudo bash scripts/install.sh --domain knowtrace.example.org
-# 或不先 clone：
-curl -fsSL https://raw.githubusercontent.com/Yotoha0303/KnowTrace/refs/heads/main/scripts/install.sh   | sudo bash -s -- --domain knowtrace.example.org
 ```
 
-它依次：**装系统依赖 → clone/更新仓库 → 建 external 数据卷 → 写 Caddyfile（按 `--domain` 生成）
-→ 交给 `bootstrap.sh --all`**（host → apps → monitoring → ops → verify，含镜像构建）。
+部署流程包括：
 
-再加 `--yes` 自动确认；`--dry-run` 只打印将做什么。**先跑 `--dry-run` 是个好习惯。**
+```
+主机预检
+ ↓
+系统依赖
+ ↓
+仓库更新
+ ↓
+数据卷
+ ↓
+应用配置
+ ↓
+Compose 部署
+ ↓
+监控栈
+ ↓
+运维任务
+ ↓
+全链路验证
+```
 
-**刻意仍不自动化的两件事**（脚本会在结束时打印命令）：
+支持 `--dry-run`，用于在真正执行前检查将要发生的操作。
 
-| 不做 | 原因 |
+部分高风险操作仍要求人工完成，例如 SSH 加固、UFW 和外部凭据配置，避免自动化脚本把远程服务器锁死。
+
+## 可靠性与运维
+
+项目目前已经建立以下实践：
+
+- PostgreSQL / MySQL / Redis / Uploads 备份
+- SHA-256 manifest
+- 隔离恢复验证
+- 加密异地备份设计
+- 定时备份与保留策略
+- 有界健康检查和业务读取压测
+- Blackbox 故障演练
+- Runbook
+- Bug / Incident / Postmortem 记录
+- 发布前备份与验证
+- 版本、部署、健康检查和回滚门禁
+
+但这些证据**只代表当前单 VPS、当前环境和当前测试窗口**，不等同于高可用、长期容量、真实 SLA 或多节点生产能力。
+
+## 当前明确不做
+
+- RAG、向量检索和知识图谱
+- AI 自动联网补证
+- AI 自动作出最终真实性结论
+- 大规模团队复杂权限与计费系统
+- 移动端应用（API 已为未来客户端准备）
+- 为“技术栈数量”而引入不必要的中间件
+
+项目优先验证已有系统是否真正有效，而不是为了完成度继续堆功能。
+
+## 文档入口
+
+完整文档索引：
+
+[`docs/README.md`](docs/README.md)
+
+| 目标 | 文档 |
 | --- | --- |
-| UFW 防火墙 | **自锁风险**：`ufw enable` 前未放行 SSH 端口会立即失联，且无法远程改回 |
-| sshd 加固 | 同上；且改完必须**另开一个窗口**验证密钥能登录，才可关密码登录 |
+| 产品范围 | [`docs/00-product-brief.md`](docs/00-product-brief.md) |
+| 技术架构 | [`docs/06-architecture.md`](docs/06-architecture.md) |
+| 运行、备份与恢复 | [`docs/11-operations.md`](docs/11-operations.md) |
+| 移动端 API | [`docs/12-mobile-api.md`](docs/12-mobile-api.md) |
+| VPS 可靠性 | [`docs/15-stage2-vps-reliability.md`](docs/15-stage2-vps-reliability.md) |
+| 可观测性 | [`docs/16-stage3-observability.md`](docs/16-stage3-observability.md) |
+| 当前缺陷 | [`docs/19-product-defect-inventory.md`](docs/19-product-defect-inventory.md) |
+| 真实验证路径 | [`docs/21-path-to-100-percent.md`](docs/21-path-to-100-percent.md) |
+| 团队接手视角 | [`docs/22-团队视角-接手与协作.md`](docs/22-团队视角-接手与协作.md) |
+| 用户信任边界 | [`docs/23-用户视角-使用与信任边界.md`](docs/23-用户视角-使用与信任边界.md) |
 
-异地备份后端、告警邮箱授权码、AI key 属外部凭据，同样只提示不代做。
+## 工程原则
 
-也可以只用 `scripts/bootstrap/bootstrap.sh` 的单个阶段：
+- **写完 ≠ 验证通过**：代码存在不能代替真实运行证据。
+- **备份 ≠ 恢复**：只有经过隔离恢复验证的备份才具有明确恢复价值。
+- **监控 ≠ SRE**：Metrics、Logs、Traces 必须服务于发现、定位和恢复。
+- **自动化建立在理解之上**：先手工验证流程，再自动化。
+- **不包装实验能力**：明确区分单 VPS 实验、已验证能力和真正生产能力。
+- **可靠性优先于技术堆叠**：优先解决已经出现的故障和验证缺口。
 
-```bash
-sudo bash scripts/bootstrap/bootstrap.sh --stage host        # 建卷 + 放 nginx 站点配置
-sudo bash scripts/bootstrap/bootstrap.sh --stage apps        # 生成配置 + 构建并启动
-sudo bash scripts/bootstrap/bootstrap.sh --stage monitoring  # 监控栈
-sudo bash scripts/bootstrap/bootstrap.sh --stage ops         # 巡检定时器
-sudo bash scripts/bootstrap/bootstrap.sh --stage verify      # 全链路验收
-```
+## 开源
 
-它会先做预检（OS / 命令 / 内存 / 磁盘 / 端口），不合格直接拒绝；
-`--dry-run` 只打印将要做什么；`--record <文件>` 把每一步写下来（重建演练时用）。
+KnowTrace 自有代码采用 [MIT License](LICENSE)。
 
-**未自动化的部分**（需人工）：系统包安装、sshd 加固、UFW、反向代理与证书、DNS。
-这几项有「自锁」风险（例如 `ufw enable` 前未放行 SSH 端口会立即失联），
-因此刻意不默默执行。完整步骤见
-[docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md](docs/KnowTrace-VPS-部署学习-2026-09-06/阶段一/文档/04-从零部署到当前线上状态-完整实操教程.md)。
-
-数据库迁移会启用 PostgreSQL `pg_trgm` 扩展以支持中文片段检索；受限托管数据库需要管理员预先启用该扩展。
-
-打开 `http://localhost:3000`。默认使用本地规则引擎模拟 AI 整理，不需要 API Key；它用于验证完整审阅流程，不代表事实核验。
-
-### 统一认证后端
-
-go-user-system 源码已迁入 `services/go-user-system`，但继续作为边界独立的 Go 服务运行；KnowTrace 不保存密码。根级 Compose 直接通过内部网络访问 `http://auth:8082`，无需另外克隆或启动认证仓库。账户中心可修改昵称、修改密码、查看自身角色权限，并向有权限的管理员提供角色分配界面。
-
-```dotenv
-AUTH_ENABLED=true
-AUTH_SERVICE_URL=http://localhost:8082
-AUTH_REGISTRATION_ENABLED=false
-AUTH_COOKIE_SECURE=false
-```
-
-`AUTH_SERVICE_URL` 只供宿主机直接运行 Next.js 开发服务器时使用；统一容器栈固定使用内部服务名。只有确实允许自助注册时才把 `AUTH_REGISTRATION_ENABLED` 改为 `true`。本地 HTTP 保持 `AUTH_COOKIE_SECURE=false`；通过 HTTPS 部署时必须改为 `true`。认证服务异常时请求会被拒绝，不会匿名降级。
-
-当前 go-user-system 已接入的实际能力包括注册（可选）、登录、刷新轮换、退出、个人资料、修改密码、查看角色权限、读取角色/权限目录和管理员分配角色。修改密码会使该账号的全部已有会话失效。上游当前没有用户列表、设备会话列表或按设备撤销接口，因此 KnowTrace 管理员分配角色时需要填写数字用户 ID，也不会展示不存在的单设备会话管理。
-
-KnowTrace 业务数据按“管理员共享、成员私有”处理：拥有 `admin` 角色的管理员可读取和管理全部内容，管理员创建或导入的记录默认对所有已登录成员共享；普通成员可管理自己的内容，并以只读方式查看管理员共享内容，但不能看到其他普通成员的私有内容。详情、搜索、分类、对象时间线、导出和证据图片复用同一读取规则，所有写操作仍校验所有者或管理员身份。历史 `legacy-local` 数据仅管理员可见。
-
-如需调用真实模型，可以在记录详情的“AI 整理台”直接输入 OpenAI/DeepSeek API Key，也可以继续在 `.env` 中配置 `OPENAI_API_KEY` 或 `DEEPSEEK_API_KEY` 作为服务端后备值。界面输入的 API Key 只随本次整理请求发送，不写入数据库、AI Run、日志或服务端环境变量；勾选“仅在当前浏览器标签页记住凭据”后，才会写入该标签页的 `sessionStorage`，关闭标签页后失效。
-
-KnowTrace 还支持通过 CC-Switch 本地路由调用当前供应商。选择 `CC-Switch / OpenAI` 后，默认使用 `CC-Switch（跟随当前供应商，推荐）`：页面先进行不消耗模型额度的健康检查，再可用“测试当前供应商”发送一个极小的结构化请求。地址、模型路由名和可选代理令牌收在“高级设置”中，正常使用不需要填写；默认路由名 `claude-sonnet-4-5` 由 CC-Switch 映射到当前启用的 Codex、DeepSeek 或其他 Claude 侧供应商。Docker 默认地址为 `http://host.docker.internal:15721/v1`，该模式使用 `/v1/messages`。供应商 API Key 与 OAuth token 均继续由 CC-Switch 管理，不应复制到 KnowTrace。
-
-CC-Switch 各供应商对工具调用和原生结构化输出的支持并不一致。跟随模式只要求模型返回 JSON 文本，再由 KnowTrace 执行严格 Schema 校验，因此切换到 DeepSeek 后不再依赖 Codex 专用工具调用；若当前模型返回的结构不合格，连接测试和整理任务都会明确失败，不会保存不符合结构的建议。
-
-旧版本浏览器中保存的 `CC-Switch OpenAI Responses` / Codex OAuth 连接方式会自动迁移为“跟随当前供应商”，避免切换到 DeepSeek 后仍误走 `/v1/responses`。CC-Switch 地址只允许 `localhost`、回环地址或 `host.docker.internal`，不能借此请求任意远程 URL。若把 CC-Switch 监听地址改成 `0.0.0.0`，应使用系统防火墙限制端口访问范围。
-
-Compose 会把容器内 `/app/data/uploads` 映射到项目的 `data/uploads`。图片文件不会提交到 Git；备份或迁移 KnowTrace 时，需要同时保存 PostgreSQL、go-user-system MySQL 和该上传目录。
-
-“数据迁移”页面生成的 Excel 适合在 KnowTrace 实例间搬运 Capture 与 Category，也便于人工检查。它不是完整备份：不会包含 AI Run、Suggestion、Claim、Evidence、审核/发布快照或图片。重复导入会先按用户与稳定记录标识判断，再按包含对象、发生时间、内容类型和正文的版本化指纹判断；相同记录跳过，同一稳定标识对应不同内容时阻止整批导入，不会静默覆盖现有记录。
-
-常用质量检查：
-
-```bash
-make check
-```
-
-健康检查：`/api/health/live` 只检查进程存活，`/api/health/ready` 同时检查 PostgreSQL；兼容入口 `/api/health` 保留。容器启动时会把超过 5 分钟仍为 running 的 AI Run 或主题综合任务标记为 `AI_RUN_INTERRUPTED`。
-
-统一备份（PowerShell）：
-
-```powershell
-# 同时备份 PostgreSQL、go-user-system MySQL 和证据图片
-make backup
-
-# 恢复会覆盖当前数据库，必须显式确认
-.\scripts\restore.ps1 -BackupPath .\backups\knowtrace-日期.dump -ConfirmDatabaseReset
-```
-
-恢复前会停止应用容器，完成后重新启动。认证数据库需要使用 `scripts/backup-auth.ps1` 生成的校验备份另行恢复；所有备份都可能包含敏感信息。
-
-## 文档导航
-
-完整索引见 **[docs/README.md](docs/README.md)**（按「契约 / 决策 / 状态 / 变更 / 专题」分层，并给出按读者类型的入口）。
-
-核心入口：
-
-| 想知道什么 | 读 |
-| --- | --- |
-| 产品是什么、明确不做什么 | [产品范围](docs/00-product-brief.md) |
-| 技术架构与依赖方向 | [技术架构](docs/06-architecture.md) |
-| 现在实际做到哪一步 | [产品缺陷与体验问题清单](docs/19-product-defect-inventory.md)、[走向 100% 的路径](docs/21-path-to-100-percent.md) |
-| 接 `/api/v1` 写客户端 | [移动端 API](docs/12-mobile-api.md) |
-| 从**团队/使用者**角度快速了解 | [团队视角](docs/22-团队视角-接手与协作.md)、[用户视角](docs/23-用户视角-使用与信任边界.md) |
-| 为什么这样选 | [架构决策记录](docs/adr/README.md) |
-| 要改代码或配置 | [变更记录约定](docs/changes/README.md)（变动前先写） |
-| 部署与运行 | [运行、备份与恢复](docs/11-operations.md)、[贡献指南的部署验证](CONTRIBUTING.md) |
-
-其余文档（需求、流程、领域、库表、接口契约、AI 规范、验收、计划、风险、VPS 阶段二/三、多平台客户端）见 [完整索引](docs/README.md)。
-
-## 首版完成定义
-
-- 首页可以快速记录关键词或想法片段。
-- 记录原文、格式和创建时间可靠保存。
-- 可以创建、重命名、归档分类。
-- 一条记录可以属于多个分类。
-- 可以手动指定内容类型和分类。
-- 可以主动触发 AI 整理并查看执行状态。
-- AI 可以返回标题、摘要、内容类型、少量候选分类和局部原文建议。
-- AI 可以返回少量可证伪主张候选，用户可以选择是否创建。
-- 可以对主张运行 AI 可靠性审查，并看到处理状态、证据边界、缺口与不可越权提示。
-- 可以统一检索记录、主张、证据和结论，并在分类主题档案中回看知识进展。
-- 可以按描述对象查看发生时间线，并从分类生成带来源回链、人工决策和过期提示的主题综合档案。
-- 可以对人工结论评估来源权威性，由不同账号独立复核，并在全部门槛满足后冻结可靠知识版本。
-- AI 处理期间显示当前阶段与已等待时间。
-- 用户可以接受、修改或拒绝 AI 建议。
-- 用户可以在采纳前查看整篇文本前后对比；采纳后若尚未产生后续修改或主张处理，可以整体回退本次 AI 整理。
-- 编辑记录时保留历史版本，并阻止并发静默覆盖。
-- AI 供应商（Provider）不可用时，记录、编辑、分类仍然正常。
-- 根级 Makefile / Compose 可以在新环境一次启动应用、认证后端和三项数据服务。
-- 未来移动端可以通过 `/api/v1` 幂等创建、分页读取、乐观锁更新和有前置版本保护的永久删除 Capture，并读取分类、对象时间线、主张与可靠发布版本。
-
-## 当前实现状态
-
-第一版 Web 应用已实现：快速录入、记录编辑与删除、乐观版本控制、修改历史、多分类、分类管理、归档恢复、AI 结构化整理、处理状态反馈、分类数量约束、可选局部原文建议、来源片段约束、人工接受/修改/驳回，以及 AI 处理历史。P1.1–P1.4 已形成“候选主张—来源检查—证据审核—人工结论—AI 非裁决审查”闭环，并支持不经过 AI 手动添加主张；P2 已加入统一知识检索、分类主题档案、对象/时间筛选和可解释的相似记录；P2.6 已完整接入并内置 go-user-system 账号与 RBAC 后端，实现管理员全局管理、管理员内容默认共享、成员内容私有；P2.7 已加入对象时间线及可追溯的 AI 主题综合档案；P2.8 已加入来源权威性评估、身份化独立复核和不可变可靠知识发布版本；P2.9 已交付未来移动端可复用的 `/api/v1` 读取与 Capture 生命周期接口；P3 已加入 Workspace 创建、切换、数据隔离和空空间安全删除。尚未实现自动联网补证、组织邀请与复杂团队权限、移动端应用和公网发布通道，界面仍不存在含糊的“已验证”入口。
-
-## 会话与登录行为
-
-这一节写的是**使用者会直接遇到的**认证行为，便于判断"这是正常现象还是出了问题"。
-
-### 会话有效期
-
-| 项 | 值 | 说明 |
-| --- | --- | --- |
-| Access Token | **15 分钟** | 短命令牌，过期后由服务端**自动续期**，使用者无感 |
-| Refresh Token | **30 天，滑动** | 每次刷新都签发新令牌并**重置为 30 天** |
-
-**滑动**的含义：只要在 30 天内访问过一次，会话就会继续延长——**持续使用不会被登出**。
-只有在**整整 30 天没有任何访问**之后，才需要重新登录。
-
-> 会话续期由服务端 Proxy 在 Access Token 失效时**按需触发**，
-> 不使用客户端定时器（定时器在标签页休眠、多标签页、长时间不操作时都不可靠）。
-
-### 登录失败与锁定
-
-同一个账号**连续失败 5 次**会被临时锁定 **15 分钟**；同一个来源累计失败 **20 次**同样会被锁定。
-
-锁定期间：
-
-- **密码正确也会被拒绝**——这是限流的预期行为，不是密码问题；
-- 界面会明确显示**「已锁定」并给出剩余时间倒计时**，不再是一句含糊的提示；
-- 响应带 `Retry-After`，客户端可据此退避。
-
-**建议**：如果不确定密码，**不要连续试**——每 5 次失败就会锁 15 分钟。
-先确认凭据，再一次性输入。
-
-### 判定问题出在哪
-
-| 界面提示 | 含义 | 该怎么办 |
-| --- | --- | --- |
-| 账号或密码错误 | 凭据不匹配 | 确认用户名密码；注意默认凭据只用于首次初始化 |
-| 已锁定 + 倒计时 | 触发了失败次数上限 | 等倒计时结束；**期间重试也无效，且会延长锁定** |
-| 登录服务暂时不可用 | 认证服务异常 | 稍后重试；这是 fail-closed，不会降级为匿名访问 |
-| 登录已过期，请重新登录 | Refresh Token 也失效了 | 重新登录（例如超过 30 天未访问） |
-
-## 参与贡献
-
-欢迎提交 Issue 和 Pull Request。开始开发前请阅读 [贡献指南](CONTRIBUTING.md)，并尽量把一次改动限制在一个清晰、可验证的问题内。
-
-## 安全
-
-请不要在公开 Issue 中提交密钥、真实知识数据、数据库备份或漏洞利用细节。安全问题请按照 [安全策略](SECURITY.md) 私下报告。部署到局域网或公网前，务必更换初始化凭据、启用 HTTPS，并完成网络隔离和访问控制。
-
-## 许可证
-
-KnowTrace 自有代码以 [MIT License](LICENSE) 开源。第三方依赖仍分别遵循其自身许可证。
-
-GitHub 仓库：[Yotoha0303/KnowTrace](https://github.com/Yotoha0303/KnowTrace)。
+GitHub：<https://github.com/Yotoha0303/KnowTrace>
