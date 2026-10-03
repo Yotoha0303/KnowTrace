@@ -1,4 +1,4 @@
-﻿# 产品缺陷与体验问题清单
+# 产品缺陷与体验问题清单
 
 | 项 | 值 |
 | --- | --- |
@@ -302,7 +302,7 @@ workspaces：2 个，成员都是同一个 go-user:1
 #### 决定性证据
 
 ```text
-$ docker logs knowtrace-auth-1 | grep auth/login   →  每次成功后紧接一串失败
+$ docker logs knowtrace-workflow-auth-1 | grep auth/login   →  每次成功后紧接一串失败
   time=10:28:41 status=429 latency=108026301 ip=172.18.0.9
   time=10:28:43 status=429 latency=1545578   ip=172.18.0.9
   time=10:28:43 status=429 latency=1813593   ip=172.18.0.9
@@ -364,7 +364,7 @@ Proxy 会先走续期；续期若失败则**清空会话 cookie**。某个标签
 
 #### 怎么验证修好了
 
-- `docker logs knowtrace-auth-1 | grep auth/login` 中 `ip=` 字段应是**真实客户端 IP**，不再是 `172.18.0.x`；
+- `docker logs knowtrace-workflow-auth-1 | grep auth/login` 中 `ip=` 字段应是**真实客户端 IP**，不再是 `172.18.0.x`；
 - 用一个来源的 20 次失败**不应**影响另一个来源的正确登录。
 
 #### 修法方向（**本次未实施**）

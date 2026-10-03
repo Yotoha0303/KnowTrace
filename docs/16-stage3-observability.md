@@ -196,7 +196,7 @@ Grafana 里 Loki 数据源与 Prometheus 同处（见上面的 SSH 隧道），
 {job="caddy"}                                  # Caddy 访问日志
 {job="nginx"}                                  # Nginx access + error
 {job="external"}                               # 外部投递（脚本/程序推进来的）
-{container="knowtrace-app-1"} |= "EACCES"      # 容器 + 内容过滤
+{container="knowtrace-workflow-app-1"} |= "EACCES"      # 容器 + 内容过滤
 ```
 
 也可以用 HTTP API 直接查（排障时不必开 Grafana）：
@@ -236,8 +236,8 @@ Alloy 的 `deploy/alloy/config.alloy` 与原先 Logstash 的 pipeline **一一�
 **Grafana 里日志是空的** —— 先分清是哪一路，再对症：
 
 ```bash
-docker logs --tail 50 knowtrace-alloy-1
-docker logs --tail 50 knowtrace-loki-1
+docker logs --tail 50 knowtrace-workflow-alloy-1
+docker logs --tail 50 knowtrace-workflow-loki-1
 # 确认四路各有流
 for j in caddy nginx external; do
   curl -sG 'http://127.0.0.1:3100/loki/api/v1/series' \
@@ -260,7 +260,7 @@ done
 真正的校验是启动后读 `docker logs`。
 
 **Loki 写满了**：7 天保留由 `limits_config.retention_period` 与 compactor 控制。
-先看 `df -hT /` 与 `docker exec knowtrace-loki-1 du -sh /loki`，
+先看 `df -hT /` 与 `docker exec knowtrace-workflow-loki-1 du -sh /loki`，
 不要直接删 `/var/lib/docker/volumes/knowtrace_loki_data`（那是数据卷，不是缓存）。
 
 ## 验收命令
@@ -430,7 +430,7 @@ revision 是 `7ce26f7d`（2026-09-08），**差 37 个提交 / 21 天**。
 | `deploy-observability.sh`（不带） | `up -d --no-deps --no-build --wait` | **只重启旧镜像，却照样打印成功** |
 
 于是每一次「只更新监控配置」的部署都顺手把应用留在原地，**没有任何一步会说出来**。
-容器 label 佐证：`knowtrace-app-1` 创建于 `2026-09-08T03:04:41Z`，
+容器 label 佐证：`knowtrace-workflow-app-1` 创建于 `2026-09-08T03:04:41Z`，
 `com.docker.compose.project.config_files` 带三个 `-f`——说明它正是某次
 `--build-app` 的产物，之后再没被重建过。
 
@@ -467,8 +467,8 @@ revision 是 `7ce26f7d`（2026-09-08），**差 37 个提交 / 21 天**。
 
 ```bash
 # 容器是哪一组 compose 文件创建的、镜像是哪天建的
-docker inspect knowtrace-app-1 -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
-docker inspect knowtrace-app-1 -f '{{.Created}}'
+docker inspect knowtrace-workflow-app-1 -f '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+docker inspect knowtrace-workflow-app-1 -f '{{.Created}}'
 docker inspect knowtrace-app -f '{{.Created}}'
 
 # 运行态自报
