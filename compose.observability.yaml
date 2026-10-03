@@ -174,6 +174,13 @@ services:
       - /var/log/caddy:/var/log/caddy:ro
       - /var/log/nginx:/var/log/nginx:ro
       - alloy_data:/var/lib/alloy/data
+    ports:
+      # 对应原 Logstash 的 tcp 5000。只绑回环：
+      #   * 供 verify 脚本投递一条测试事件，验证"投递→Loki→可查回"整条链路
+      #   * 也保留给外部生产者（脚本/程序）投递的既有能力
+      # ⚠️ 协议变了：Alloy 的 loki.source.api 用 **Loki push JSON**（streams/values），
+      #    而原 Logstash tcp input 用 **NDJSON** —— 老调用方需按新格式改（见 verify 脚本）
+      - "127.0.0.1:${ALLOY_PUSH_PORT:-5000}:5000"
     depends_on:
       loki:
         condition: service_started

@@ -275,58 +275,113 @@ def verify_core(values: dict[str, str]) -> None:
 
 
 def send_verification_log() -> str:
-    event_id = f"stage3-{int(time.time())}"
-    event = {
-        "@timestamp": datetime.now(timezone.utc).isoformat(),
-        "event_id": event_id,
-        "level": "INFO",
-        "message": "KnowTrace stage-three ELK verification event",
-        "verification_source": "scripts/linux/verify-observability.py",
+    """往 Alloy 的 Loki push 入口投递一条测试事件。
+
+    ⚠️ 协议与旧的 Logstash 不同：Alloy 的 `loki.source.api` 收的是
+    **Loki push JSON**（`{"streams":[{"stream":{...},"values":[[ns,line],...]}]}`），
+    不是原来的 NDJSON。照抄旧格式会**静默投递失败**（HTTP 4xx），
+    所以这里按 Loki 协议构造，并检查响应码。
+    """
+    event_id = f"plg-{int(time.time())}"
+    line = json.dumps(
+        {"event_id": event_id, "level": "INFO",
+         "message": "KnowTrace PLG verification event",
+         "verification_source": "scripts/linux/verify-observability.py"},
+        ensure_ascii=False,
+    )
+    payload = {
+        "streams": [{
+            "stream": {"job": "external", "source": "verify-observability"},
+            "values": [[str(time.time_ns()), line]],
+        }]
     }
-    with socket.create_connection(("127.0.0.1", 5000), timeout=8) as connection:
-        connection.sendall((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
-    print(f"PASS Logstash TCP input accepted verification event: {event_id}")
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        "http://127.0.0.1:5000/loki/api/v1/push",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    # 204 是 Loki push 的正常返回
+    with urllib.request.urlopen(request, timeout=8) as response:
+        if response.status not in (200, 204):
+            raise RuntimeError(f"Alloy push 返回 {response.status}（期望 204）")
+    print(f"PASS Alloy Loki push accepted verification event: {event_id}")
     return event_id
 
 
 def wait_for_log_event(event_id: str, attempts: int = 45, delay: float = 3.0) -> None:
-    query = urllib.parse.urlencode({"q": f"event_id:{event_id}"})
-    url = f"http://127.0.0.1:9200/knowtrace-logs-*/_search?{query}"
+    """在 Loki 里等刚才那条事件可查回（LogQL）。
+
+    这一条才是"日志链路真的通了"的判据 —— 只探 /ready 只能证明进程活着，
+    证明不了"投递→存储→可查"这段。
+    """
+    now = int(time.time())
+    params = urllib.parse.urlencode({
+        "query": f'{{job="external"}} |= "{event_id}"',
+        "start": str((now - 900) * 10**9),
+        "end": str((now + 60) * 10**9),
+        "limit": "10",
+    })
+    url = f"http://127.0.0.1:3100/loki/api/v1/query_range?{params}"
     for _ in range(attempts):
         try:
             _, payload = get_json(url)
-            total = payload.get("hits", {}).get("total", {}).get("value", 0)
-            if total >= 1:
-                print(f"PASS Elasticsearch event search: hits={total} event_id={event_id}")
+            streams = payload.get("data", {}).get("result", [])
+            hits = sum(len(st.get("values", [])) for st in streams)
+            if hits >= 1:
+                print(f"PASS Loki LogQL query: hits={hits} event_id={event_id}")
                 return
         except (OSError, ValueError, urllib.error.URLError):
             pass
         time.sleep(delay)
-    raise RuntimeError(f"Elasticsearch 中未找到验证事件：{event_id}")
+    raise RuntimeError(f"Loki 中未找到验证事件：{event_id}")
 
 
-def verify_elk() -> None:
-    wait_http("Elasticsearch", "http://127.0.0.1:9200/_cluster/health")
-    wait_http("Kibana", "http://127.0.0.1:5601/api/status", attempts=60, delay=5.0)
+def verify_logs() -> None:
+    """验证 PLG 日志栈（替代原先的 ELK 验证）。"""
+    wait_http("Loki", "http://127.0.0.1:3100/ready")
+
+    # 容器日志这一路最容易漏：ELK 原来收全部容器日志，漏掉后表现是
+    # "容器起来了、Grafana 里日志是空的"。所以显式断言能查到容器日志。
+    _, payload = get_json(
+        "http://127.0.0.1:3100/loki/api/v1/query_range?"
+        + urllib.parse.urlencode({
+            "query": '{container=~".+"}',
+            "start": str((int(time.time()) - 3600) * 10**9),
+            "end": str((int(time.time()) + 60) * 10**9),
+            "limit": "5",
+        })
+    )
+    streams = payload.get("data", {}).get("result", [])
+    if not streams:
+        raise RuntimeError(
+            'Loki 里查不到任何容器日志（{container=~".+"}）——'
+            "Alloy 的容器日志采集未生效（检查 docker.sock 挂载与 discovery.relabel）"
+        )
+    containers = sorted({st.get("stream", {}).get("container", "?") for st in streams})
+    print(f"PASS Loki 收到容器日志：{len(streams)} 条流，示例容器 {containers[:3]}")
+
+    # 投递一条测试事件并等它可查回 —— 端到端判据
     wait_for_log_event(send_verification_log())
 
-    _, policy = get_json("http://127.0.0.1:9200/_ilm/policy/knowtrace-logs-7d")
-    if "knowtrace-logs-7d" not in policy:
-        raise RuntimeError("Elasticsearch 缺少 7 天日志保留策略")
-    print("PASS Elasticsearch ILM policy: knowtrace-logs-7d")
-
-    _, saved_object = get_json(
-        "http://127.0.0.1:5601/api/saved_objects/index-pattern/knowtrace-logs"
-    )
-    if saved_object.get("attributes", {}).get("title") != "knowtrace-logs-*":
-        raise RuntimeError("Kibana 缺少 KnowTrace Logs data view")
-    print("PASS Kibana data view: knowtrace-logs-*")
+    # Grafana 里必须能看到 Loki 数据源（provisioning 生效）
+    environment = PROJECT_DIRECTORY / ".env.observability"
+    values = read_env(environment)
+    headers = grafana_auth_headers(values)
+    try:
+        _, ds = get_json("http://127.0.0.1:3001/api/datasources", headers=headers)
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(grafana_auth_failure_message(error)) from error
+    if not any(d.get("type") == "loki" for d in ds):
+        raise RuntimeError("Grafana 未加载 Loki 数据源（检查 provisioning/datasources/loki.yml）")
+    print("PASS Grafana provisioned Loki datasource")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify KnowTrace stage-three observability")
     parser.add_argument("--core", action="store_true", help="verify metrics, Grafana and Alertmanager")
-    parser.add_argument("--elk", action="store_true", help="verify on-demand ELK pipeline")
+    parser.add_argument("--logs", action="store_true", help="verify PLG log pipeline (Loki + Alloy)")
     parser.add_argument(
         "--check-grafana-auth",
         action="store_true",
@@ -341,8 +396,8 @@ def main() -> int:
             return 1
         return check_grafana_auth(read_env(environment))
 
-    if not args.core and not args.elk:
-        parser.error("至少指定 --core 或 --elk")
+    if not args.core and not args.logs:
+        parser.error("至少指定 --core 或 --logs")
 
     environment_path = PROJECT_DIRECTORY / ".env.observability"
     if not environment_path.exists():
@@ -353,8 +408,8 @@ def main() -> int:
     try:
         if args.core:
             verify_core(values)
-        if args.elk:
-            verify_elk()
+        if args.logs:
+            verify_logs()
     except (OSError, ValueError, RuntimeError, urllib.error.URLError) as error:
         print(f"FAIL {error}", file=sys.stderr)
         return 1

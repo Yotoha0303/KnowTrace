@@ -81,7 +81,9 @@ EXPECTED_SERVICES=app auth postgres auth-mysql auth-redis
 OPTIONAL_SERVICES=prometheus grafana alertmanager blackbox-exporter node-exporter
 
 # 必须只绑 127.0.0.1 的管理端口（daily/security 都会校验）
-MANAGED_PORTS=9090 3001 9093 9200 5601 5000
+# 2026-10-03：ELK(9200/5601) 换成 PLG 后，管理端口改为 Loki 的 3100
+#         5000 保留（原 Logstash TCP 入口 → 现 Alloy 的 Loki push 入口）
+MANAGED_PORTS=9090 3001 9093 3100 5000
 # 允许对公网开放的端口（UFW 应恰好只放行这些）
 PUBLIC_PORTS_ALLOWED=80 443 22345
 
@@ -182,7 +184,9 @@ THRESHOLD_DOC_STALE_DAYS=35
 # 月度动作的默认开关（命令行 --with-* / --without-* 可覆盖）
 MONTHLY_RESTORE_DRILL=1
 MONTHLY_PRUNE_BACKUPS=1
-MONTHLY_STOP_ELK=1
+# Loki 是常驻组件（不像 ELK 需按需启停以省内存），默认不停止。
+# 保留这个开关：在内存/磁盘吃紧时仍可临时停掉日志栈。
+MONTHLY_STOP_LOKI=0
 MONTHLY_ARCHIVE_LOGS=1
 MONTHLY_BUILD_REPORT=1
 
@@ -197,7 +201,7 @@ APPLY_TIMEOUT_SECONDS=1800
 BACKUP_ALL_SCRIPT=/opt/knowtrace/scripts/linux/backup-all.sh
 RESTORE_VERIFY_SCRIPT=/opt/knowtrace/scripts/linux/verify-restore.sh
 PRUNE_BACKUPS_SCRIPT=/opt/knowtrace/scripts/linux/prune-backups.sh
-ELK_SCRIPT=/opt/knowtrace/scripts/linux/elk.sh
+LOKI_PORT=3100
 
 # 每日/每周巡检脚本的路径（weekly-check.sh 委派用；留空则用同目录下的脚本）
 CERT_SCRIPT=

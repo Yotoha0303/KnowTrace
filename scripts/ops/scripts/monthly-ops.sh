@@ -21,7 +21,7 @@
 #   写操作清单（都可单独开关）：
 #     restore-drill  隔离恢复演练 -> verify-restore.sh（在 network none 的临时容器里做，不碰生产）
 #     prune-backups  备份保留策略 -> prune-backups.sh（删除超过 RETENTION_DAYS 的备份）
-#     stop-elk       停止按需 ELK  -> elk.sh stop（在内存/磁盘吃紧时释放资源）
+#     stop-logs      停止日志栈      -> docker compose stop loki alloy（内存/磁盘吃紧时释放资源）
 #     archive-logs   日志归档      （把报告与日志转到 LOG_ARCHIVE_DIR/<年月>/）
 #     report         汇总报告      -> ops-report.py（只写报告文件）
 #
@@ -58,7 +58,7 @@ KnowTrace 每月运维（默认演练模式）
 动作开关（在 --apply 下生效）:
   --with-restore-drill / --without-restore-drill     隔离恢复演练
   --with-prune-backups / --without-prune-backups     备份保留策略（会删除旧备份）
-  --with-stop-elk / --without-stop-elk               停止按需 ELK
+  --with-stop-logs / --without-stop-logs             停止日志栈（Loki+Alloy）
   --with-archive-logs / --without-archive-logs       日志与报告归档
   --with-report / --without-report                   汇总报告
 
@@ -129,7 +129,7 @@ DOCS_DIR="$(ops_conf_get DOCS_DIR "$PROJECT_DIR/docs")"
 BACKUP_ALL_SCRIPT="$(ops_conf_get BACKUP_ALL_SCRIPT /opt/knowtrace/scripts/linux/backup-all.sh)"
 RESTORE_VERIFY_SCRIPT="$(ops_conf_get RESTORE_VERIFY_SCRIPT /opt/knowtrace/scripts/linux/verify-restore.sh)"
 PRUNE_BACKUPS_SCRIPT="$(ops_conf_get PRUNE_BACKUPS_SCRIPT /opt/knowtrace/scripts/linux/prune-backups.sh)"
-ELK_SCRIPT="$(ops_conf_get ELK_SCRIPT /opt/knowtrace/scripts/linux/elk.sh)"
+LOKI_PORT="$(ops_conf_int LOKI_PORT 3100)"
 OPS_REPORT_SCRIPT="$(ops_conf_get OPS_REPORT_SCRIPT "$SCRIPT_DIR/ops-report.py")"
 
 THRESH_RESTORE_DRILL_MAX_AGE_HOURS="$(ops_conf_int THRESHOLD_RESTORE_DRILL_MAX_AGE_HOURS 72)"
@@ -261,7 +261,7 @@ print_action() {
 
 print_action "restore-drill"  MONTHLY_RESTORE_DRILL  "隔离恢复演练（verify-restore.sh）"
 print_action "prune-backups"  MONTHLY_PRUNE_BACKUPS  "备份保留策略（prune-backups.sh，会删除旧备份）"
-print_action "stop-elk"       MONTHLY_STOP_ELK       "停止按需 ELK（释放内存/磁盘）"
+print_action "stop-logs"      MONTHLY_STOP_LOKI      "停止日志栈（Loki+Alloy，释放内存/磁盘）"
 print_action "archive-logs"   MONTHLY_ARCHIVE_LOGS   "日志与报告归档"
 print_action "report"         MONTHLY_BUILD_REPORT   "汇总报告（ops-report.py）"
 
@@ -399,33 +399,34 @@ else
 fi
 
 # ----------------------------------------------------------------------------
-# 4. ELK 资源占用（按需组件）
+# 4. 日志栈资源占用（Loki + Alloy）
 # ----------------------------------------------------------------------------
-ops_section "4. ELK 按需组件状态"
+ops_section "4. 日志栈状态（PLG）"
 
-elk_running=""
+plg_running=""
 if (( have_docker == 1 )); then
     running_names="$(docker ps --format '{{.Names}}' 2>/dev/null || printf '')"
-    for service in elasticsearch logstash kibana; do
+    for service in loki alloy; do
         printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$" \
-            && elk_running="${elk_running}${service} "
+            && plg_running="${plg_running}${service} "
     done
 fi
 
-if [[ -z "${elk_running// /}" ]]; then
-    ops_ok "elk.state" "ELK 未运行（按需策略，符合预期）"
+if [[ -z "${plg_running// /}" ]]; then
+    # 与 ELK 不同：Loki/Alloy 是**常驻**组件，没跑就是真问题（日志会断）
+    ops_warn "plg.state" "Loki/Alloy 未运行 —— 日志将无法采集与查询"
 else
-    ops_info "elk.state" "ELK 正在运行: ${elk_running% }"
-    elk_stats="$(docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}' \
-        $(printf 'knowtrace-%s-1 ' elasticsearch logstash kibana) 2>/dev/null || printf '')"
-    [[ -n "$elk_stats" && "$OPS_QUIET" != "1" ]] && printf '%s\n' "$elk_stats" | ops_indent
+    ops_ok "plg.state" "日志栈运行中: ${plg_running% }"
+    plg_stats="$(docker stats --no-stream --format '{{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}' \
+        $(printf 'knowtrace-%s-1 ' loki alloy) 2>/dev/null || printf '')"
+    [[ -n "$plg_stats" && "$OPS_QUIET" != "1" ]] && printf '%s\n' "$plg_stats" | ops_indent
 
-    # 内存吃紧时，停 ELK 是正确动作
+    # 内存吃紧时，停日志栈是正确动作（PLG 比 ELK 轻得多，阈值也相应下调）
     if [[ "$mem_avail_mib" =~ ^[0-9]+$ ]]; then
         if (( mem_avail_mib < 400 )); then
-            ops_warn "elk.pressure" "可用内存仅 ${mem_avail_mib}MiB，建议停掉 ELK 释放资源"
+            ops_warn "plg.pressure" "可用内存仅 ${mem_avail_mib}MiB，建议停掉 Loki/Alloy 释放资源"
         else
-            ops_info "elk.pressure" "可用内存 ${mem_avail_mib}MiB，暂无压力"
+            ops_info "plg.pressure" "可用内存 ${mem_avail_mib}MiB，暂无压力"
         fi
     fi
 fi
@@ -607,19 +608,19 @@ fi
 # ----------------------------------------------------------------------------
 ops_section "8. 执行计划中的动作"
 
-# ---- 8.1 停止按需 ELK ----
-if action_enabled "stop-elk" MONTHLY_STOP_ELK; then
-    if [[ -z "${elk_running// /}" ]]; then
-        ops_ok "apply.stop-elk" "ELK 未运行，无需停止"
-    elif [[ ! -f "$ELK_SCRIPT" ]]; then
-        ops_warn "apply.stop-elk" "未找到 $ELK_SCRIPT"
+# ---- 8.1 停止日志栈（Loki + Alloy）----
+if action_enabled "stop-logs" MONTHLY_STOP_LOKI; then
+    if [[ -z "${plg_running// /}" ]]; then
+        ops_ok "apply.stop-logs" "日志栈未运行，无需停止"
+    elif [[ ! -d "$PROJECT_DIR" ]]; then
+        ops_warn "apply.stop-logs" "项目目录不存在：$PROJECT_DIR"
     else
-        apply_run "apply.stop-elk" "停止按需 ELK" \
-            "确认停止 ELK（数据卷保留）？" \
-            bash "$ELK_SCRIPT" stop
+        apply_run "apply.stop-logs" "停止日志栈" \
+            "确认停止 Loki 与 Alloy（数据卷保留）？" \
+            bash -c "cd \"$PROJECT_DIR\" && docker compose                 --env-file .env --env-file .env.observability                 -f compose.yaml -f compose.production.yaml -f compose.observability.yaml                 stop loki alloy"
     fi
 else
-    ops_info "apply.stop-elk" "动作已关闭"
+    ops_info "apply.stop-logs" "动作已关闭"
 fi
 
 # ---- 8.2 备份保留策略 ----

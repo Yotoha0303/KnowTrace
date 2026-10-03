@@ -163,7 +163,7 @@ if [[ "$swap_total_mib" =~ ^[0-9]+$ && "$swap_total_mib" -gt 0 ]]; then
     if (( swap_used_pct >= THRESH_SWAP_FAIL )); then
         ops_fail "host.swap" "$detail，swap 压力过大"
     elif (( swap_used_pct >= THRESH_SWAP_WARN )); then
-        ops_warn "host.swap" "$detail，先确认是否由 ELK / 构建 / 日志堆积引起"
+        ops_warn "host.swap" "$detail，先确认是否由 Loki/Alloy / 构建 / 日志堆积引起"
     else
         ops_ok "host.swap" "$detail"
     fi
@@ -282,16 +282,16 @@ else
         ops_ok "docker.restarting" "没有处于 restarting 状态的容器"
     fi
 
-    # ELK 是显著占资源的按需组件，运行本身只记事实
-    elk_running=""
-    for service in elasticsearch logstash kibana; do
+    # Loki/Alloy 是常驻组件（不像 ELK 需按需启停），运行本身只记事实
+    plg_running=""
+    for service in loki alloy; do
         printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$" \
-            && elk_running="${elk_running}${service} "
+            && plg_running="${plg_running}${service} "
     done
-    if [[ -n "${elk_running// /}" ]]; then
-        ops_info "docker.elk" "ELK 正在运行（${elk_running% }），用完请执行 scripts/elk.sh stop"
+    if [[ -n "${plg_running// /}" ]]; then
+        ops_ok "docker.plg" "PLG 日志栈运行中（${plg_running% }）"
     else
-        ops_info "docker.elk" "ELK 当前未运行（按需策略，符合预期）"
+        ops_warn "docker.plg" "Loki/Alloy 未运行 —— 日志将无法采集与查询"
     fi
 
     if [[ "$OPS_QUIET" != "1" ]]; then

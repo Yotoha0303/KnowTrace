@@ -28,9 +28,11 @@ if [[ ! -e "$environment_file" ]]; then
     echo "PROMETHEUS_PORT=9090"
     echo "GRAFANA_PORT=3001"
     echo "ALERTMANAGER_PORT=9093"
-    echo "ELASTICSEARCH_PORT=9200"
-    echo "LOGSTASH_TCP_PORT=5000"
-    echo "KIBANA_PORT=5601"
+    # 2026-10-03：ELK 已被 PLG 栈替换，不再生成 ELK 端口。
+    # Loki 只被同网络的 Grafana/Alloy 访问（3300 不发布）；
+    # 3100 绑回环供 verify 脚本探活；5000 是 Alloy 的 Loki push 入口。
+    echo "LOKI_PORT=3100"
+    echo "ALLOY_PUSH_PORT=5000"
     echo "ALERT_EMAIL_ENABLED=false"
     echo "ALERT_SMTP_SMARTHOST=smtp.example.com:587"
     echo "ALERT_SMTP_FROM=alerts@example.com"

@@ -605,7 +605,8 @@ def main(argv: list[str] | None = None) -> int:
         report.ok("log.conclusion", "窗口内未发现错误模式，且相对基线无新增")
 
     for text in (
-        "本分析只覆盖所采集的来源与窗口；ELK 未启动时，容器日志来自 docker logs，不是集中式采集。",
+        "本分析只覆盖所采集的来源与窗口；PLG 日志栈（Loki/Alloy）未运行时，"
+        "容器日志来自 docker logs，不是集中式采集。",
         "归一化模式中的数字已被替换成 <n>/<ts>/<ip> 等占位符，原始行请用 --samples 单独查看。",
         "报告不会包含 password= / token: 等键值形式的敏感内容（值已替换为 ***）。",
     ):
