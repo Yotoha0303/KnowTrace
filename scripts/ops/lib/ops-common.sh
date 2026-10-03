@@ -302,26 +302,37 @@ ops_conf_list() {
 # CONTAINER_PREFIX 配置，默认推导为「部署目录名的小写」，即 /opt/knowtrace-workflow
 # → knowtrace-workflow-）。
 
-# 输出某服务的容器名（优先 compose，其次前缀匹配）；找不到则无输出、返回 1
+# 输出某服务的容器名（优先 compose，其次按 -<service>-<n>$ 匹配）；找不到则返回 1
 ops_container_for_service() {
     local service="$1" cid name
     ops_have_cmd docker || return 1
+
+    # ① 问 compose。**必须把三个 overlay 都带上** —— 监控与日志服务
+    #    （prometheus/grafana/alertmanager/loki/alloy）定义在 compose.observability.yaml，
+    #    只带 compose.yaml 会得到 "no such service"。
+    #    2026-10-03 实测踩到过这一条：修完前缀问题后 alertmanager 仍报"未运行"，
+    #    就是因为这里少了 overlay。
     if [[ -f "${PROJECT_DIR:-}/compose.yaml" ]]; then
-        cid="$(docker compose --project-directory "${PROJECT_DIR:-.}" \
-                -f "${PROJECT_DIR:-.}/compose.yaml" ps -q "$service" 2>/dev/null | head -n1)"
+        local -a compose_files=(-f "${PROJECT_DIR}/compose.yaml")
+        local overlay
+        for overlay in compose.production.yaml compose.observability.yaml; do
+            [[ -f "${PROJECT_DIR}/${overlay}" ]] && compose_files+=(-f "${PROJECT_DIR}/${overlay}")
+        done
+        cid="$(docker compose --project-directory "${PROJECT_DIR:-.}" "${compose_files[@]}" \
+                ps -q "$service" 2>/dev/null | head -n1)"
         if [[ -n "$cid" ]]; then
             name="$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's#^/##')"
             [[ -n "$name" ]] && { printf '%s' "$name"; return 0; }
         fi
     fi
-    # 回退：按前缀匹配。前缀默认从部署目录名推导（/opt/knowtrace-workflow -> knowtrace-workflow-）
-    local prefix
-    prefix="$(ops_conf_get CONTAINER_PREFIX "")"
-    if [[ -z "$prefix" ]]; then
-        prefix="$(basename "${PROJECT_DIR:-knowtrace}" | tr '[:upper:]' '[:lower:]')-"
-    fi
+
+    # ② 回退：**不依赖任何前缀**，直接按 `-<service>-<数字>` 收尾匹配。
+    #    为什么不用"配置一个前缀"：前缀要从 compose 项目名来，而项目名不一定等于
+    #    部署目录名（本机是 /opt/knowtrace 但项目名是 knowtrace-workflow）。
+    #    逼着运维去配一个前缀＝把同一个坑换个地方埋。锚定 `-<service>-<n>$` 既准确
+    #    又与前缀无关；`auth` 不会误配 `auth-mysql`（那后面跟的是字母不是数字）。
     name="$(docker ps --format '{{.Names}}' 2>/dev/null \
-            | grep -E "^${prefix}${service}-[0-9]+$" | head -n1)"
+            | grep -E -- "-${service}-[0-9]+$" | head -n1)"
     [[ -n "$name" ]] && { printf '%s' "$name"; return 0; }
     return 1
 }
