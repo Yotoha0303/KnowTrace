@@ -36,18 +36,31 @@
     group: root
     mode: "0700"
 
-- name: 备份现有 sshd_config.d
-  # 回滚锚点：改坏了用这里的副本覆盖回去
+- name: 检查 sshd drop-in 是否已存在
+  # 用来判断"这是不是第一次加固"。备份只做一次，见下。
+  ansible.builtin.stat:
+    path: /etc/ssh/sshd_config.d/00-knowtrace-hardening.conf
+  register: hardening_dropin_stat
+
+- name: 备份现有 sshd_config.d（仅首次）
+  # 回滚锚点：改坏了用这里的副本覆盖回去。
+  #
+  # ⚠️ 必须只在**首次**执行 —— 实测踩到：dest 带时间戳，每次跑都生成一个新压缩包，
+  #    于是这一项永远 `changed=1`，幂等验收（第二次 changed=0）永远过不去，
+  #    而且 /root/knowtrace-ops/backups/ 会无上限堆积。
+  #    判据用"drop-in 还不存在"＝本次是第一次动 sshd，此时的原状才值得留档。
+  #    也不要写 `changed_when: true` —— 那是硬编码 changed，等于主动放弃幂等信号。
   ansible.builtin.archive:
     path: /etc/ssh/sshd_config.d
     dest: /root/knowtrace-ops/backups/sshd_config.d-{{ ansible_date_time.iso8601_basic_short }}.tar.gz
     format: gz
   register: hardening_sshd_backup
-  changed_when: true
+  when: not hardening_dropin_stat.stat.exists
 
 - name: 记录备份路径
   ansible.builtin.debug:
     msg: "sshd 配置已备份：{{ hardening_sshd_backup.dest }}"
+  when: hardening_sshd_backup is changed
 
 # ⚠️ 文件名必须是 00- 开头，**不能是 99-**。
 #    实测 /etc/ssh/sshd_config 第 12 行 `Include /etc/ssh/sshd_config.d/*.conf`，
