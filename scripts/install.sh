@@ -251,26 +251,13 @@ else
     printf '    (dry-run) 写入 /etc/caddy/Caddyfile（域名 %s）\n' "$DOMAIN"
   else
     install -d -m 755 /etc/caddy /var/log/caddy
-    cat > "$CADDYFILE" <<EOF
-$DOMAIN {
-	encode zstd gzip
-	reverse_proxy 127.0.0.1:8080
-	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		-Server
-	}
-	log {
-		output file /var/log/caddy/knowtrace-access.log {
-			roll_size 10MiB
-			roll_keep 5
-			roll_keep_for 168h
-		}
-		format json
-	}
-}
-EOF
+    # 从仓库模板生成，而不是在这里内嵌 —— 否则同一份配置有两个来源，
+    # 改一处忘一处就会出现"脚本写的"与"仓库里的"不一致（本仓库踩过同类）。
+    caddy_template="$TARGET_DIR/deploy/caddy/Caddyfile"
+    if [[ ! -f "$caddy_template" ]]; then
+      die "缺少模板 $caddy_template（仓库结构变了？）"
+    fi
+    sed "s|__DOMAIN__|$DOMAIN|g" "$caddy_template" > "$CADDYFILE"
     chown -R caddy:caddy /var/log/caddy 2>/dev/null || true
     ok "已写入 $CADDYFILE"
   fi

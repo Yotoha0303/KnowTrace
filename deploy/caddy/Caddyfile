@@ -1,0 +1,25 @@
+# KnowTrace 反向代理模板 —— 由 scripts/install.sh 按 --domain 生成后写入 /etc/caddy/Caddyfile
+#
+# 为什么放在仓库里（2026-10-03）：此前 Caddyfile **只存在于 install.sh 的 heredoc 字符串**中，
+# 仓库里没有对应文件 —— 想查看"线上到底配了什么"必须去读脚本或翻文档快照。
+# 这是用户做 deploy/ 重构时指出的真实缺口。
+#
+# 占位符 __DOMAIN__ 由 install.sh 替换为 --domain 的值。
+__DOMAIN__ {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	log {
+		output file /var/log/caddy/knowtrace-access.log {
+			roll_size 10MiB
+			roll_keep 5
+			roll_keep_for 168h
+		}
+		format json
+	}
+}
