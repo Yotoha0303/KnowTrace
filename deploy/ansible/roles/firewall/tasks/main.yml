@@ -74,7 +74,8 @@
   # when: not ansible_check_mode —— 后置条件：预演时规则还没落，跑了必然假失败
   ansible.builtin.assert:
     that:
-      - "(' ' + ssh_port + '/tcp') in firewall_status.stdout"
+      # ssh_port 是整数，必须显式转字符串（同 hardening 里那处）
+      - "((' ' + (ssh_port | string) + '/tcp')) in firewall_status.stdout"
       - "'80/tcp' in firewall_status.stdout"
       - "'443/tcp' in firewall_status.stdout"
       - "ufw_stale_tcp | select('in', firewall_status.stdout) | list | length == 0"

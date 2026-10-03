@@ -19,7 +19,10 @@
 - name: 校验端口一致
   ansible.builtin.assert:
     that:
-      - "'port ' + ssh_port in hardening_sshd_effective.stdout"
+      # ssh_port 在 group_vars 里是**整数**（22345 不带引号），
+      # 直接 `'port ' + ssh_port` 会报 can only concatenate str (not "int")。
+      # 必须显式转字符串 —— 这个坑实测踩到过（--check 第一轮就炸在这里）。
+      - "('port ' + (ssh_port | string)) in hardening_sshd_effective.stdout"
     fail_msg: >-
       sshd 实际端口与 ssh_port={{ ssh_port }} 不符。先查 `sshd -T | grep ^port`
       与 /etc/ssh/sshd_config.d/，**不要**继续跑本 playbook。
