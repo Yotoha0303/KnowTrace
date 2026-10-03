@@ -74,11 +74,23 @@
   # when: not ansible_check_mode —— 后置条件：预演时规则还没落，跑了必然假失败
   ansible.builtin.assert:
     that:
-      # ssh_port 是整数，必须显式转字符串（同 hardening 里那处）
-      - "((' ' + (ssh_port | string) + '/tcp')) in firewall_status.stdout"
-      - "'80/tcp' in firewall_status.stdout"
-      - "'443/tcp' in firewall_status.stdout"
-      - "ufw_stale_tcp | select('in', firewall_status.stdout) | list | length == 0"
+      # ⚠️ 用 stdout_lines + match（Ansible 的 match 是 re.match，**锚定行首**），
+      #    不要用子串匹配。实测踩到两种错法：
+      #      ① `' 22345/tcp' in stdout`（带前导空格）恒为 False ——
+      #         ufw 把端口打印在**行首**，前面没有空格。
+      #      ② 纯子串 `'80/tcp'` 会误命中 `8080/tcp` 行。
+      #    锚定行首两个问题一起解决。
+      - "firewall_status.stdout_lines | select('match', (ssh_port | string) + '/tcp') | list | length > 0"
+      - "firewall_status.stdout_lines | select('match', '80/tcp') | list | length > 0"
+      - "firewall_status.stdout_lines | select('match', '443/tcp') | list | length > 0"
+      # 用 > 0 而不是 == 1：ufw status 对同一端口会打印 v4 与 v6 两行。
+      # 断言"恰好一条"会在 IPv6 开启的机器上假失败。
+      #
+      # 过期端口**不得**以行首出现
+      - >-
+        firewall_status.stdout_lines
+        | select('match', ufw_stale_tcp | map('regex_replace', '$', '/tcp') | join('|'))
+        | list | length == 0
     fail_msg: >-
       UFW 放行清单与预期不符。期望：80/443/{{ ssh_port }}，
       且不含 {{ ufw_stale_tcp | join('/') }}。实际见 `ufw status`。
