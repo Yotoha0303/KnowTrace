@@ -139,6 +139,12 @@ services:
   # 为什么换：ELK 内存上限合计 700m(ES)+512m(Logstash)+768m(Kibana) ≈ 2 GB，
   # 在 1.8 GB 的机器上必须按需启停。Loki 无 JVM，内存需求低一个数量级，
   # 故与 Prometheus/Grafana 同等待遇：常驻、不设 profile。
+  #
+  # 2026-10-03 实测（常驻运行 17 分钟、已有真实日志负载下）：
+  #   loki  85.45 MiB / 512 MiB 上限    （原 ES 上限 700 MiB）
+  #   alloy 56.15 MiB / 256 MiB 上限    （原 Logstash 上限 512 MiB）
+  # 两者合计约 140 MiB，是 ELK 上限约 2 GB 的 1/14。上限保持原样不调 ——
+  # 它是防跑飞的护栏，不是按实测值卡死的配额。
   loki:
     image: docker.io/grafana/loki:3.7.8
     command: ["-config.file=/etc/loki/loki-config.yml"]

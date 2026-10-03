@@ -561,10 +561,11 @@ if [[ "$OPS_QUIET" != "1" ]] && ops_have_cmd ss; then
 fi
 
 # 管理端口必须只绑定 127.0.0.1：9090 Prometheus、3001 Grafana、9093 Alertmanager、
-# 9200 Elasticsearch、5601 Kibana、5000 Logstash、8082 auth
+# 3100 Loki、5000 Alloy（Loki push 入口）、8082 auth
+# （2026-10-03：ELK 的 9200/5601 已随 PLG 替换删除，见 docs/16-stage3-observability.md）
 if ops_have_cmd ss; then
     bad_bindings=""
-    for port in 9090 3001 9093 9200 5601 5000; do
+    for port in 9090 3001 9093 3100 5000; do
         if ss -lntH 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${port}$"; then
             # 绑定地址不是 127.0.0.1 或 ::1 即视为暴露
             if ss -lntH 2>/dev/null | awk '{print $4}' \

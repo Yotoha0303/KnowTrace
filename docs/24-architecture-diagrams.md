@@ -35,6 +35,8 @@ flowchart TB
         AM["alertmanager<br/>127.0.0.1:9093"]
         NE["node-exporter"]
         BB["blackbox-exporter"]
+        LOKI["loki<br/>127.0.0.1:3100<br/>日志存储（7 天）"]
+        ALLOY["alloy<br/>127.0.0.1:5000<br/>日志采集"]
     end
 
     MAIL["163 SMTP"]
@@ -58,14 +60,20 @@ flowchart TB
     AM -.->|"critical / warning"| MAIL
     GRAF -->|"查询"| PROM
 
+    ALLOY -.->|"采集全部容器日志<br/>（读 docker.sock）"| APP
+    ALLOY -->|"push"| LOKI
+    GRAF -->|"LogQL"| LOKI
+
     classDef pub fill:#ffe6e6,stroke:#c33
     classDef edge fill:#fff4d6,stroke:#c93
     classDef data fill:#e6f0ff,stroke:#369
     classDef obs fill:#eaf7ea,stroke:#393
+    classDef log fill:#f3e8ff,stroke:#93c
     class USER pub
     class CADDY,NGINX,SSH edge
     class PG,MYSQL,REDIS data
     class PROM,GRAF,AM,NE,BB obs
+    class LOKI,ALLOY log
 ```
 
 **读这张图要抓住三件事**：
@@ -74,7 +82,7 @@ flowchart TB
 | --- | --- | --- |
 | 1 | **只有 Caddy（80/443）与 sshd（22345）对外** | 其余全部绑 `127.0.0.1`；数据库没有对公网开放 |
 | 2 | **代理是三跳**：Caddy → nginx → app | `docs/06` 的旧图完全没有这一层；限流的真实 IP 就在这条链上传递 |
-| 3 | **10 个容器在同一个网络、没有分段；ELK 的 3 个在独立网络** | 见第 4 节——这是**已知的收敛点**，不是疏忽 |
+| 3 | **12 个容器全在同一个网络、完全没有分段** | 见第 4 节——这是**已知的收敛点**，不是疏忽。2026-10-03 换掉 ELK 后，连仅有的那两个独立网络也没了 |
 
 ---
 
@@ -223,14 +231,14 @@ flowchart TB
 | 层 | 谁在里面 | 可信度怎么来的 | 实测结论 |
 | --- | --- | --- | --- |
 | 公网 | 任何人 | 无 | 只有 Caddy（80/443）与 sshd（22345）在监听；数据库不对公网开放 |
-| 宿主机回环 | nginx / app / auth / postgres / 观测组件 | **运营商（运维）可信**，不是「本机即可信」 | 非公网端口全部绑 `127.0.0.1`，因此**必须走 SSH 隧道** |
-| 容器网络 | 10 个容器在 `172.18.0.0/16` | **内部互信**（当前设计） | 见下面三个实测事实 |
+| 宿主机回环 | nginx / app / auth / postgres / 观测与日志组件 | **运营商（运维）可信**，不是「本机即可信」 | 非公网端口全部绑 `127.0.0.1`，因此**必须走 SSH 隧道** |
+| 容器网络 | **12 个**容器全在 `172.18.0.0/16` | **内部互信**（当前设计） | 见下面三个实测事实 |
 
 **三个实测事实**（可逐条验证，不是推断）：
 
 | 事实 | 实测 | 影响 |
 | --- | --- | --- |
-| 主网络无分段 | 10 个容器全部只在 `knowtrace_default` | 应用容器能直连 `postgres`、`auth-mysql`、`auth-redis` |
+| 主网络**完全没有分段** | 12 个容器全部只在 `knowtrace_default`；`docker network ls` 只剩 `bridge`/`host`/`none` | 应用容器能直连 `postgres`、`auth-mysql`、`auth-redis`；**新增的 Loki/Alloy 也在同一网段内** |
 | 认证服务信任整个网段 | `.env` 的 `AUTH_TRUSTED_PROXIES=172.18.0.0/16` | **该网段内任何容器**都能伪造 `X-Forwarded-For`；而 app 又原样转发收到的 XFF，两者叠加即可绕过 **IP 维度**限流 |
 | **但能利用的只有应用容器自身** | 认证服务容器**只接** `knowtrace_default` | 「app 转发伪造 XFF 给 auth」这条路径**到得了**，但前提是 app 已被攻破；账号维度限流（5 次）也仍然生效 |
 
@@ -240,14 +248,20 @@ flowchart TB
    `real_ip_header X-Forwarded-For` + `real_ip_recursive on` 把 `$remote_addr` 还原成真实客户端；
    nginx 再 `proxy_set_header X-Forwarded-For $remote_addr` —— **覆盖**，不是追加。
    外部伪造的 XFF 到不了下游。（`deploy/nginx/knowtrace-vps.conf`）
-2. **ELK 并没有破掉这条边界**：它用的是**独立网络**——
-   `knowtrace_logging-internal`（`172.19.0.0/16`，`internal: true`）+
-   `knowtrace_logging-management`（`172.20.0.0/16`），**都不在 app 所在的 `172.18.0.0/16` 内**。
-   但 ELK 的 9200 / 5000 / 5601 也绑在回环上，所以它们属于「第 2 层」的访问面，
-   **不是「第 3 层」的成员**。
+2. ⚠️ **2026-10-03 换掉 ELK 之后，仅有的那点网络分段也消失了 —— 这是一次实测到的边界弱化。**
+   原先 ELK 是唯一声明自定义网络的服务（`knowtrace_logging-internal` `172.19.0.0/16`
+   `internal: true` + `knowtrace_logging-management` `172.20.0.0/16`，都不在 app 的
+   `172.18.0.0/16` 内）。ELK 删除、Loki/Alloy 接替后它们没有使用者，两个网络一并删除，
+   两个新容器直接进默认网络。
+   **直接后果**：Loki 与 Alloy 现在都落在 `AUTH_TRUSTED_PROXIES=172.18.0.0/16` 之内。
+   Alloy 只读挂载了 `/var/run/docker.sock` 并监听 `127.0.0.1:5000`（回环，未对外），
+   Loki 监听 `127.0.0.1:3100`；按上面「谁能访问」的判据它们仍属**第 2 层**。
+   但"在网段内"这个事实本身是新的，和上面第 2 条（网段内可伪造 XFF）叠加时应当一起考虑。
 
-**若将来要收紧**：把数据库与观测栈拆到独立网络，只让 app 能到 postgres、
-只让 prometheus 能到各 exporter。**那是基础设施改动，需要单独规划。**
+**若将来要收紧**：把数据库与观测/日志栈拆到独立网络，只让 app 能到 postgres、
+只让 prometheus 能到各 exporter、只让 alloy 能到 loki，并相应收窄
+`AUTH_TRUSTED_PROXIES`。**那是基础设施改动，需要单独规划**；
+换 ELK→PLG 时已把这件事作为已知代价记在这里，不是遗漏。
 
 ---
 

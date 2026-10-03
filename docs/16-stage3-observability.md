@@ -7,7 +7,7 @@
 - Prometheus 抓取主应用、认证服务、服务器和 HTTP 探针指标；
 - Grafana 自动加载数据源和 `KnowTrace VPS 可观测性` dashboard；
 - Alertmanager 接收 Prometheus 告警，并在配置 SMTP 后发送邮件；
-- Elasticsearch、Logstash、Kibana（ELK）按需启动，集中检索边缘代理和容器日志；
+- Alloy 采集边缘代理与全部容器日志送给 Loki，Grafana 里与指标同一处检索（PLG 栈）；
 - 通过可恢复的 Blackbox Exporter 停止实验验证“发现 → firing → 送达 Alertmanager → 恢复 → 清除”。
 
 单机 Compose 不能证明高可用、长期容量、SLA、真实值班或外部邮件送达；每一项必须按实际证据表述。
@@ -23,36 +23,45 @@ Prometheus -> Next.js 私有 /api/metrics --|-- Go /metrics
            -> Alertmanager -> SMTP（有凭据后）
 Grafana ----> Prometheus
 
-Caddy / Nginx / Docker JSON logs -> Logstash -> Elasticsearch -> Kibana
-                                      按需 profile，验证后停止
+Caddy / Nginx / Docker JSON logs -> Alloy -> Loki -> Grafana（同一界面里查日志）
+                                      常驻组件，无按需 profile
 ```
+
+> **2026-10-03 从 ELK 换成 PLG。** 原先的 Elasticsearch + Logstash + Kibana
+> 三件合计内存上限约 2 GB，在 1.8 GB 的机器上必须按需启停。Loki 无 JVM，
+> 实测占用低一个数量级（**Loki 85 MiB / Alloy 56 MiB**，各自上限 512 / 256 MiB），
+> 因此改为**常驻**，与 Prometheus/Grafana 同等待遇，不再有"用前启动、用后停止"的流程。
+> 换栈的完整记录（含为什么选 Alloy 而不是 Promtail、以及采集那一路最容易漏）
+> 见 [`changes/2026-10-03-ELK换PLG与deploy重构及Ansible引入.md`](changes/2026-10-03-ELK换PLG与deploy重构及Ansible引入.md)。
 
 ## 安全与资源策略
 
-- 9090、3001、9093、9200、5000、5601 只绑定 `127.0.0.1`，不开放 UFW 端口。
-- Grafana、Prometheus、Alertmanager 和 Kibana 只通过 SSH 隧道访问。
+- 9090、3001、9093、3100、5000 只绑定 `127.0.0.1`，不开放 UFW 端口。
+- Grafana、Prometheus、Alertmanager 和 Loki 只通过 SSH 隧道访问。
 - `/api/metrics` 需要随机 Bearer token；Prometheus 从 0400 文件读取。Nginx 对公网该路径固定返回 404。
 - `.env.observability` 和渲染后的 Alertmanager 配置不进入 Git；权限分别为 0600/0400。
 - Prometheus 同时按 7 天和 512 MB 限制时序数据。
 - Docker 日志对新建的阶段三容器限制为 10 MB × 3 文件。
-- ELK 采用独立内部网络、固定内存上限和 7 天 ILM，只按需运行。另接一个普通管理 bridge 以兼容 Docker Engine 29 的端口发布行为，但所有宿主机端口仍只绑定 `127.0.0.1`。停止命令保留所有数据卷。
+- Loki 采用本地文件系统、7 天保留（与原 ELK 的 ILM 对齐），常驻运行、不设 profile。
+  它直接进默认网络与 Grafana 互通，**没有** ELK 时代那两个专用网络
+  （`logging-internal` / `logging-management`）—— 它们是 ELK 专属的，随其删除。
 - 不使用 `docker compose down --volumes`；它会删除监控或日志数据。
 
 ## 关键文件
 
 | 文件 | 用途 |
 | --- | --- |
-| `compose.observability.yaml` | 核心监控与按需 ELK overlay |
+| `compose.observability.yaml` | 核心监控与 PLG 日志栈（全部常驻） |
 | `deploy/monitoring/prometheus.yml` | 抓取与 Alertmanager 路由 |
 | `deploy/monitoring/rules/knowtrace.yml` | 应用、主机、备份和自监控规则 |
-| `deploy/grafana/` | 数据源和 dashboard provisioning |
-| `deploy/logstash/` | Caddy、Nginx、Docker 与验证事件管道 |
+| `deploy/grafana/` | 数据源（Prometheus + Loki）和 dashboard provisioning |
+| `deploy/alloy/config.alloy` | 容器、Caddy、Nginx 与验证事件的采集管道（替代 `logstash/`） |
+| `deploy/loki/loki-config.yml` | Loki 单机配置：本地文件系统 + 7 天保留 |
 | `scripts/linux/init-observability-env.sh` | 生成本地 secrets、渲染 Alertmanager 配置 |
 | `scripts/linux/configure-163-alert-email.sh` | 交互式写入 163 邮箱与隐藏授权码 |
 | `scripts/linux/deploy-observability.sh` | 容量预检、配置校验、部署和验收 |
-| `scripts/linux/verify-observability.py` | 端点、target、PromQL、Grafana 和 ELK 验收 |
+| `scripts/linux/verify-observability.py` | 端点、target、PromQL、Grafana 与 PLG 日志栈验收 |
 | `scripts/linux/observability-drill.sh` | 可恢复的监控故障演练 |
-| `scripts/linux/elk.sh` | ELK 启动、验证、停止 |
 
 ## 部署 SOP
 
@@ -171,54 +180,111 @@ scripts/linux/observability-drill.sh blackbox
 
 脚本先验证正常基线，再停止 Blackbox Exporter，等待 `KnowTraceMetricsTargetDown` 进入 firing 并出现在 Alertmanager，随后通过 trap 恢复容器，重新验证 12 个 targets 并等待告警清除。它不会停止 KnowTrace 应用或数据库。
 
-## ELK 按需流程
+## 日志栈（PLG）与查询
 
-启动前会检查至少 350 MiB 可用内存、2 GiB swap 和 8 GiB 可用磁盘：
+日志栈**常驻**，没有启停流程 —— 这也是换掉 ELK 的主要收益。
+原先 ELK 要"用前启动、用后停止"，理由是内存；现在 Loki + Alloy 合计实测约
+140 MiB，常驻即可，代价低于"每次用都得走一遍启停加验证"的心智负担。
+
+### 查询
+
+Grafana 里 Loki 数据源与 Prometheus 同处（见上面的 SSH 隧道），
+在 Explore 里选 `Loki`，用 LogQL 查：
+
+```logql
+{container=~".+"}                              # 全部容器日志
+{job="caddy"}                                  # Caddy 访问日志
+{job="nginx"}                                  # Nginx access + error
+{job="external"}                               # 外部投递（脚本/程序推进来的）
+{container="knowtrace-app-1"} |= "EACCES"      # 容器 + 内容过滤
+```
+
+也可以用 HTTP API 直接查（排障时不必开 Grafana）：
 
 ```bash
-scripts/linux/elk.sh up
+# 有哪些流
+curl -sG 'http://127.0.0.1:3100/loki/api/v1/series' \
+  --data-urlencode 'match[]={job=~".+"}'
+
+# 查容器日志
+curl -sG 'http://127.0.0.1:3100/loki/api/v1/query_range' \
+  --data-urlencode 'query={container=~".+"}' \
+  --data-urlencode "start=$(date -d '1 hour ago' +%s)000000000"
 ```
 
-打开 Kibana 需要另开 SSH 隧道：
+### 采到哪几路（换栈时最容易漏的地方）
 
-```powershell
-ssh -N -L 5601:127.0.0.1:5601 knowtrace-vps
-```
+Alloy 的 `deploy/alloy/config.alloy` 与原先 Logstash 的 pipeline **一一对应**，
+顶部有对照表。四路缺一不可：
 
-访问 `http://127.0.0.1:5601`，data view 为 `knowtrace-logs-*`。完成验证后：
+| 来源 | 组件 |
+| --- | --- |
+| `/var/log/caddy/*.log` | `loki.source.file` ← `local.file_match`（**必须两步**，见下） |
+| `/var/log/nginx/knowtrace.*.log` | 同上 |
+| 全部容器 json 日志 | `loki.source.docker`（按 label 自动带 `container` / `service` 标签） |
+| 外部投递（原 Logstash TCP :5000） | `loki.source.api` |
+
+> ⚠️ **`loki.source.file` 不做 glob 展开。**
+> 实测踩到：直接写 `__path__ = "/var/log/caddy/*.log"` 时，Alloy 把 `*` 当普通字符去
+> `stat`，报 `no such file or directory`，而文件其实存在。必须先用
+> `local.file_match` 做文件发现，再交给 `loki.source.file` tail。
+> 症状是**Caddy/Nginx 日志一条都进不来，但容器日志那一路正常** ——
+> 很容易误以为"日志栈是好的"。
+
+### 排障
+
+**Grafana 里日志是空的** —— 先分清是哪一路，再对症：
 
 ```bash
-scripts/linux/elk.sh stop
+docker logs --tail 50 knowtrace-alloy-1
+docker logs --tail 50 knowtrace-loki-1
+# 确认四路各有流
+for j in caddy nginx external; do
+  curl -sG 'http://127.0.0.1:3100/loki/api/v1/series' \
+    --data-urlencode "match[]={job=\"$j\"}" | head -c 200; echo
+done
 ```
 
-`stop` 只停止三个容器，保留 Elasticsearch、Logstash、Kibana 数据卷。ELK 运行时若网站延迟、swap 或 I/O 明显升高，先保存 `docker stats`、`free -h`、`vmstat` 和容器日志，再停止 ELK。
+- **容器日志和宿主机日志同时为空** → 看 Alloy 是不是根本没起来，或它到 Loki
+  的写入地址不通（`http://loki:3100`，同默认网络）。
+- **只有 Caddy/Nginx 为空** → 大概率是上面那条 glob 的坑，或文件晚于 Alloy 出现。
+  本配置用 `local.file_match` 的 `sync_period = "10s"` 轮询发现新文件
+  （实测新机器上 Caddy 日志 09:03 才生成，而 Alloy 09:01 就启动了）。
+- **Alloy 启动日志里有 `could not perform the initial load successfully`** →
+  这条在启动瞬间出现是正常的（试图装载尚未生成的文件），
+  实测容器 `RestartCount=0` 且日志照常进 Loki。**不要**据此判定采集坏了，
+  要看的是上面那个"有没有流"。
 
-ELK 组件在负载下可能超过 Docker Compose 默认的 10 秒停止等待；脚本使用 60 秒宽限期。退出码 137 且 `OOMKilled=false` 通常表示停止超时后收到 SIGKILL，仍应延长宽限并复测，不能误记为内存 OOM。
+**Alloy 改配置后**：`alloy fmt` 只查语法、**不查组件属性名** ——
+实测 fmt 通过但启动时报 `unrecognized attribute`。
+真正的校验是启动后读 `docker logs`。
 
-若容器内健康、`HostConfig.PortBindings` 有配置，但 `NetworkSettings.Ports` 为 `null`，说明容器只连接了 internal bridge，Docker Engine 29 没有真正建立发布端口。不要开放公网端口或关闭防火墙；确认 ELK 服务同时连接 `logging-internal` 与 `logging-management`，再强制重建这三个按需容器。
-
-若 Kibana 退出码为 134、容器的 `OOMKilled=false`，但日志含 `JavaScript heap out of memory`，这是 Kibana 自身 Node 堆耗尽，不是 Linux OOM Killer。当前实验配置给 Kibana 512 MiB Node 堆和 768 MiB 容器上限，并给 Logstash 512 MiB 上限；重启前仍需检查整机内存和 swap，验证后立即停止 ELK。
-
-若 Logstash 日志显示 `object mapping for [source] tried to parse field [source] as object`，表示自定义事件把 ECS 的 `source` 对象字段当成了字符串。不要删除索引或映射；把自定义字段改为项目专用名称（本项目使用 `verification_source`），重新注入事件并验证。
+**Loki 写满了**：7 天保留由 `limits_config.retention_period` 与 compactor 控制。
+先看 `df -hT /` 与 `docker exec knowtrace-loki-1 du -sh /loki`，
+不要直接删 `/var/lib/docker/volumes/knowtrace_loki_data`（那是数据卷，不是缓存）。
 
 ## 验收命令
 
 ```bash
 python3 scripts/linux/verify-observability.py --core
+python3 scripts/linux/verify-observability.py --logs
 curl -sS http://127.0.0.1:9090/api/v1/targets
 curl -sS http://127.0.0.1:9090/api/v1/rules
 curl -sS http://127.0.0.1:9093/api/v2/status
 ```
+
+`--core` 与 `--logs` 是**两段独立的验收**，`deploy-observability.sh` 会依次跑完。
+`--logs` 断言的是"投递一条 → 能查回"的整条链路，不只是容器在跑。
 
 完成定义：
 
 - 主应用私有 metrics 为 200，Nginx/公网 metrics 为 404；
 - Prometheus 至少 12 个 active targets 全部 UP；
 - 核心 PromQL 有样本，备份新鲜度指标存在；
-- Grafana 数据源和 dashboard 通过 API 证实已 provisioning；
+- Grafana 数据源和 dashboard 通过 API 证实已 provisioning（含 **Loki 数据源**）；
 - Prometheus 发现 active Alertmanager；
 - 故障演练经历正常、firing、送达、恢复、清除；
-- ELK 验证事件从 Logstash 写入 Elasticsearch并可检索，Kibana data view 存在；
+- **Loki 里查得到真实容器日志**，且验证事件能"投递→查回"（`--logs` 全 PASS）；
 - 外部邮件必须另有实际收件证据。
 
 ## 告警 Runbook
@@ -245,7 +311,12 @@ curl -sS http://127.0.0.1:9093/api/v2/status
 
 ### Host capacity
 
-保存 `uptime`、`free -h`、`vmstat 1 10`、`df -hT /`、`docker stats --no-stream`。若 ELK 正在运行，优先停止按需 ELK并保留卷；不要盲目清缓存或杀数据库。
+保存 `uptime`、`free -h`、`vmstat 1 10`、`df -hT /`、`docker stats --no-stream`。
+先按占用从大到小看 `docker stats`，不要盲目清缓存或杀数据库。
+
+日志栈（Loki/Alloy）现在是常驻的，合计约 140 MiB —— 内存吃紧时它**不是**
+首要嫌疑；先看应用与数据库。真要临时让出内存，停 Loki 会让日志断流（不是数据丢失），
+这是有代价的动作，别当成常规手段。
 
 ### Backup freshness
 
