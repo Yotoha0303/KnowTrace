@@ -13,6 +13,8 @@
     cmd: sshd -T
   register: hardening_sshd_effective
   changed_when: false
+  # 只读，--check 下也要真跑（否则断言拿不到值）
+  check_mode: false
 
 - name: 校验端口一致
   ansible.builtin.assert:
@@ -76,11 +78,18 @@
     cmd: sshd -T
   register: hardening_sshd_after
   changed_when: false
+  check_mode: false
 
 - name: 断言加固项全部生效
   # 为什么断言而不是"改了就算数"：上面那条 00-/50- 的坑，
   # 只有读**实际生效值**才能发现。改了文件不等于改了行为 ——
   # sshd -T 会如实显示 cloud-init 那份的 yes。
+  #
+  # when: not ansible_check_mode —— 这条断言的是**改动之后**的状态，
+  # 预演时 drop-in 还没落盘，跑了必然是假失败。
+  # 规则：读**运行态**的断言分两类 ——
+  #   前置条件（当前状态就该如此）→ 无条件跑；
+  #   后置条件（改完应当如此）  → 用 not ansible_check_mode 门控。
   ansible.builtin.assert:
     that:
       - "'passwordauthentication no' in hardening_sshd_after.stdout"
@@ -92,6 +101,7 @@
       sshd 加固项未全部生效。注意检查是否有**排序更靠前**的 drop-in 覆盖了它
       （sshd 同参数首个值生效）。当前生效值见 `sshd -T`。
     success_msg: "sshd 五项加固全部生效"
+  when: not ansible_check_mode
 
 - name: 重载 sshd
   # reload 而非 restart：不影响既有连接，当前会话可作逃生通道。
@@ -143,6 +153,7 @@
   loop: "{{ sysctl_settings | dict2items }}"
   register: hardening_sysctl_check
   changed_when: false
+  check_mode: false
 
 - name: 校验内核参数取值
   ansible.builtin.assert:
@@ -154,3 +165,5 @@
   loop: "{{ hardening_sysctl_check.results }}"
   loop_control:
     label: "{{ item.item.key }}"
+  # 后置条件：预演时 sysctl 还没应用，跑了必然假失败
+  when: not ansible_check_mode

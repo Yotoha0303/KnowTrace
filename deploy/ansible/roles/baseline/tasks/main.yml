@@ -26,6 +26,10 @@
     cmd: docker info --format {% raw %}'{{.ServerVersion}}'{% endraw %}
   register: baseline_docker_version
   changed_when: false
+  # check_mode: false —— 只读命令在 --check 下也要真跑，
+  # 否则下面的断言拿不到值，预演会报一堆"未定义变量"的假失败。
+  # 规则：**断言用的读取一律 check_mode: false，会改状态的保持默认**。
+  check_mode: false
 
 - name: 记录 docker 版本
   ansible.builtin.debug:

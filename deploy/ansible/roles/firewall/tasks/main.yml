@@ -65,10 +65,13 @@
     cmd: ufw status
   register: firewall_status
   changed_when: false
+  check_mode: false
 
 - name: 断言放行清单正确
   # 「改完看着像成功」的防线：直接检查实际规则文本。
   # 期望恰好 80 / 443 / ssh_port 三条，且过期端口不在其中。
+  #
+  # when: not ansible_check_mode —— 后置条件：预演时规则还没落，跑了必然假失败
   ansible.builtin.assert:
     that:
       - "(' ' + ssh_port + '/tcp') in firewall_status.stdout"
@@ -79,6 +82,7 @@
       UFW 放行清单与预期不符。期望：80/443/{{ ssh_port }}，
       且不含 {{ ufw_stale_tcp | join('/') }}。实际见 `ufw status`。
     success_msg: "UFW 放行清单正确"
+  when: not ansible_check_mode
 
 - name: 记录 UFW 状态
   ansible.builtin.debug:

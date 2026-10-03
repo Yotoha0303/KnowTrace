@@ -52,6 +52,7 @@
     cmd: fail2ban-client status sshd
   register: fail2ban_status
   changed_when: false
+  check_mode: false
   retries: 5
   delay: 3
   until: fail2ban_status.rc == 0
