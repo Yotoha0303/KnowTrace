@@ -3,6 +3,9 @@
 set -Eeuo pipefail
 umask 077
 
+# 本脚本所在目录 —— 末尾要调用同目录的 write-backup-metrics.sh。
+script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
 PROJECT_DIR="${PROJECT_DIR:-/opt/knowtrace}"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/knowtrace}"
 QUIESCE_WRITES="${QUIESCE_WRITES:-1}"
@@ -290,6 +293,22 @@ mv "$incomplete_dir" "$final_dir"
 tar --create --gzip --file "$archive_path" --directory "$BACKUP_ROOT" "$backup_id"
 (cd "$BACKUP_ROOT" && sha256sum "$(basename "$archive_path")" >"$(basename "$archive_path").sha256")
 chmod 600 "$archive_path" "$archive_path.sha256"
+
+# 刷新备份指标。
+#
+# 为什么必须在这里刷新：systemd 单元的 ExecStartPost 只在**定时触发**时跑，
+# 而运维手册教人**手工**跑 backup-all.sh。手工路径不刷新的话，
+# knowtrace_backup_archive_count 会停在旧值 —— 实测踩到：备份已成功落盘、
+# 校验通过，指标却仍是 0，于是 KnowTraceBackupMissing / BackupStale
+# 继续 firing，而人已经"做完了备份"。误报会训练人忽略告警。
+#
+# 与 ExecStartPost 重复执行是无害的：write-backup-metrics.sh 只做只读扫描 +
+# 原子覆盖，幂等且极便宜。
+#
+# 非致命：指标写失败不该让一次**已经成功**的备份被判为失败（与单元里
+# ExecStartPost 前的 `-` 同一思路）。
+"$script_directory/write-backup-metrics.sh" >/dev/null 2>&1 \
+  || log "WARNING: 备份指标刷新失败（不影响备份本身，可手工跑 write-backup-metrics.sh 补）"
 
 trap - EXIT
 log "备份完成: $archive_path"
