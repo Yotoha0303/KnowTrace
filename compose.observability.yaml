@@ -122,6 +122,9 @@ services:
     depends_on:
       prometheus:
         condition: service_healthy
+      # Loki 只是另一个数据源，未就绪不该拦住 Grafana 启动
+      loki:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
       interval: 10s
@@ -132,108 +135,61 @@ services:
     mem_limit: 384m
     logging: *observability-logging
 
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.21
-    profiles: ["elk"]
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      xpack.security.enrollment.enabled: "false"
-      xpack.ml.enabled: "false"
-      ES_JAVA_OPTS: -Xms384m -Xmx384m
+  # ── 日志：Loki（替代 Elasticsearch）─────────────────────────────────
+  # 为什么换：ELK 内存上限合计 700m(ES)+512m(Logstash)+768m(Kibana) ≈ 2 GB，
+  # 在 1.8 GB 的机器上必须按需启停。Loki 无 JVM，内存需求低一个数量级，
+  # 故与 Prometheus/Grafana 同等待遇：常驻、不设 profile。
+  loki:
+    image: docker.io/grafana/loki:3.7.8
+    command: ["-config.file=/etc/loki/loki-config.yml"]
     ports:
-      - "127.0.0.1:${ELASTICSEARCH_PORT:-9200}:9200"
+      # 只绑回环：供 verify 脚本从宿主机探 /ready，不对外
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
     volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 30
-      start_period: 60s
-    restart: "no"
-    stop_grace_period: 60s
-    mem_limit: 700m
-    logging: *observability-logging
-    networks:
-      - logging-internal
-      - logging-management
-
-  logstash:
-    image: docker.elastic.co/logstash/logstash:8.19.21
-    profiles: ["elk"]
-    user: "0:0"
-    environment:
-      LS_JAVA_OPTS: -Xms192m -Xmx192m
-    ports:
-      - "127.0.0.1:${LOGSTASH_TCP_PORT:-5000}:5000"
-    volumes:
-      - ./deploy/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
-      - ./deploy/logstash/pipeline:/usr/share/logstash/pipeline:ro
-      - logstash_data:/usr/share/logstash/data
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/log/caddy:/var/log/caddy:ro
-      - /var/log/nginx:/var/log/nginx:ro
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9600/_node/pipelines >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 30
-      start_period: 60s
-    restart: "no"
-    stop_grace_period: 60s
+      - ./deploy/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    # 刻意不写 healthcheck：Loki 官方镜像的 base 未实测（重装的机器上暂无 docker），
+    # 若镜像里没有 wget/curl，健康检查会永远失败 → depends_on: service_healthy
+    # 会卡死整个监控栈。这个失败模式比"不检查"更糟。
+    # 改为 service_started + 在 verify 脚本里断言 /ready 与一次真实 LogQL 查询。
+    restart: unless-stopped
     mem_limit: 512m
     logging: *observability-logging
-    networks:
-      - logging-internal
-      - logging-management
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.19.21
-    profiles: ["elk"]
-    environment:
-      SERVER_HOST: 0.0.0.0
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-      XPACK_SECURITY_ENABLED: "false"
-      TELEMETRY_ENABLED: "false"
-      NODE_OPTIONS: --max-old-space-size=512
-    ports:
-      - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
+  # ── 采集：Alloy（替代 Logstash）────────────────────────────────────
+  # 选 Alloy 而非 Promtail：实测 Promtail 最后发布 2026-05-13（已 3 个月无更新），
+  # Alloy v1.20.1 为 2026-09-28 —— 官方推荐方向已明确。
+  alloy:
+    image: docker.io/grafana/alloy:v1.20.1
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
     volumes:
-      - kibana_data:/usr/share/kibana/data
+      - ./deploy/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # 采集来源与原先 Logstash 的 pipeline 一一对应（见 config.alloy 顶部对照表）
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log/caddy:/var/log/caddy:ro
+      - /var/log/nginx:/var/log/nginx:ro
+      - alloy_data:/var/lib/alloy/data
     depends_on:
-      elasticsearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5601/api/status >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 40
-      start_period: 90s
-    restart: "no"
-    stop_grace_period: 60s
-    mem_limit: 768m
+      loki:
+        condition: service_started
+    restart: unless-stopped
+    mem_limit: 256m
     logging: *observability-logging
-    networks:
-      - logging-internal
-      - logging-management
+
 
 volumes:
   prometheus_data:
   grafana_data:
   alertmanager_data:
-  elasticsearch_data:
-  logstash_data:
-  kibana_data:
+  loki_data:
+  alloy_data:
 
-networks:
-  logging-internal:
-    internal: true
-  # Docker Engine 29 does not realize published ports for containers that are
-  # attached only to an internal network. This bridge exists solely for the
-  # loopback-bound ELK management ports above.
-  logging-management:
-    driver: bridge
+# 原先这里有两个网络（logging-internal / logging-management），**专为 ELK 存在**：
+# 实测 ELK 三个服务是唯一声明自定义网络的服务，其余（app/prometheus/grafana/
+# alertmanager/exporter）都在默认网络。ELK 删除后它们没有使用者，故一并删除 ——
+# Loki 与 Alloy 直接进默认网络，与 Grafana 天然互通（数据源用 http://loki:3100）。

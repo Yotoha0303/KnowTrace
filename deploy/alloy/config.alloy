@@ -1,0 +1,85 @@
+// Alloy 采集配置 —— 2026-10-03 替代 Logstash
+//
+// 采集来源与原先 Logstash 的 pipeline **一一对应**（防止换栈时漏掉某一路）：
+//   Logstash input                      → Alloy 组件
+//   ─────────────────────────────────────────────────────────────
+//   /var/log/caddy/knowtrace-access.log → loki.source.file "caddy"
+//   /var/log/nginx/knowtrace.access.log → loki.source.file "nginx"
+//   /var/log/nginx/knowtrace.error.log  → 同上（同一 glob）
+//   /var/lib/docker/containers/*/*.log  → loki.source.docker "containers"
+//   TCP :5000（供外部投递）              → loki.source.api（原样保留）
+//
+// ⚠️ 最容易漏的是**容器日志**那一路：ELK 原来收全部容器日志，
+//    漏掉后表现为"容器起来了、Grafana 里日志是空的"。
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+// ── 宿主机文件日志：Caddy ────────────────────────────────────────────
+loki.source.file "caddy" {
+  targets = [{
+    __path__ = "/var/log/caddy/*.log",
+    job      = "caddy",
+  }]
+  forward_to = [loki.write.local.receiver]
+}
+
+// ── 宿主机文件日志：Nginx（access + error 同 glob）──────────────────
+loki.source.file "nginx" {
+  targets = [{
+    __path__ = "/var/log/nginx/knowtrace.*.log",
+    job      = "nginx",
+  }]
+  forward_to = [loki.write.local.receiver]
+}
+
+// ── 容器日志：与 Logstash 的 /var/lib/docker/containers 等价 ────────
+// 用 docker 服务发现而非文件 glob —— 这样每条日志自带 container_name / compose
+// 服务名等标签，Grafana 里可以直接按容器筛，比解析 json-file 路径可靠。
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.local.receiver]
+}
+
+// ── 外部投递入口（原 Logstash 的 tcp :5000）────────────────────────
+// 保留这个入口是为了不改变既有调用方（脚本/外部程序把 JSON 行推进来）。
+loki.source.api "push" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 5000
+  }
+  forward_to = [loki.write.local.receiver]
+  labels     = { job = "external" }
+}
+
+// ── 出口 ────────────────────────────────────────────────────────────
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -1,0 +1,20 @@
+# Loki 数据源 —— 2026-10-03 新增（随 ELK → PLG 切换）
+#
+# 与 prometheus.yml 同级、同 apiVersion；Grafana 启动时按目录自动加载。
+# url 用服务名 loki：两者都在默认网络（compose 未声明自定义网络即用默认），
+# 所以容器名直连可解析。
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      # 让 Grafana 能从日志里的 trace_id/span_id 关联到 Tempo/Jaeger（当前未部署，
+      # 留着不影响；将来接入分布式追踪时省一次改动）
+      maxLines: 1000
+      # 与 loki-config.yml 的 retention_period（168h）对齐，避免看板里拖到没有数据的区间
+      timeInterval: 1m
