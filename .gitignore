@@ -24,3 +24,9 @@ runtime/
 
 # 运维工具包（scripts/ops）的运行配置：含内网地址、端口与账号名，不能入库
 ops.conf
+
+# 运维脚本的报告产物。权威位置是 /var/lib/knowtrace/reports（systemd 单元用
+# --json 显式指定）；但在仓库检出里**交互式**跑脚本时，ops-common.sh 会回落到
+# 工具包内的 reports/ —— 那会弄脏工作区，而"工作区干净"是部署验收的一项
+# （见 docs/日常运维/部署清单与验收.md 第 5.1 条）。属产物，不入库。
+scripts/ops/reports/
