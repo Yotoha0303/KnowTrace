@@ -407,27 +407,38 @@ def _resolve_containers(conf, explicit: str) -> tuple[list[str], str]:
         return configured, "ops.conf LOG_CONTAINERS"
 
     services = conf.get_list("EXPECTED_SERVICES", ["app", "auth", "postgres", "auth-mysql", "auth-redis"])
+    project_dir = conf.get("PROJECT_DIR", "/opt/knowtrace")
+    compose_file = str(Path(project_dir) / "compose.yaml")
     names: list[str] = []
     seen: set[str] = set()
     for service in services:
-        # 容器名形如 knowtrace-app-1。
-        # ⚠ Docker 的 name 过滤器是正则匹配而不是精确匹配：用 `name=^knowtrace-auth-`
-        #   会把 auth、auth-mysql、auth-redis 全部匹配上，导致同一个容器被分析多次
-        #   （统计翻倍）。因此这里用带 $ 锚点的正则，并对结果去重。
+        # 容器名形如 knowtrace-workflow-app-1 —— **前缀不要写死**。
+        # 2026-10-03 实测踩到：原实现写的是 `name=^/knowtrace-{service}-[0-9]+$`，
+        # 仓库更名为 KnowTrace-Workflow、容器名随之变化后一个都匹配不上，
+        # 而回退值又是硬编码的 `knowtrace-{service}-1`（同样错），
+        # 于是日志分析**静默地不看任何容器** —— 报告照出，结论照写。
+        # 改为先问 compose 要容器，与项目名解耦。
+        #
+        # ⚠ 若将来仍要用 docker 的 name 过滤器：它是**正则**匹配而非精确匹配，
+        #   `name=^knowtrace-auth-` 会把 auth、auth-mysql、auth-redis 全匹配上，
+        #   导致同一容器被分析多次（统计翻倍）。所以下面仍做去重。
         result = run_readonly(
-            [
-                "docker", "ps",
-                "--filter", f"name=^/knowtrace-{re.escape(service)}-[0-9]+$",
-                "--format", "{{.Names}}",
-            ],
+            ["docker", "compose", "--project-directory", project_dir,
+             "-f", compose_file, "ps", "-q", service],
             timeout=20.0,
         )
-        resolved = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        for name in resolved or [f"knowtrace-{service}-1"]:
-            if name not in seen:
-                seen.add(name)
-                names.append(name)
-    return names, "ops.conf EXPECTED_SERVICES（按 docker ps 解析实际容器名，已去重）"
+        for cid in (line.strip() for line in result.stdout.splitlines()):
+            if not cid:
+                continue
+            inspected = run_readonly(
+                ["docker", "inspect", "--format", "{{.Name}}", cid], timeout=10.0
+            )
+            for line in inspected.stdout.splitlines():
+                name = line.strip().lstrip("/")
+                if name and name not in seen:
+                    seen.add(name)
+                    names.append(name)
+    return names, "ops.conf EXPECTED_SERVICES（按 compose 解析实际容器名，已去重）"
 
 
 def main(argv: list[str] | None = None) -> int:

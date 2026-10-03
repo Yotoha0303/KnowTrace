@@ -286,6 +286,56 @@ ops_conf_list() {
     return 0
 }
 
+# ----------------------------------------------------------------------------
+# 容器名解析 —— 不要写死前缀
+# ----------------------------------------------------------------------------
+# 历史教训（2026-10-03）：这些脚本原先用 `grep -Eq "^knowtrace-${service}-[0-9]+$"`
+# 判断容器在不在。仓库更名为 KnowTrace-Workflow 后，容器名变成
+# `knowtrace-workflow-app-1`，正则匹配不上 —— 于是**巡检把在跑的容器报成"缺少"**，
+# 得出一份看起来煞有介事的 FAIL 报告。这正是本仓库最贵的那类故障：
+# **检查器悄悄失效，而不是被检查的东西坏了**。
+#
+# 现在改为**按服务名问 compose 要容器**（`docker compose ps -q <service>`），
+# 与项目名/容器名解耦：改名、换项目名、多项目并存都不受影响。
+#
+# 仅在 compose 不可用时，才回退到按前缀匹配容器名（前缀可用
+# CONTAINER_PREFIX 配置，默认推导为「部署目录名的小写」，即 /opt/knowtrace-workflow
+# → knowtrace-workflow-）。
+
+# 输出某服务的容器名（优先 compose，其次前缀匹配）；找不到则无输出、返回 1
+ops_container_for_service() {
+    local service="$1" cid name
+    ops_have_cmd docker || return 1
+    if [[ -f "${PROJECT_DIR:-}/compose.yaml" ]]; then
+        cid="$(docker compose --project-directory "${PROJECT_DIR:-.}" \
+                -f "${PROJECT_DIR:-.}/compose.yaml" ps -q "$service" 2>/dev/null | head -n1)"
+        if [[ -n "$cid" ]]; then
+            name="$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's#^/##')"
+            [[ -n "$name" ]] && { printf '%s' "$name"; return 0; }
+        fi
+    fi
+    # 回退：按前缀匹配。前缀默认从部署目录名推导（/opt/knowtrace-workflow -> knowtrace-workflow-）
+    local prefix
+    prefix="$(ops_conf_get CONTAINER_PREFIX "")"
+    if [[ -z "$prefix" ]]; then
+        prefix="$(basename "${PROJECT_DIR:-knowtrace}" | tr '[:upper:]' '[:lower:]')-"
+    fi
+    name="$(docker ps --format '{{.Names}}' 2>/dev/null \
+            | grep -E "^${prefix}${service}-[0-9]+$" | head -n1)"
+    [[ -n "$name" ]] && { printf '%s' "$name"; return 0; }
+    return 1
+}
+
+# 所有运行中的容器名，一行一个
+ops_running_container_names() {
+    docker ps --format '{{.Names}}' 2>/dev/null || printf ''
+}
+
+# 判断某服务是否有容器在跑（0=在跑）
+ops_service_running() {
+    ops_container_for_service "$1" >/dev/null 2>&1
+}
+
 # 读取整数配置，非法值回退到兜底值
 ops_conf_int() {
     local key="$1" fallback="$2" value

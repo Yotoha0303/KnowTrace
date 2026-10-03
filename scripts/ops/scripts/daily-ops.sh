@@ -255,7 +255,7 @@ else
 
     expected_missing=""
     for service in $(ops_conf_list EXPECTED_SERVICES "app auth postgres auth-mysql auth-redis"); do
-        printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$" \
+        ops_service_running "$service" \
             || expected_missing="${expected_missing}${service} "
     done
     if [[ -z "$expected_missing" ]]; then
@@ -266,7 +266,7 @@ else
 
     optional_missing=""
     for service in $(ops_conf_list OPTIONAL_SERVICES "prometheus grafana alertmanager blackbox-exporter node-exporter"); do
-        printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$" \
+        ops_service_running "$service" \
             || optional_missing="${optional_missing}${service} "
     done
     if [[ -z "$optional_missing" ]]; then
@@ -285,7 +285,7 @@ else
     # Loki/Alloy 是常驻组件（不像 ELK 需按需启停），运行本身只记事实
     plg_running=""
     for service in loki alloy; do
-        printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$" \
+        ops_service_running "$service" \
             && plg_running="${plg_running}${service} "
     done
     if [[ -n "${plg_running// /}" ]]; then

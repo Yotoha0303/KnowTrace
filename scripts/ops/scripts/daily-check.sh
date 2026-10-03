@@ -348,7 +348,7 @@ if (( have_docker == 1 )); then
     # 期望存在的容器（服务名 -> 容器名前缀 knowtrace-<service>-1）
     expected_missing=""
     for service in $(ops_conf_list EXPECTED_SERVICES "app auth postgres auth-mysql auth-redis"); do
-        if ! printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$"; then
+        if ! ops_service_running "$service"; then
             expected_missing="${expected_missing}${service} "
         fi
     done
@@ -361,7 +361,7 @@ if (( have_docker == 1 )); then
     # 监控组件是可选常驻的，缺失记为 WARN 而不是 FAIL
     optional_missing=""
     for service in $(ops_conf_list OPTIONAL_SERVICES "prometheus grafana alertmanager blackbox-exporter node-exporter"); do
-        if ! printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$"; then
+        if ! ops_service_running "$service"; then
             optional_missing="${optional_missing}${service} "
         fi
     done
@@ -373,7 +373,7 @@ if (( have_docker == 1 )); then
 
     plg_running=""
     for service in loki alloy; do
-        printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$" \
+        ops_service_running "$service" \
             && plg_running="${plg_running}${service} "
     done
     if [[ -n "$plg_running" ]]; then

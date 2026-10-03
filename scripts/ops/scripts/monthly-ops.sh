@@ -407,7 +407,7 @@ plg_running=""
 if (( have_docker == 1 )); then
     running_names="$(docker ps --format '{{.Names}}' 2>/dev/null || printf '')"
     for service in loki alloy; do
-        printf '%s\n' "$running_names" | grep -Eq "^knowtrace-${service}-[0-9]+$" \
+        ops_service_running "$service" \
             && plg_running="${plg_running}${service} "
     done
 fi

@@ -129,9 +129,12 @@ ops_monitor_check() {
 
     # 告警出口是否还在：AM 容器不在，告警就没有去处
     if ops_have_cmd docker; then
-        if docker ps --format '{{.Names}}' 2>/dev/null | grep -Eq '^knowtrace-alertmanager-[0-9]+$'; then
+        local am_container
+        # 按服务名解析容器，不写死容器名前缀 —— 否则仓库/项目改名后这里会
+        # 把"在跑的 Alertmanager"报成"未运行、告警链路已断"（2026-10-03 实际发生过）
+        if am_container="$(ops_container_for_service alertmanager)"; then
             local am_last
-            am_last="$(docker logs --tail 1 "$(docker ps --format '{{.Names}}' | grep -E '^knowtrace-alertmanager-[0-9]+$' | head -n 1)" 2>&1 | head -n 1 || printf '')"
+            am_last="$(docker logs --tail 1 "$am_container" 2>&1 | head -n 1 || printf '')"
             # 长时间没有新日志 = 可能没有告警在流转，也可能是链路断了，因此只记事实
             ops_info "mon.alertmanager-log" "Alertmanager 最后一行日志: ${am_last:0:140}"
         else
