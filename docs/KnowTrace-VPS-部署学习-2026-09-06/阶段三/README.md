@@ -5,9 +5,9 @@
 > 因此本文的「ELK 按需操作」「Kibana / 5601」「elk.sh」等**均已不存在，不要照做**。
 >
 > **现行入口**：
-> - 日志栈与告警的完整口径 → [`../../../16-stage3-observability.md`](../../../16-stage3-observability.md)
-> - 日常可执行步骤 → [`../../../日常运维/运维手册.md`](../../../日常运维/运维手册.md)
-> - 换栈的完整记录 → [`../../../changes/2026-10-03-ELK换PLG与deploy重构及Ansible引入.md`](../../../changes/2026-10-03-ELK换PLG与deploy重构及Ansible引入.md)
+> - 日志栈与告警的完整口径 → [`../../16-stage3-observability.md`](../../16-stage3-observability.md)
+> - 日常可执行步骤 → [`../../日常运维/运维手册.md`](../../日常运维/运维手册.md)
+> - 换栈的完整记录 → [`../../changes/2026-10-03-ELK换PLG与deploy重构及Ansible引入.md`](../../changes/2026-10-03-ELK换PLG与deploy重构及Ansible引入.md)
 
 ## 阶段结果（2026-09-09 快照，**当时**的事实）
 
@@ -95,7 +95,7 @@ scripts/linux/elk.sh stop
 
 **现行做法**：Loki + Alloy 常驻，在 Grafana 里用 LogQL 查。
 四路采集（容器 / Caddy / Nginx / 外部投递）都要有流；具体命令见
-[`../../../16-stage3-observability.md`](../../../16-stage3-observability.md) 的「日志栈（PLG）与查询」。
+[`../../16-stage3-observability.md`](../../16-stage3-observability.md) 的「日志栈（PLG）与查询」。
 
 禁止使用 `docker compose down --volumes`。
 

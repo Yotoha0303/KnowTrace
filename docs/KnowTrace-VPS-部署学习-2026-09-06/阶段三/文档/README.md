@@ -31,7 +31,7 @@
   > 但 **2026-10-02 的系统重装把配置一并抹掉**（`ALERT_EMAIL_ENABLED` 回到 `false`、
   > SMARTHOST 回到 `smtp.example.com:587` 占位值）。2026-10-03 才重新接上。
   > **教训：服务器上的运行时配置不在 Git 里，重装即丢失** —— 这正是 `deploy/ansible/` 存在的理由。
-  > 见 [`../../../../changes/2026-10-03-P4-Ansible宿主机阶段与P5文档收尾.md`](../../../../changes/2026-10-03-P4-Ansible宿主机阶段与P5文档收尾.md)。
+  > 见 [`../../../changes/2026-10-03-P4-Ansible宿主机阶段与P5文档收尾.md`](../../../changes/2026-10-03-P4-Ansible宿主机阶段与P5文档收尾.md)。
 
 ## 证据入口
 
