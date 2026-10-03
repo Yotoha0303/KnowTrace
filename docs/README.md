@@ -22,7 +22,9 @@
 - **想接 `/api/v1` 写客户端** → [`12-mobile-api.md`](12-mobile-api.md)（认证、Workspace 上下文、端点与错误码都在这里）
 - **想知道现在有什么是坏的** → [`19-product-defect-inventory.md`](19-product-defect-inventory.md)
 - **要动代码/配置** → 先按 [`changes/README.md`](changes/README.md) 的约定在 `changes/` 写变动前记录
-- **要上服务器** → [`11-operations.md`](11-operations.md)，以及仓库外的运维工作区 `KnowTrace-ops/notes/04-文档索引与任务.md`
+- **要上服务器**（日常最常用） → [`日常运维/运维手册.md`](日常运维/运维手册.md) ——
+  连接、巡检、日志、备份恢复、部署、故障排查、加固，命令都实测过。
+  产品侧的运行说明见 [`11-operations.md`](11-operations.md)；运维工作区在仓库外 `KnowTrace-ops/notes/04-文档索引与任务.md`
 - **想做架构决策** → [`adr/README.md`](adr/README.md)
 - **要接手这个项目（团队）** → [`22-团队视角-接手与协作.md`](22-团队视角-接手与协作.md)
 - **只是想用它（使用者）** → [`23-用户视角-使用与信任边界.md`](23-用户视角-使用与信任边界.md)

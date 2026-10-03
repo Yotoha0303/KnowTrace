@@ -1,5 +1,13 @@
 # ISSUE-S3-004：Docker 29 仅 internal 网络时不发布端口
 
+> ⚠️ **已过期（2026-10-03 起）：本文涉及的 ELK 栈已被 PLG（Alloy + Loki）替换并删除。**
+> 本文保留为**历史证据 / 可迁移教训**。其中的 ELK 操作步骤、端口 9200/5601、
+> `scripts/linux/elk.sh`、`deploy/logstash/` 与两个 `logging-*` 网络**均已不存在**，
+> **不要照着执行**。现行口径见 `docs/16-stage3-observability.md`
+> 与 `docs/日常运维/运维手册.md`；换栈记录见
+> `docs/changes/2026-10-03-ELK换PLG与deploy重构及Ansible引入.md`。
+
+
 - 环境：Docker Engine 29.1.3、Docker Compose 2.40.3。
 - 状态：已关闭。
 - 修复 commit：`500d179`。
