@@ -17,21 +17,42 @@ logging {
   format = "logfmt"
 }
 
-// ── 宿主机文件日志：Caddy ────────────────────────────────────────────
-loki.source.file "caddy" {
-  targets = [{
+// ── 宿主机文件日志：Caddy 与 Nginx ─────────────────────────────────
+//
+// ⚠️ 必须先用 local.file_match 做**文件发现**，再交给 loki.source.file tail。
+//    另：`alloy fmt` **只查语法、不查组件属性名** —— 实测 fmt 通过但启动时
+//    报 unrecognized attribute；真正的校验是启动后读日志。
+//    2026-10-03 实测踩到：`loki.source.file` **不做 glob 展开** ——
+//    直接写 `__path__ = "/var/log/caddy/*.log"` 时，Alloy 会把 `*` 当普通字符去 stat：
+//        stat /var/log/caddy/*.log: no such file or directory
+//    而文件其实存在（容器内 ls 可见）。表现为 Caddy/Nginx 日志一条都进不来，
+//    但容器日志那一路正常 —— 很容易误以为"日志栈是好的"。
+local.file_match "caddy" {
+  path_targets = [{
     __path__ = "/var/log/caddy/*.log",
     job      = "caddy",
   }]
-  forward_to = [loki.write.local.receiver]
+  // 重新执行 glob 的间隔。新机器上日志文件可能晚于 Alloy 出现
+  //（实测 Caddy 日志 09:03 才生成，而 Alloy 09:01 启动），
+  // 靠它会话轮询发现新文件，而不是启动时放弃。
+  sync_period = "10s"
 }
 
-// ── 宿主机文件日志：Nginx（access + error 同 glob）──────────────────
-loki.source.file "nginx" {
-  targets = [{
+local.file_match "nginx" {
+  path_targets = [{
     __path__ = "/var/log/nginx/knowtrace.*.log",
     job      = "nginx",
   }]
+  sync_period = "10s"
+}
+
+loki.source.file "caddy" {
+  targets    = local.file_match.caddy.targets
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.source.file "nginx" {
+  targets    = local.file_match.nginx.targets
   forward_to = [loki.write.local.receiver]
 }
 
