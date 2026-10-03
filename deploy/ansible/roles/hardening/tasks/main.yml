@@ -96,7 +96,15 @@
   ansible.builtin.assert:
     that:
       - "'passwordauthentication no' in hardening_sshd_after.stdout"
-      - "'permitrootlogin prohibit-password' in hardening_sshd_after.stdout"
+      # ⚠️ `permitrootlogin` 断言必须接受**两种拼写**。
+      #    实测（2026-10-03）：配置里写 `prohibit-password`，但 `sshd -T` 会把它
+      #    归一化成同义词 `without-password` 输出 —— 两者在 sshd 里完全等价，
+      #    `without-password` 是旧名。只认一种拼写会导致**配置正确却报失败**，
+      #    方向恰好与"部署看着成功"相反：绿灯被当成红灯。
+      #    教训：断言一个"规范化输出"时，必须先看它实际印什么，不能照抄配置文件的写法。
+      - >-
+        ('permitrootlogin prohibit-password' in hardening_sshd_after.stdout)
+        or ('permitrootlogin without-password' in hardening_sshd_after.stdout)
       - "'maxauthtries 3' in hardening_sshd_after.stdout"
       - "'kbdinteractiveauthentication no' in hardening_sshd_after.stdout"
       - "'pubkeyauthentication yes' in hardening_sshd_after.stdout"
